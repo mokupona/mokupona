@@ -1,6 +1,12 @@
 import "dotenv/config";
 
+import { randomBytes } from "node:crypto";
+
+import { createUserViaAuth } from "~/features/auth/create-user.server";
+import { ROLE_NAMES } from "~/features/auth/roles";
+import { ensureRoles } from "~/models/role.server";
 import {
+  getUserByEmail,
   grantAdminRoleByEmail,
   listAdmins,
   revokeAdminRoleByEmail,
@@ -10,9 +16,12 @@ const USAGE = `Manage website administrators.
 
 Usage:
   npx tsx scripts/admins.ts list
+  npx tsx scripts/admins.ts create <email> ["Full Name"]
   npx tsx scripts/admins.ts grant <email>
   npx tsx scripts/admins.ts revoke <email> [--to moderator|user]
 
+create  makes a new admin account with a one-time password, creating the
+        roles first if the database is empty (e.g. a fresh staging environment)
 grant   promotes an existing account to admin (the person must sign up first)
 revoke  demotes an admin, to moderator unless --to says otherwise; the last
         remaining admin cannot be revoked`;
@@ -36,6 +45,28 @@ async function list() {
     const since = admin.createdAt.toISOString().slice(0, 10);
     console.log(`- ${admin.email} (${admin.name}, account since ${since})`);
   }
+}
+
+async function create(email: string, name: string) {
+  if (!email.includes("@")) fail(USAGE);
+
+  await ensureRoles(ROLE_NAMES);
+
+  if (await getUserByEmail(email)) {
+    fail(`${email} already has an account. Use "grant" to make it an admin.`);
+  }
+
+  const password = randomBytes(18).toString("base64url");
+  await createUserViaAuth({
+    email,
+    password,
+    name,
+    roleName: "admin",
+    emailVerified: true,
+  });
+
+  console.log(`Created administrator ${email}.`);
+  console.log(`Password (shown once, change it on /me): ${password}`);
 }
 
 async function grant(email: string) {
@@ -79,6 +110,9 @@ async function main() {
   switch (command) {
     case "list":
       return list();
+    case "create":
+      if (!email) fail(USAGE);
+      return create(email, rest[0] ?? "Admin");
     case "grant":
       if (!email) fail(USAGE);
       return grant(email);

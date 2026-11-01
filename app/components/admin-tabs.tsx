@@ -16,6 +16,7 @@ const TABS = [
   { to: "/admin/board-members", label: "board", countKey: "board" },
   { to: "/admin/users", label: "users", countKey: "users", adminOnly: true },
   { to: "/admin/settings", label: "settings", adminOnly: true },
+  { to: "/admin/sync", label: "sync", adminOnly: true },
 ] as const;
 
 export function AdminTabs({

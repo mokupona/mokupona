@@ -5,6 +5,8 @@ import invariant from "tiny-invariant";
 import { fetchBlurDataUrl } from "../blur-placeholder.server";
 import type { ImageStorageProvider } from "../types";
 
+import { requestLogger } from "~/logger/request-context.server";
+
 function uploadStream(
   buffer: Buffer,
   options: UploadApiOptions,
@@ -62,9 +64,46 @@ export function createCloudinaryProvider(
       };
     },
     async destroy(storageKey) {
+      const folder = await assetFolderOf(storageKey);
+      if (folder === null) return; // already gone
+
+      // Every environment shares one cloud, and a staging copy of the live
+      // data points at the live site's assets. Destroy only what this
+      // environment uploaded: anything outside its own prefix is left alone.
+      if (!isInsidePrefix(folder, folderPrefix)) {
+        requestLogger.info(
+          { storageKey, assetFolder: folder, folderPrefix },
+          "Kept a Cloudinary asset owned by another environment",
+        );
+        return;
+      }
+
       await cloudinary.uploader.destroy(storageKey, { invalidate: true });
     },
   };
+}
+
+function isInsidePrefix(folder: string, prefix: string) {
+  return folder === prefix || folder.startsWith(`${prefix}/`);
+}
+
+/** The asset's folder, or null when Cloudinary no longer has it. */
+async function assetFolderOf(storageKey: string): Promise<string | null> {
+  try {
+    const resource = (await cloudinary.api.resource(storageKey, {
+      resource_type: "image",
+    })) as { asset_folder?: string; folder?: string };
+    return resource.asset_folder ?? resource.folder ?? "";
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    throw error;
+  }
+}
+
+function isNotFound(error: unknown) {
+  const httpCode = (error as { error?: { http_code?: number } } | null)?.error
+    ?.http_code;
+  return httpCode === 404;
 }
 
 export async function uploadStaticAsset(

@@ -9,8 +9,13 @@ pages with signup, gallery, auth (better-auth) and an admin area.
 
 - React Router v7 (framework mode), React 19, TypeScript, Tailwind CSS v4
 - Prisma with SQLite; images on Cloudinary (`IMAGE_PROVIDER=local` in dev/CI)
-- Production runs on Railway, which deploys `main` from GitHub using the
-  `Dockerfile`. GitHub Actions (`.github/workflows/ci.yml`) only runs CI.
+- Railway builds the `Dockerfile` and deploys straight from GitHub: the
+  production environment from `main`, the `staging_backend` environment from
+  the `staging_backend` branch. Staging is updated by fast-forwarding
+  `staging_backend` to `main`. GitHub Actions (`.github/workflows/ci.yml`)
+  only runs CI.
+- Staging gets the live site's content (not its users) through `/admin/sync`;
+  setup is in `docs/live-data-sync/`.
 - Roles are `user`, `moderator` and `admin` (`app/features/auth/roles.ts`).
   Invites stop at `moderator`. Admins can promote others to admin on the user
   edit page, but only `scripts/admins.ts` can demote an admin. Keep it that way
