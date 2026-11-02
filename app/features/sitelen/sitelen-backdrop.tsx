@@ -21,7 +21,7 @@ const ROW_GAP = 14;
  */
 const ROW_PERIOD = rowsData.rows.length;
 /** every this-many-th row slides sideways as the page scrolls; the rest hold still */
-const SLIDE_EVERY = 7;
+const SLIDE_EVERY = 3;
 /** px of sideways travel per px of page scroll, for the sliding rows */
 const SLIDE_SPEED = 0.55;
 /** px each row is shifted sideways from the one above, so columns don't line up */
@@ -40,7 +40,7 @@ const TAP_POP_MS = 650;
  * A full-screen wallpaper of torn-paper toki pona glyphs (sitelen moku pona)
  * sitting behind the page. As the page scrolls the wall drifts up at a
  * fraction of the scroll speed (and back down on the way up), and every
- * seventh row also slides sideways, alternating left and right; rows leaving
+ * third row also slides sideways, alternating left and right; rows leaving
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
  * strength. On touch screens a tap pops it.
