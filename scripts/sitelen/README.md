@@ -12,7 +12,7 @@ python3 sheet.py --cols 12     # PNG contact sheet → sitelen-moku-pona/sheet-v
 python3 preview.py             # preview.html (open in a browser, hover to enlarge)
 python3 textures.py            # rebuild the paper tiles from source/purple-paper.jpg
 python3 web.py                 # landing-page sprite → public/sitelen/sprite.svg
-python3 arcade.py              # /musi easter egg: numerals, hole, pale paper → public/sitelen/
+python3 arcade.py              # /musi easter egg: sprite → app/features/musi/, pale paper → public/sitelen/
 ```
 
 - `glyphs.py` — each glyph's structure on a 0..100 grid: `base` strokes (light paper), `fill` for half-closed shapes (fully closed ones fill automatically), `dark` lines glued on top, `dots`. Drawn fresh, following the structure on nimi.li rather than any font's outlines.

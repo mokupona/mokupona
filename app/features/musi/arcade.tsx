@@ -2,6 +2,7 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import arcadeSpriteUrl from "./arcade-sprite.svg?url";
 import {
   clockGlyphs,
   GAME_MS,
@@ -20,7 +21,9 @@ import { PaperPatterns, useSprite } from "~/features/sitelen/sitelen-backdrop";
 import { cn } from "~/lib/utils";
 
 const WORD_SPRITE = "/sitelen/sprite.svg";
-const ARCADE_SPRITE = "/sitelen/arcade.svg";
+// imported rather than served from public/, so the build fingerprints its URL
+// and browsers never pair a new page with a cached old sprite
+const ARCADE_SPRITE = arcadeSpriteUrl;
 const BEST_KEY = "musi-best";
 
 /**

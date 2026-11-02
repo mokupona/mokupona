@@ -2,10 +2,9 @@
 
     python3 scripts/sitelen/arcade.py
 
-Writes public/sitelen/arcade.svg — torn-paper numerals 0-9 for the score,
+Writes app/features/musi/arcade-sprite.svg — torn-paper numerals 0-9 for the score,
 seven-segment bars and a colon for the digital countdown clock, and the torn
-hole the soweli pop out of — and
-public/sitelen/paper-pale.jpg, the same crinkles as the violet paper but
+hole the soweli pop out of — and public/sitelen/paper-pale.jpg, the same crinkles as the violet paper but
 near-white, for the machine's playfield and backboard. Like the violet tiles
 it is drawn in the original cool hue; the page warms all of it with the
 art-warm utility, so it lands on the site's blush paper.
@@ -28,6 +27,10 @@ from textures import luminance_tile, ramp
 from web import LIGHT_VARIANTS, _short, save_texture
 
 OUT = g.ROOT / "public" / "sitelen"
+# The sprite is imported by the page (?url), so the build gives it a
+# content-hashed URL: a changed sprite can never be served stale from a cache
+# that still holds the old one (which would leave e.g. the clock blank).
+SPRITE = g.ROOT / "app" / "features" / "musi" / "arcade-sprite.svg"
 
 # a wide, shallow oval: the hole seen at the playfield's tilt
 HOLE = {"base": [arc(50, 50, 44, 17)]}
@@ -102,10 +105,10 @@ def main() -> None:
         + "".join(segment(n, i) for i, n in enumerate(SEGMENTS))
         + hole()
     )
-    (OUT / "arcade.svg").write_text(f'<svg xmlns="http://www.w3.org/2000/svg">{symbols}</svg>\n')
+    SPRITE.write_text(f'<svg xmlns="http://www.w3.org/2000/svg">{symbols}</svg>\n')
     save_pale(OUT / "paper-pale.jpg")
-    for name in ("arcade.svg", "paper-pale.jpg"):
-        print(f"{name:>18}  {(OUT / name).stat().st_size // 1024} KB")
+    for f in (SPRITE, OUT / "paper-pale.jpg"):
+        print(f"{f.name:>18}  {f.stat().st_size // 1024} KB")
 
 
 if __name__ == "__main__":
