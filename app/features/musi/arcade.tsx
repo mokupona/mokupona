@@ -342,9 +342,9 @@ function Clock({ msLeft }: { msLeft: number }) {
   const glyphs = clockGlyphs(msLeft);
   const seconds = Math.ceil(msLeft / 1000);
   return (
-    <div className="mb-1 flex flex-col items-center">
+    <div className="art-warm mb-1 flex flex-col items-center">
       <div
-        className="art-warm p-2 shadow-lg"
+        className="p-2 shadow-lg"
         style={DARK_PAPER}
         role="timer"
         aria-label={`${seconds} seconds left`}
