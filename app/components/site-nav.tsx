@@ -119,7 +119,7 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
 
   return (
     <>
-      <nav className="border-b">
+      <nav className="relative border-b">
         <div className="flex h-16 items-center justify-between px-10 max-md:hidden">
           <BrandLockup to="/" showWordmark={false} logoClassName="size-11" />
 

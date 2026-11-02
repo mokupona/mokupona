@@ -35,8 +35,6 @@ const MIN_ROW_PITCH = 72 + ROW_GAP;
 /** the light paper patterns the sprite's symbols cycle through */
 const LIGHT_PATTERNS = 4;
 const TEXTURE_UNITS = 64;
-/** how long a tapped glyph stays popped on touch screens */
-const TAP_POP_MS = 650;
 /** clicking one of these glyphs opens the arcade easter egg */
 const EASTER_EGG_WORDS = new Set(["moku", "pona"]);
 export const EASTER_EGG_PATH = "/musi";
@@ -51,8 +49,9 @@ const INTERACTIVE =
  * with some rows sliding sideways too, see SLIDE_EVERY; rows leaving
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
- * strength. On touch screens a tap pops it. moku and pona are doors: a click
- * on either (where the page itself has nothing clickable) opens /musi.
+ * strength. That's a mouse-only touch: on phones the glyphs just sit there.
+ * moku and pona are doors: a click or tap on either (where the page itself
+ * has nothing clickable) opens /musi.
  *
  * The layer never takes pointer events (the page above it stays fully
  * clickable), so the glyph under the pointer is found by hit-testing the
@@ -74,7 +73,7 @@ export function SitelenBackdrop({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "art-warm pointer-events-none fixed inset-0 -z-10 overflow-hidden select-none",
+        "art-warm pointer-events-none fixed inset-0 overflow-hidden select-none",
         className,
       )}
       style={
@@ -306,7 +305,6 @@ function usePointerPop(
     let frame = 0;
     let pointer: { x: number; y: number } | null = null;
     let active: HTMLElement | null = null;
-    let tapTimer = 0;
 
     const glyphAt = (x: number, y: number) => {
       for (const row of rowRefs.current) {
@@ -359,12 +357,6 @@ function usePointerPop(
       pointer = null;
       schedule();
     };
-    const onTap = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") return;
-      window.clearTimeout(tapTimer);
-      setActive(glyphAt(e.clientX, e.clientY));
-      tapTimer = window.setTimeout(() => setActive(null), TAP_POP_MS);
-    };
     const onScroll = () => {
       if (pointer) schedule();
     };
@@ -375,23 +367,21 @@ function usePointerPop(
       if (window.getSelection()?.toString()) return;
       const glyph = glyphAt(e.clientX, e.clientY);
       if (!isDoor(glyph)) return;
-      setActive(glyph);
+      // pop it on the way through — mouse only, phones don't pop
+      if ((e as PointerEvent).pointerType === "mouse") setActive(glyph);
       // let the pop land before the page changes
       window.setTimeout(() => void navigate(EASTER_EGG_PATH), 280);
     };
 
     window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onTap, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("click", onClick);
     return () => {
       window.removeEventListener("click", onClick);
       window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerdown", onTap);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("scroll", onScroll);
-      window.clearTimeout(tapTimer);
       if (frame) cancelAnimationFrame(frame);
       setActive(null);
     };

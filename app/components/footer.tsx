@@ -7,7 +7,7 @@ const linkClasses = "text-sm text-foreground/80 hover:text-foreground";
 
 export function Footer() {
   return (
-    <footer className="border-t">
+    <footer className="relative border-t">
       <div className="flex items-start justify-between gap-8 px-10 py-11 max-md:hidden">
         <div className="flex flex-col gap-3">
           <BrandLockup logoClassName="size-5" />

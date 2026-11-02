@@ -1,5 +1,7 @@
 import type { Route } from "./+types/_index";
 
+import type { RouteHandle } from "~/root";
+
 import {
   TextSectionBlockView,
   type TextSectionBlockType,
@@ -14,7 +16,6 @@ import {
   partitionEvents,
 } from "~/features/events/event-status";
 import { toEventCardModel } from "~/features/events/view-models";
-import { SitelenBackdrop } from "~/features/sitelen/sitelen-backdrop";
 import { getEventsWithAddress } from "~/models/event.server";
 import { getImageUrl } from "~/shared/image";
 import { withOpenGraphUrls } from "~/shared/meta";
@@ -26,6 +27,8 @@ const OG_IMAGE_HEIGHT = 630;
 
 /** Three past dinners, then a "see more" tile fills the fourth slot. */
 const PAST_DINNERS_ON_LANDING = 3;
+
+export const handle: RouteHandle = { glyphBackdrop: true };
 
 export const loader = async () => {
   const events = await getEventsWithAddress();
@@ -97,8 +100,6 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   return (
     // text sits over the glyph backdrop, so give it a halo of frosted paper
     <main className="[&_:is(h1,h2,h3,p)]:text-halo [&_a[href^='#']]:text-halo">
-      <SitelenBackdrop />
-
       <TitleCardBlockView blockData={titleCardData} />
 
       <TextSectionBlockView id="vision" blockData={visionSectionData} />
