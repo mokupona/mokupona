@@ -1,5 +1,6 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 
 import rowsData from "./rows.json";
 import { rowOffset, wallRows } from "./scroll-offset";
@@ -36,6 +37,12 @@ const LIGHT_PATTERNS = 4;
 const TEXTURE_UNITS = 64;
 /** how long a tapped glyph stays popped on touch screens */
 const TAP_POP_MS = 650;
+/** clicking one of these glyphs opens the arcade easter egg */
+const EASTER_EGG_WORDS = new Set(["moku", "pona"]);
+export const EASTER_EGG_PATH = "/musi";
+/** a click on any of these is the page's own, never the backdrop's */
+const INTERACTIVE =
+  "a, button, input, select, textarea, label, summary, [role=button], [contenteditable]";
 
 /**
  * A full-screen wallpaper of torn-paper toki pona glyphs (sitelen moku pona)
@@ -44,7 +51,8 @@ const TAP_POP_MS = 650;
  * with some rows sliding sideways too, see SLIDE_EVERY; rows leaving
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
- * strength. On touch screens a tap pops it.
+ * strength. On touch screens a tap pops it. moku and pona are doors: a click
+ * on either (where the page itself has nothing clickable) opens /musi.
  *
  * The layer never takes pointer events (the page above it stays fully
  * clickable), so the glyph under the pointer is found by hit-testing the
@@ -54,7 +62,7 @@ const TAP_POP_MS = 650;
  * decoration, so the layer fades in once they're ready.
  */
 export function SitelenBackdrop({ className }: { className?: string }) {
-  const sprite = useSprite();
+  const sprite = useSprite(SPRITE_URL);
   const rowCount = useRowCount();
   const rows = useShuffledRows(rowCount);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -128,6 +136,7 @@ function Glyph({ word, index }: { word: string; index: number }) {
   return (
     <span
       data-glyph
+      data-word={word}
       className="group relative mx-1.5 block shrink-0 data-active:z-10 md:mx-2.5"
       style={{ transform: `translateY(${nudge}px)` }}
     >
@@ -146,7 +155,7 @@ function Glyph({ word, index }: { word: string; index: number }) {
  * fill with url(#smp-paper-l0..3) and url(#smp-paper-d); the light pattern
  * comes in a few offsets so neighbouring glyphs don't show the same patch.
  */
-function PaperPatterns() {
+export function PaperPatterns() {
   const t = TEXTURE_UNITS;
   return (
     <svg className="absolute size-0" aria-hidden="true">
@@ -176,11 +185,11 @@ function PaperPatterns() {
   );
 }
 
-function useSprite() {
+export function useSprite(url: string) {
   const [sprite, setSprite] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    fetch(SPRITE_URL)
+    fetch(url)
       .then((res) => (res.ok ? res.text() : null))
       .then((text) => {
         if (live && text) setSprite(text);
@@ -190,7 +199,7 @@ function useSprite() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [url]);
   return sprite;
 }
 
@@ -291,6 +300,7 @@ function usePointerPop(
   rowRefs: React.RefObject<(HTMLDivElement | null)[]>,
   ready: boolean,
 ) {
+  const navigate = useNavigate();
   useEffect(() => {
     if (!ready) return;
     let frame = 0;
@@ -314,8 +324,13 @@ function usePointerPop(
       return null;
     };
 
+    const isDoor = (glyph: HTMLElement | null) =>
+      !!glyph && EASTER_EGG_WORDS.has(glyph.dataset.word ?? "");
+
     const setActive = (glyph: HTMLElement | null) => {
       if (glyph === active) return;
+      // the backdrop takes no pointer events, so hint the door on the page
+      document.documentElement.style.cursor = isDoor(glyph) ? "pointer" : "";
       if (active) {
         delete active.dataset.active;
         delete active.parentElement?.dataset.active;
@@ -353,12 +368,25 @@ function usePointerPop(
     const onScroll = () => {
       if (pointer) schedule();
     };
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return;
+      // dragging out a text selection isn't a click on the wall
+      if (window.getSelection()?.toString()) return;
+      const glyph = glyphAt(e.clientX, e.clientY);
+      if (!isDoor(glyph)) return;
+      setActive(glyph);
+      // let the pop land before the page changes
+      window.setTimeout(() => void navigate(EASTER_EGG_PATH), 280);
+    };
 
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerdown", onTap, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("click", onClick);
     return () => {
+      window.removeEventListener("click", onClick);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerdown", onTap);
       document.documentElement.removeEventListener("pointerleave", onLeave);
@@ -367,7 +395,7 @@ function usePointerPop(
       if (frame) cancelAnimationFrame(frame);
       setActive(null);
     };
-  }, [ready, rowRefs]);
+  }, [ready, rowRefs, navigate]);
 }
 
 function mod(n: number, m: number) {

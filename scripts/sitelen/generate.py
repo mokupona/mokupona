@@ -70,8 +70,10 @@ def rasterise(glyph: dict) -> tuple[np.ndarray, np.ndarray]:
         target = dd if layer == "dark" else bd
         target.ellipse((cx - r * PX, cy - r * PX, cx + r * PX, cy + r * PX), fill=255)
     b = np.asarray(base) > 127
-    # closed shapes are cut out whole: fill every fully enclosed counter
-    b = ndimage.binary_fill_holes(b)
+    # closed shapes are cut out whole: fill every fully enclosed counter —
+    # unless the glyph asks to keep them (numerals: a 0 or an 8 needs its holes)
+    if not glyph.get("keep_counters"):
+        b = ndimage.binary_fill_holes(b)
     return b, np.asarray(dark) > 127
 
 
@@ -161,9 +163,10 @@ def seed_for(word: str) -> int:
     return int(hashlib.sha256(word.encode()).hexdigest()[:8], 16)
 
 
-def build_geometry(word: str, eps: float = 0.7) -> dict:
+def build_geometry(word: str, eps: float = 0.7, glyph: dict | None = None) -> dict:
+    """`glyph` overrides the GLYPHS lookup, for shapes that aren't words."""
     rng = np.random.default_rng(seed_for(word))
-    base, dark = rasterise(GLYPHS[word])
+    base, dark = rasterise(glyph if glyph is not None else GLYPHS[word])
     body, outer = tear(base, rng, rim_max=3.0)
     dbody, douter = tear(dark, rng, rim_max=1.8)
     return {

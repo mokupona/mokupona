@@ -455,3 +455,25 @@ GLYPHS: dict[str, dict] = {
     },
     "leko": {"base": [rect(12, 12, 88, 88)], "dark": [rect(34, 34, 66, 66)]},
 }
+
+
+# ------------------------------------------------------------ numerals ----
+# Not toki pona: plain hand-cut numerals for the easter-egg arcade clock
+# (scripts/sitelen/arcade.py). Kept apart from GLYPHS so generate.py's
+# "every glyph" run doesn't pick them up. Their counters stay open.
+
+DIGITS: dict[str, dict] = {
+    "0": {"base": [arc(50, 50, 24, 36)]},
+    "1": {"base": [line((34, 28), (54, 12), (54, 88)), line((36, 88), (72, 88))]},
+    "2": {"base": [chain(arc(50, 34, 24, 22, 200, 380), line((72.6, 41.5), (26, 88), (76, 88)))]},
+    "3": {"base": [arc(47, 31, 22, 18, -160, 90), arc(47, 67, 26, 21, -90, 160)]},
+    "4": {"base": [line((62, 88), (62, 12), (22, 64), (80, 64))]},
+    "5": {"base": [line((72, 12), (34, 12), (29, 47)), arc(48, 64, 26, 24, -140, 150)]},
+    "6": {"base": [arc(50, 64, 24, 24), bez((26, 64), (24, 36), (40, 14), (66, 12))]},
+    "7": {"base": [line((22, 12), (78, 12), (42, 88))]},
+    "8": {"base": [arc(50, 30, 19, 18), arc(50, 68, 24, 20)]},
+    "9": {"base": [arc(50, 36, 24, 24), bez((74, 36), (76, 64), (62, 86), (34, 88))]},
+    "colon": {"base": [], "dots": [(50, 32, 7, "base"), (50, 70, 7, "base")]},
+}
+for _d in DIGITS.values():
+    _d["keep_counters"] = True
