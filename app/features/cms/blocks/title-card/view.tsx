@@ -1,9 +1,13 @@
 import type React from "react";
+import { useEffect, useRef } from "react";
 
 import type { TitleCardBlockType } from "./model";
 
 import { HandDrawnRule } from "~/components/hand-drawn";
 import { cn } from "~/lib/utils";
+
+/** px of scroll over which the scroll cue fades out */
+const CUE_FADE_DISTANCE = 120;
 
 type TitleCardBlockViewProps = React.ComponentPropsWithoutRef<"section"> & {
   blockData: TitleCardBlockType;
@@ -64,9 +68,37 @@ export function TitleCardBlockView({
   );
 }
 
+/**
+ * "scroll ↓". Its job is done once the page moves, so it fades out with the
+ * scroll (and back in on the way up); fully gone it stops taking clicks.
+ */
 function ScrollCue({ href }: { href: string }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    const cue = ref.current;
+    if (!cue) return;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const opacity = Math.max(0, 1 - window.scrollY / CUE_FADE_DISTANCE);
+      cue.style.opacity = String(opacity);
+      cue.style.pointerEvents = opacity === 0 ? "none" : "";
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll", schedule, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
   return (
     <a
+      ref={ref}
       href={href}
       className="text-muted-foreground hover:text-foreground focus-visible:ring-ring mt-20 flex flex-col items-center gap-2 rounded-md px-3 py-2 text-xs tracking-[0.2em] uppercase transition-colors focus-visible:ring-2 focus-visible:outline-hidden md:mt-28"
     >
