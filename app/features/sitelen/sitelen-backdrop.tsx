@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import rowsData from "./rows.json";
 import { rowOffset, wallRows } from "./scroll-offset";
+import { shuffledRows } from "./shuffle";
 
 import { cn } from "~/lib/utils";
 
@@ -14,12 +15,8 @@ const SPRITE_URL = "/sitelen/sprite.svg";
 const DRIFT = 0.35;
 /** vertical gap between rows, px */
 const ROW_GAP = 14;
-/**
- * Rows cycle through rows.json's three word lists. Keeping the row count a
- * multiple of this lets a row recycled from the top to the bottom keep its
- * words.
- */
-const ROW_PERIOD = rowsData.rows.length;
+/** glyphs per row (before the row is repeated COPIES times) */
+const ROW_LENGTH = 20;
 /** every this-many-th row slides sideways as the page scrolls; the rest hold still */
 const SLIDE_EVERY = 3;
 /** px of sideways travel per px of page scroll, for the sliding rows */
@@ -55,8 +52,9 @@ const TAP_POP_MS = 650;
 export function SitelenBackdrop({ className }: { className?: string }) {
   const sprite = useSprite();
   const rowCount = useRowCount();
+  const rows = useShuffledRows(rowCount);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const ready = sprite !== null && rowCount > 0;
+  const ready = sprite !== null && rowCount > 0 && rows.length >= rowCount;
   useScrollLinkedRows(rowRefs, ready, rowCount);
   usePointerPop(rowRefs, ready);
 
@@ -92,7 +90,7 @@ export function SitelenBackdrop({ className }: { className?: string }) {
       >
         {ready
           ? Array.from({ length: rowCount }, (_, row) => {
-              const words = rowsData.rows[row % rowsData.rows.length] ?? [];
+              const words = rows[row] ?? [];
               return (
                 <div
                   key={row}
@@ -192,16 +190,33 @@ function useSprite() {
   return sprite;
 }
 
+/** Enough rows to cover the viewport top to bottom plus a spare at each end. */
 /**
- * Enough rows to cover the viewport top to bottom plus a spare at each end,
- * rounded up to a whole ROW_PERIOD.
+ * A fresh random set of words for every row, drawn once per page load (on the
+ * client, so it never has to match server markup). Rows added when the window
+ * grows get their own draw; existing rows keep theirs, and each row keeps its
+ * words as it is recycled from top to bottom.
  */
+function useShuffledRows(count: number) {
+  const [rows, setRows] = useState<string[][]>([]);
+  useEffect(() => {
+    setRows((prev) =>
+      prev.length >= count
+        ? prev
+        : [
+            ...prev,
+            ...shuffledRows(rowsData.rows, count - prev.length, ROW_LENGTH),
+          ],
+    );
+  }, [count]);
+  return rows;
+}
+
 function useRowCount() {
   const [count, setCount] = useState(0);
   useEffect(() => {
     const measure = () => {
-      const needed = Math.ceil(window.innerHeight / MIN_ROW_PITCH) + 2;
-      setCount(Math.ceil(needed / ROW_PERIOD) * ROW_PERIOD);
+      setCount(Math.ceil(window.innerHeight / MIN_ROW_PITCH) + 2);
     };
     measure();
     window.addEventListener("resize", measure);

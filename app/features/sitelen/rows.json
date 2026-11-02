@@ -1,5 +1,5 @@
 {
-  "$comment": "Words for the scrolling glyph rows behind the landing page (rows cycle through these three). scripts/sitelen/web.py builds public/sitelen/sprite.svg from exactly these words, so rerun it after editing.",
+  "$comment": "Glyph words for the landing page backdrop; every row is a random pick from all of them, reshuffled on each page load. scripts/sitelen/web.py builds public/sitelen/sprite.svg from exactly these words, so rerun it after editing.",
   "rows": [
     [
       "moku",
