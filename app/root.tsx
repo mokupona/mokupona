@@ -123,8 +123,7 @@ function Document({
   );
 
   return (
-    // The paper background lives here (not only on body) so mix-blend-multiply
-    // artwork has paper to blend against. A route can ask for the glyph
+    // The paper background lives here as well as on body. A route can ask for the glyph
     // backdrop via `handle.glyphBackdrop`: it's a fixed layer rendered first,
     // and nav, content and footer are `relative` so they paint over it — no
     // negative z-index, which iOS Safari renders unreliably.

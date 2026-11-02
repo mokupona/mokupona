@@ -16,17 +16,14 @@ export interface LogoProps {
 export function Logo({ className }: LogoProps) {
   return (
     <img
-      src="/naive-logo.svg"
+      src="/naive-logo.svg?v=alpha"
       alt=""
       style={{ aspectRatio: LOGO_ASPECT }}
-      // The artwork is a JPEG inside an SVG wrapper, so its white ground is
-      // opaque. Multiply drops it to the paper and keeps the strokes.
+      // The artwork's ground is transparent (scripts/artwork/transparent.py),
+      // so it sits on whatever is behind it.
       // object-contain preserves the letterboxing the old inline SVG gave us,
       // since call sites size it with square `size-*` utilities.
-      className={cn(
-        "art-warm w-auto object-contain mix-blend-multiply",
-        className,
-      )}
+      className={cn("art-warm w-auto object-contain", className)}
     />
   );
 }

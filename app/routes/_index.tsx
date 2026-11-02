@@ -42,7 +42,7 @@ const titleCardData: TitleCardBlockType = {
   data: {
     title: "moku pona",
     // hand-drawn wordmark; `title` above is its alt text
-    logo: { src: "/naive-title.svg", width: 1258, height: 368 },
+    logo: { src: "/naive-title.svg?v=alpha", width: 1258, height: 368 },
     tagline: "a culinary society in zürich",
     scrollTo: "#vision",
   },

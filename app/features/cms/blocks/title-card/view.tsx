@@ -40,10 +40,9 @@ export function TitleCardBlockView({
             // Brand artwork, above the fold — never lazy-load it.
             loading="eager"
             decoding="sync"
-            // The wordmark is a JPEG in an SVG wrapper, so it carries an
-            // opaque white box instead of alpha. Multiply drops white to the
-            // paper beneath while leaving the dark strokes untouched.
-            className="art-warm h-auto w-[min(80vw,34rem)] mix-blend-multiply"
+            // transparent ground (scripts/artwork/transparent.py), so the
+            // glyph backdrop shows through around the letters
+            className="art-warm h-auto w-[min(80vw,34rem)]"
           />
         ) : (
           <h1 className="text-center text-6xl leading-none font-light tracking-tight sm:text-7xl md:text-8xl">
