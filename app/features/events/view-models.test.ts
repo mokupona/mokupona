@@ -11,7 +11,10 @@ const event = {
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
   price: 30,
+  studentPrice: 20,
   discounts: "Student discount",
+  signupMailSubject: null,
+  signupMailMessage: null,
   image: {
     id: "image-id",
     storageKey: "abc123",
@@ -54,6 +57,7 @@ describe("event view-model mapping", () => {
       menuDescription: event.menuDescription,
       donationDescription: event.donationDescription,
       discounts: event.discounts,
+      studentPrice: event.studentPrice,
     });
   });
 });

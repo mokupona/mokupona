@@ -101,7 +101,8 @@ Auth & mail:
 - `BETTER_AUTH_URL`: canonical origin for auth callbacks and emailed links (set in production; inferred from the request in local dev)
 - `MAIL_PROVIDER`: `console` (dev default), `capture` (e2e), or `resend` (production)
 - `RESEND_API_KEY`: required when `MAIL_PROVIDER=resend`
-- `MAIL_FROM`: sender address, defaults to `moku pona <no-reply@mail.mokupona.ch>`
+- `MAIL_FROM`: sender address for account mail (verify, reset, invite), defaults to `moku pona <no-reply@mail.mokupona.ch>`
+- `EVENT_SIGNUP_MAIL_FROM`: sender address for the confirmation mail guests get after signing up for an event, defaults to `moku pona <noreply@mokupona.ch>`. Its domain must be verified in Resend.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth; the "Continue with Google" buttons hide while unset
 
 Optional:

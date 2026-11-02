@@ -117,7 +117,14 @@ model Event {
   date                DateTime
   slots               Int
   price               Int
+  // charged instead of `price` to guests who tick the signup form's
+  // "student" checkbox; null means students pay the full price
+  studentPrice        Int?
   discounts           String?
+  // the signup confirmation mail's subject and message; null falls back to
+  // the default copy in app/features/mail/templates.ts
+  signupMailSubject   String?
+  signupMailMessage   String?
 
   // the cover slot — deleting the image leaves the event standing (SetNull)
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)

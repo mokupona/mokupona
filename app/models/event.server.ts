@@ -31,7 +31,10 @@ export interface EventCreateData {
   date: Date;
   slots: number;
   price: number;
+  studentPrice?: number | null;
   discounts?: string | null;
+  signupMailSubject?: string | null;
+  signupMailMessage?: string | null;
   addressId: string;
   image: ImageCreateData;
   createdById: string;

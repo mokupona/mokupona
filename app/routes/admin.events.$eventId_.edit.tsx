@@ -74,7 +74,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         date,
         slots,
         price,
+        studentPrice,
         discounts,
+        signupMailSubject,
+        signupMailMessage,
         cover,
         addressId,
         signupForm,
@@ -111,7 +114,11 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           date: toUtcEventDate(date),
           slots,
           price,
+          // the form always sends these, so an empty field means "clear it"
+          studentPrice: studentPrice ?? null,
           discounts,
+          signupMailSubject: signupMailSubject ?? null,
+          signupMailMessage: signupMailMessage ?? null,
           addressId,
           ...(cover && {
             image: {

@@ -70,7 +70,12 @@ const eventRow = z.object({
   date: dateTime,
   slots: int,
   price: int,
+  // added after format version 1 shipped: a live site on older code leaves
+  // them out, which reads as "not set"
+  studentPrice: int.nullable().default(null),
   discounts: nullableText,
+  signupMailSubject: nullableText.default(null),
+  signupMailMessage: nullableText.default(null),
   imageId: id.nullable(),
   addressId: id,
   formId: id,

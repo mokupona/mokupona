@@ -31,12 +31,23 @@ export function EventLocationFact({ addressLine }: { addressLine: string }) {
   );
 }
 
-export function EventPriceFact({ price }: { price: number }) {
+export function EventPriceFact({
+  price,
+  studentPrice = null,
+}: {
+  price: number;
+  studentPrice?: number | null;
+}) {
   return (
     <span className="flex items-center gap-2">
       <CreditCardIcon className="text-foreground/50 size-4" />
       <span className="sr-only">price</span>
       {price} chf
+      {studentPrice !== null ? (
+        <span className="text-foreground/60">
+          · students {studentPrice} chf
+        </span>
+      ) : null}
     </span>
   );
 }

@@ -1,5 +1,5 @@
 import { RouterContextProvider } from "react-router";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildEventData } from "../../../test/factories";
 
@@ -10,12 +10,26 @@ import {
   HONEYPOT_VALID_FROM_FIELD_NAME,
 } from "~/features/forms/honeypot";
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
+import { sendTemplate } from "~/features/mail/mail.server";
 import { createEvent } from "~/models/event.server";
 import { getCurrentFormVersion } from "~/models/form.server";
 import { action } from "~/routes/events_.$eventId";
 
-async function createTestEvent() {
-  const event = await createEvent(await buildEventData());
+vi.mock("~/features/mail/mail.server", () => ({ sendTemplate: vi.fn() }));
+const sendTemplateMock = vi.mocked(sendTemplate);
+
+beforeEach(() => {
+  sendTemplateMock.mockReset();
+  sendTemplateMock.mockResolvedValue();
+});
+
+async function createTestEvent(
+  overrides: Partial<Parameters<typeof createEvent>[0]> = {},
+) {
+  const event = await createEvent({
+    ...(await buildEventData()),
+    ...overrides,
+  });
   const version = await getCurrentFormVersion(event.formId);
 
   return { eventId: event.id, versionId: version.id };
@@ -84,6 +98,60 @@ describe("event signup action", () => {
     });
   });
 
+  it("mails the signer a summary of the signup from the event sender", async () => {
+    const { eventId, versionId } = await createTestEvent({
+      title: "Winter table",
+      price: 45,
+      studentPrice: 30,
+      signupMailSubject: "See you at {event}",
+    });
+
+    expectSuccessRedirect(
+      await submit(
+        eventId,
+        fromBrowser({
+          ...answers(versionId),
+          student: "on",
+          "friends[0].name": "Grace Friend",
+          "friends[0].vegetarian": "on",
+        }),
+      ),
+    );
+
+    expect(sendTemplateMock).toHaveBeenCalledOnce();
+    const [template, to, props, options] = sendTemplateMock.mock.calls[0];
+    expect(template).toBe("signupConfirmation");
+    expect(to).toBe("ada@example.com");
+    expect(options).toEqual({ from: "moku pona <noreply@mokupona.ch>" });
+    expect(props).toMatchObject({
+      event: {
+        title: "Winter table",
+        url: `http://localhost:3000/events/${eventId}`,
+        mailSubject: "See you at {event}",
+        mailMessage: null,
+      },
+      booking: {
+        guests: [
+          { name: "Ada Signer", isStudent: true, price: 30 },
+          { name: "Grace Friend", isStudent: false, price: 45 },
+        ],
+        total: 75,
+      },
+    });
+  });
+
+  it("keeps the signup when the confirmation mail fails", async () => {
+    const { eventId, versionId } = await createTestEvent();
+    sendTemplateMock.mockRejectedValue(
+      new Error("Resend rejected the message"),
+    );
+
+    expectSuccessRedirect(
+      await submit(eventId, fromBrowser(answers(versionId))),
+    );
+    expect(await storedFor(versionId)).toHaveLength(1);
+  });
+
   it("answers a filled spam trap with the success redirect", async () => {
     const { eventId, versionId } = await createTestEvent();
 
@@ -92,9 +160,10 @@ describe("event signup action", () => {
       [HONEYPOT_FIELD_NAME]: "https://buy-cheap-pills.example",
     });
 
-    // indistinguishable from the real thing, and nothing was written
+    // indistinguishable from the real thing, and nothing was written or sent
     expectSuccessRedirect(result);
     expect(await storedFor(versionId)).toHaveLength(0);
+    expect(sendTemplateMock).not.toHaveBeenCalled();
   });
 
   it("answers a filled spam trap the same way when nothing else validates", async () => {

@@ -56,6 +56,11 @@ export function formatEventDateLine(date: Date, weekday: "long" | "short") {
   return `${dayLine} · ${eventTimeFormat.format(date)}`.toLowerCase();
 }
 
+/** "Saturday 14 November, 19:00", for mail copy that reads as a sentence. */
+export function formatEventMailDate(date: Date) {
+  return `${longDayFormat.format(date)}, ${eventTimeFormat.format(date)}`;
+}
+
 export function formatAdminDateLine(date: Date) {
   const dayLine = adminDateFormat.format(date);
 

@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 
+import { readLatestMailTo } from "../support/mail";
 import {
   acceptPrivacyAndJoin,
   fillSignupContact,
@@ -41,6 +42,27 @@ describe("event signup", () => {
     fillSigner();
     addFriend(faker.person.fullName());
     acceptPrivacyAndJoin();
+  });
+
+  it("emails the signer a summary of their signup", () => {
+    const suffix = `${Date.now()}`;
+    const email = `confirm-${suffix}@example.com`;
+    const signerName = `Cypress Signer ${suffix}`;
+    const friendName = `Cypress Friend ${suffix}`;
+
+    visitFirstEvent();
+    fillSignupContact({ name: signerName, email });
+    addFriend(friendName);
+    acceptPrivacyAndJoin();
+
+    readLatestMailTo(email).then((mail) => {
+      expect(mail.from).to.equal("moku pona <noreply@mokupona.ch>");
+      expect(mail.subject).to.match(/^You're registered for /);
+      expect(mail.text).to.include(`Guest 1: ${signerName} (you)`);
+      expect(mail.text).to.include(`Guest 2: ${friendName}`);
+      expect(mail.text).to.include(`Email: ${email}`);
+      expect(mail.text).to.match(/Total for 2 people: (\d+ CHF|free)/);
+    });
   });
 
   it("shows a new signup in the admin table and CSV export", () => {

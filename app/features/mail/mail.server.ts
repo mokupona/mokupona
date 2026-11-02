@@ -45,13 +45,14 @@ export async function sendTemplate<Name extends MailTemplateName>(
   name: Name,
   to: string,
   props: MailTemplateProps<Name>,
+  { from }: { from?: string } = {},
 ): Promise<void> {
   const render = mailTemplates[name] as (
     props: MailTemplateProps<Name>,
   ) => MailBody;
 
   try {
-    await provider.send({ to, ...render(props) });
+    await provider.send({ to, ...(from && { from }), ...render(props) });
   } catch (error) {
     requestLogger.error(
       { template: name, email: to, error },

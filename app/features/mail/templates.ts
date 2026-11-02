@@ -1,7 +1,90 @@
 import type { MailBody } from "./compose";
-import { action, compose, note, paragraph } from "./compose";
+import { action, compose, details, note, paragraph } from "./compose";
 
+import { formatEventMailDate } from "~/features/events/date-format";
+import {
+  formatChf,
+  type BookingSummary,
+} from "~/features/signup-form/booking-summary";
+import {
+  DEFAULT_SIGNUP_MAIL_MESSAGE,
+  DEFAULT_SIGNUP_MAIL_SUBJECT,
+  fillSignupMailPlaceholders,
+  type SignupMailValues,
+} from "~/features/signup-form/confirmation-mail";
 import type { InvitableRole } from "~/features/users/invite.shared";
+
+export interface SignupConfirmationProps {
+  event: {
+    title: string;
+    date: Date;
+    /** Absolute link to the public event page. */
+    url: string;
+    /** The admin's copy for this event; null or blank uses the default. */
+    mailSubject: string | null;
+    mailMessage: string | null;
+  };
+  booking: BookingSummary;
+}
+
+function signupConfirmation({ event, booking }: SignupConfirmationProps) {
+  const [signer] = booking.guests;
+  const values: SignupMailValues = {
+    name: signer.name,
+    event: event.title,
+    date: formatEventMailDate(event.date),
+    guests: String(booking.guests.length),
+    total: formatChf(booking.total),
+  };
+
+  const subject = fillSignupMailPlaceholders(
+    event.mailSubject?.trim() || DEFAULT_SIGNUP_MAIL_SUBJECT,
+    values,
+  )
+    // a subject is one header line, whatever was typed
+    .replace(/\s+/g, " ")
+    .trim();
+  const message = fillSignupMailPlaceholders(
+    event.mailMessage?.trim() || DEFAULT_SIGNUP_MAIL_MESSAGE,
+    values,
+  )
+    // browsers submit textarea line breaks as CRLF
+    .replace(/\r\n?/g, "\n");
+
+  const guestCount =
+    booking.guests.length === 1
+      ? "1 person"
+      : `${booking.guests.length} people`;
+
+  return compose(subject, [
+    ...message
+      .split(/\n\s*\n/)
+      .map((text) => text.trim())
+      .filter(Boolean)
+      .map(paragraph),
+    ...booking.guests.map((guest, index) =>
+      details(
+        `Guest ${index + 1}: ${guest.name}${index === 0 ? " (you)" : ""}`,
+        guest.rows,
+      ),
+    ),
+    ...(booking.contact.length > 0
+      ? [details("Your details", booking.contact)]
+      : []),
+    details("Price", [
+      ...booking.guests.map(
+        (guest) =>
+          [
+            guest.isStudent ? `${guest.name} (student)` : guest.name,
+            formatChf(guest.price),
+          ] as const,
+      ),
+      [`Total for ${guestCount}`, formatChf(booking.total)],
+    ]),
+    action("View the event", event.url),
+    note("If you didn't sign up for this event, you can ignore this email."),
+  ]);
+}
 
 export const mailTemplates = {
   verifyEmail: ({ url }: { url: string }) =>
@@ -37,6 +120,8 @@ export const mailTemplates = {
       action("Accept invite", url),
       note("If you weren't expecting this, you can ignore this email."),
     ]),
+
+  signupConfirmation,
 } satisfies Record<string, (props: never) => MailBody>;
 
 type MailTemplates = typeof mailTemplates;

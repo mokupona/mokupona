@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { action, compose, note, paragraph } from "./compose";
-import { mailTemplates } from "./templates";
+import { action, compose, details, note, paragraph } from "./compose";
+import { mailTemplates, type SignupConfirmationProps } from "./templates";
 
 describe("compose", () => {
   it("renders one set of blocks into both text and html", () => {
@@ -59,6 +59,26 @@ describe("compose", () => {
     expect(text).toContain('<script>alert("x")</script> & co');
   });
 
+  it("renders details as a titled list of label/value rows", () => {
+    const { html, text } = compose("Subject", [
+      details("Guest 1: Ada", [
+        ["Vegetarian", "yes"],
+        ["Restrictions", "<none>"],
+      ]),
+    ]);
+
+    expect(text).toBe("Guest 1: Ada\nVegetarian: yes\nRestrictions: <none>");
+    expect(html).toContain("<strong>Guest 1: Ada</strong>");
+    expect(html).toMatch(/<td[^>]*>Vegetarian<\/td><td[^>]*>yes<\/td>/);
+    expect(html).toContain("&lt;none&gt;");
+  });
+
+  it("keeps line breaks inside a paragraph in html", () => {
+    const { html } = compose("Subject", [paragraph("one\ntwo <b>")]);
+
+    expect(html).toContain("<p>one<br>two &lt;b&gt;</p>");
+  });
+
   it("rejects action links that aren't http(s)", () => {
     expect(() =>
       compose("Subject", [action("Go", "javascript:alert(1)")]),
@@ -92,5 +112,88 @@ describe("mailTemplates", () => {
     expect(moderator.html).toContain("as a moderator");
     expect(user.text).not.toContain("moderator");
     expect(user.text).toContain("You've been invited to join moku pona.");
+  });
+});
+
+describe("signupConfirmation", () => {
+  function props(
+    event: Partial<SignupConfirmationProps["event"]> = {},
+  ): SignupConfirmationProps {
+    return {
+      event: {
+        title: "Winter table",
+        date: new Date("2026-11-14T18:00:00.000Z"),
+        url: "https://mokupona.ch/events/evt",
+        mailSubject: null,
+        mailMessage: null,
+        ...event,
+      },
+      booking: {
+        guests: [
+          {
+            name: "Ada",
+            isStudent: false,
+            price: 45,
+            rows: [["Vegan / Vegetarian", "yes"]],
+          },
+          {
+            name: "Grace <3",
+            isStudent: true,
+            price: 30,
+            rows: [["Vegan / Vegetarian", "no"]],
+          },
+        ],
+        contact: [["Email", "ada@example.com"]],
+        total: 75,
+      },
+    };
+  }
+
+  it("uses the default copy when the event has none", () => {
+    const { subject, text } = mailTemplates.signupConfirmation(props());
+
+    expect(subject).toBe("You're registered for Winter table");
+    expect(text).toContain("Hi Ada,");
+    expect(text).toContain(
+      "you've successfully registered for Winter table on Saturday 14 November, 19:00.",
+    );
+  });
+
+  it("lists every guest's answers, the contact details and the prices", () => {
+    const { text, html } = mailTemplates.signupConfirmation(props());
+
+    expect(text).toContain("Guest 1: Ada (you)\nVegan / Vegetarian: yes");
+    expect(text).toContain("Guest 2: Grace <3\nVegan / Vegetarian: no");
+    expect(text).toContain("Your details\nEmail: ada@example.com");
+    expect(text).toContain(
+      "Price\nAda: 45 CHF\nGrace <3 (student): 30 CHF\nTotal for 2 people: 75 CHF",
+    );
+    expect(text).toContain("https://mokupona.ch/events/evt");
+    expect(html).toContain("Guest 2: Grace &lt;3");
+    expect(html).not.toContain("Grace <3");
+  });
+
+  it("fills the event's own subject and message, paragraph by paragraph", () => {
+    const { subject, text, html } = mailTemplates.signupConfirmation(
+      props({
+        mailSubject: "  {name}, your {guests} seats at {event}\n",
+        mailMessage: "Dear {name},\r\n\r\nyou owe us {total}.\r\nCash only.",
+      }),
+    );
+
+    expect(subject).toBe("Ada, your 2 seats at Winter table");
+    expect(text.startsWith("Dear Ada,\n\nyou owe us 75 CHF.\nCash only.")).toBe(
+      true,
+    );
+    expect(html).toContain("<p>Dear Ada,</p>");
+    expect(html).toContain("<p>you owe us 75 CHF.<br>Cash only.</p>");
+  });
+
+  it("falls back to the default copy for blank fields", () => {
+    const { subject } = mailTemplates.signupConfirmation(
+      props({ mailSubject: "   ", mailMessage: "" }),
+    );
+
+    expect(subject).toBe("You're registered for Winter table");
   });
 });

@@ -40,6 +40,7 @@ export function toEventCardModel(event: EventWithAddress): EventCardModel {
 }
 
 export interface EventDetailModel extends EventSummaryModel {
+  studentPrice: number | null;
   menuDescription: string | null;
   donationDescription: string | null;
   discounts: string | null;
@@ -49,6 +50,7 @@ export interface EventDetailModel extends EventSummaryModel {
 export function toEventDetailModel(event: EventWithAddress): EventDetailModel {
   return {
     ...toEventSummaryModel(event),
+    studentPrice: event.studentPrice,
     menuDescription: event.menuDescription,
     donationDescription: event.donationDescription,
     discounts: event.discounts,

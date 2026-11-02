@@ -28,6 +28,11 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  DEFAULT_SIGNUP_MAIL_MESSAGE,
+  DEFAULT_SIGNUP_MAIL_SUBJECT,
+  SIGNUP_MAIL_PLACEHOLDERS,
+} from "~/features/signup-form/confirmation-mail";
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
 import { cn } from "~/lib/utils";
 import { VALID_IMAGE_TYPES } from "~/shared/image";
@@ -52,6 +57,7 @@ const SECTIONS = [
   { id: "section-schedule-pricing", label: "Schedule & pricing" },
   { id: "section-cover-location", label: "Cover & location" },
   { id: "section-signup-form", label: "Signup form" },
+  { id: "section-signup-email", label: "Signup email" },
 ];
 
 function SectionCard({
@@ -73,6 +79,78 @@ function SectionCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-6">{children}</CardContent>
     </Card>
+  );
+}
+
+function SignupMailFields({
+  fields,
+}: {
+  fields: Pick<
+    AdminEventFormProps["fields"],
+    "signupMailSubject" | "signupMailMessage"
+  >;
+}) {
+  const form = useFormMetadata();
+  const isBlank =
+    !fields.signupMailSubject.value && !fields.signupMailMessage.value;
+
+  return (
+    <>
+      <Field
+        labelProps={{ children: "Subject" }}
+        inputProps={{
+          ...getInputProps(fields.signupMailSubject, { type: "text" }),
+          placeholder: DEFAULT_SIGNUP_MAIL_SUBJECT,
+        }}
+        errors={fields.signupMailSubject.errors}
+      />
+
+      <TextareaField
+        labelProps={{ children: "Message" }}
+        description="A blank line starts a new paragraph. The guest list, everyone's answers and the prices are added below the message automatically."
+        textareaProps={{
+          ...getTextareaProps(fields.signupMailMessage),
+          placeholder: DEFAULT_SIGNUP_MAIL_MESSAGE,
+          rows: 8,
+        }}
+        errors={fields.signupMailMessage.errors}
+      />
+
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="text-foreground/65">
+          These placeholders are replaced in both the subject and the message:
+        </p>
+        <ul className="flex flex-col gap-1">
+          {Object.entries(SIGNUP_MAIL_PLACEHOLDERS).map(([name, meaning]) => (
+            <li key={name}>
+              <code className="bg-muted rounded px-1">{`{${name}}`}</code>{" "}
+              <span className="text-foreground/65">{meaning}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {isBlank ? (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              form.update({
+                name: fields.signupMailSubject.name,
+                value: DEFAULT_SIGNUP_MAIL_SUBJECT,
+              });
+              form.update({
+                name: fields.signupMailMessage.name,
+                value: DEFAULT_SIGNUP_MAIL_MESSAGE,
+              });
+            }}
+          >
+            Start from the default text
+          </Button>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -180,7 +258,7 @@ export function AdminEventForm({
           <SectionCard
             id="section-schedule-pricing"
             title="Schedule & pricing"
-            description="When it happens, how many seats, and what it costs."
+            description="When it happens, how many seats, and what it costs. Guests who tick “Student” on the signup form pay the student price."
           >
             <Field
               labelProps={{ children: "Date" }}
@@ -207,6 +285,16 @@ export function AdminEventForm({
                   ...getInputProps(fields.price, { type: "number" }),
                 }}
                 errors={fields.price.errors}
+              />
+
+              <Field
+                className="grow"
+                labelProps={{ children: "Student price" }}
+                inputProps={{
+                  ...getInputProps(fields.studentPrice, { type: "number" }),
+                  placeholder: "Full price",
+                }}
+                errors={fields.studentPrice.errors}
               />
             </div>
 
@@ -263,6 +351,14 @@ export function AdminEventForm({
               lockFieldKeys={lockFieldKeys}
               answerCounts={answerCounts}
             />
+          </SectionCard>
+
+          <SectionCard
+            id="section-signup-email"
+            title="Signup email"
+            description="Sent to everyone who signs up for this event. A blank field uses the default text shown in grey."
+          >
+            <SignupMailFields fields={fields} />
           </SectionCard>
 
           <SaveBar submitText={submitText} cancelHref={cancelHref} />

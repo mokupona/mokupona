@@ -31,13 +31,18 @@ import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.serve
 import { EventGallerySection } from "~/features/gallery/components/event-gallery-section";
 import { loadEventGallerySection } from "~/features/gallery/event-section.server";
 import { buildSignupSchema } from "~/features/signup-form/build-schema";
+import { sendSignupConfirmation } from "~/features/signup-form/confirmation-mail.server";
 import { cn } from "~/lib/utils";
 import { getEventWithCurrentFormVersion } from "~/models/event.server";
 import {
   createFormSubmission,
   FormVersionChangedError,
 } from "~/models/form-submission.server";
-import { getClientIPAddress, requireFound } from "~/shared/http.server";
+import {
+  getClientIPAddress,
+  getDomainUrl,
+  requireFound,
+} from "~/shared/http.server";
 import { getImageUrl } from "~/shared/image";
 import { withOpenGraphUrls } from "~/shared/meta";
 import { getImageConfig } from "~/shared/root-data";
@@ -203,6 +208,24 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     },
     "Successful submission for event signup",
   );
+
+  if (typeof values.email === "string") {
+    try {
+      await sendSignupConfirmation({
+        to: values.email,
+        event,
+        formFields,
+        answers,
+        origin: getDomainUrl(request),
+      });
+    } catch (error) {
+      // the signup is stored, so the guest still sees the success toast
+      logger.error(
+        { event: event.id, email, error },
+        "Failed to send the signup confirmation",
+      );
+    }
+  }
 
   return redirectWithToast("/events", SIGNUP_SUCCESS_TOAST);
 }
