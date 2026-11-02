@@ -9,6 +9,7 @@ The app includes:
 - Role-based authentication (user, moderator, admin)
 - Admin area for events, locations, users, and board members
 - CSV export for event signups
+- One-click copy of the live site's data into staging (`/admin/sync`)
 - SQLite + Prisma data layer
 
 ## Tech stack
@@ -79,6 +80,7 @@ are, is done with `scripts/admins.ts` in a shell on the production container
 
 ```sh
 npx tsx scripts/admins.ts list                    # who are the admins?
+npx tsx scripts/admins.ts create someone@example.com "Their Name"   # new account, one-time password
 npx tsx scripts/admins.ts grant someone@example.com
 npx tsx scripts/admins.ts revoke someone@example.com [--to moderator|user]
 ```
@@ -107,6 +109,11 @@ Optional:
 - `ALLOW_INDEXING`: set to `false` to disable search engine indexing tags
 - `PORT`: server port (defaults to `3000`)
 
+Live data sync (copy the live site's content into staging from `/admin/sync`, see [`docs/live-data-sync/`](docs/live-data-sync/README.md)):
+
+- `LIVE_DATA_TOKEN`: shared secret (`openssl rand -hex 32`), the same value on the live site and on every copy target
+- `LIVE_DATA_SOURCE_URL`: set only on a copy target, the live site's public `https://` address. Never set it on production
+
 ## Useful scripts
 
 - `npm run dev`: start dev server (with MSW mock server)
@@ -133,9 +140,22 @@ Optional:
 
 ## Deployment
 
-Production runs on [Railway](https://railway.com), which deploys `main` directly
-from GitHub. GitHub Actions only runs CI (lint, typecheck, Vitest, Cypress) on
-pull requests and on pushes to `main` and `dev`; it does not deploy.
+The site runs on [Railway](https://railway.com), which deploys directly from
+GitHub:
+
+| Railway environment | Deploys branch    |
+| ------------------- | ----------------- |
+| production          | `main`            |
+| `staging_backend`   | `staging_backend` |
+
+To update staging, fast-forward `staging_backend` to `main`. Staging pulls the
+live site's content from **Admin → Sync** (see
+[`docs/live-data-sync/`](docs/live-data-sync/README.md)), and
+`npx tsx scripts/admins.ts create <email>` makes the first admin on an empty
+database.
+
+GitHub Actions only runs CI (lint, typecheck, Vitest, Cypress) on pull requests
+and on pushes to `main` and `dev`; it does not deploy.
 
 This project uses:
 

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   config: vi.fn(),
   uploadStream: vi.fn(),
   destroy: vi.fn(),
+  resource: vi.fn(),
 }));
 
 vi.mock("cloudinary", () => ({
@@ -14,6 +15,9 @@ vi.mock("cloudinary", () => ({
     uploader: {
       upload_stream: mocks.uploadStream,
       destroy: mocks.destroy,
+    },
+    api: {
+      resource: mocks.resource,
     },
   },
 }));
@@ -136,11 +140,47 @@ describe("createCloudinaryProvider", () => {
   });
 
   it("destroys by public_id with CDN invalidation", async () => {
+    mocks.resource.mockResolvedValue({ asset_folder: "test/events" });
     mocks.destroy.mockResolvedValue({ result: "ok" });
     const provider = createCloudinaryProvider(env);
 
     await provider.destroy("abc123");
 
+    expect(mocks.resource).toHaveBeenCalledWith("abc123", {
+      resource_type: "image",
+    });
     expect(mocks.destroy).toHaveBeenCalledWith("abc123", { invalidate: true });
+  });
+
+  it.each(["prod/events", "testing/events", "static", ""])(
+    "keeps an asset in another environment's folder (%j)",
+    async (assetFolder) => {
+      mocks.resource.mockResolvedValue({ asset_folder: assetFolder });
+      const provider = createCloudinaryProvider(env);
+
+      await provider.destroy("live-asset");
+
+      expect(mocks.destroy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("treats an asset Cloudinary no longer has as already destroyed", async () => {
+    mocks.resource.mockRejectedValue({
+      error: { message: "Resource not found", http_code: 404 },
+    });
+    const provider = createCloudinaryProvider(env);
+
+    await expect(provider.destroy("gone")).resolves.toBeUndefined();
+    expect(mocks.destroy).not.toHaveBeenCalled();
+  });
+
+  it("does not destroy when the folder lookup fails", async () => {
+    mocks.resource.mockRejectedValue({
+      error: { message: "Rate limit exceeded", http_code: 420 },
+    });
+    const provider = createCloudinaryProvider(env);
+
+    await expect(provider.destroy("abc123")).rejects.toBeDefined();
+    expect(mocks.destroy).not.toHaveBeenCalled();
   });
 });
