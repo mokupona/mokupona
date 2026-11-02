@@ -52,11 +52,22 @@ export function EventPriceFact({
   );
 }
 
-export function EventSeatsFact({ slots }: { slots: number }) {
+export function EventSeatsFact({
+  slots,
+  seatsLeft = null,
+}: {
+  slots: number;
+  /** Omitted where the page doesn't know how many seats are taken. */
+  seatsLeft?: number | null;
+}) {
+  let label = `${slots} seats`;
+  if (seatsLeft === 0) label = "fully booked · waiting list open";
+  else if (seatsLeft !== null) label = `${seatsLeft} of ${slots} seats left`;
+
   return (
     <span className="flex items-center gap-2">
       <UserIcon className="text-foreground/50 size-4" />
-      <span>{slots} seats</span>
+      <span>{label}</span>
     </span>
   );
 }

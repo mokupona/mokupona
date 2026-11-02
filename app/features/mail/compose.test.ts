@@ -118,8 +118,10 @@ describe("mailTemplates", () => {
 describe("signupConfirmation", () => {
   function props(
     event: Partial<SignupConfirmationProps["event"]> = {},
+    status: SignupConfirmationProps["status"] = "confirmed",
   ): SignupConfirmationProps {
     return {
+      status,
       event: {
         title: "Winter table",
         date: new Date("2026-11-14T18:00:00.000Z"),
@@ -149,14 +151,26 @@ describe("signupConfirmation", () => {
     };
   }
 
-  it("uses the default copy when the event has none", () => {
+  it("uses the default copy for a confirmed seat when the event has none", () => {
     const { subject, text } = mailTemplates.signupConfirmation(props());
 
-    expect(subject).toBe("You're registered for Winter table");
+    expect(subject).toBe("Your seat for Winter table is confirmed");
     expect(text).toContain("Hi Ada,");
     expect(text).toContain(
-      "you've successfully registered for Winter table on Saturday 14 November, 19:00.",
+      "your seat for Winter table on Saturday 14 November, 19:00 is confirmed.",
     );
+    expect(text).toContain("Price\nAda: 45 CHF");
+  });
+
+  it("tells a waitlisted signup they're waiting, with the waitlist copy", () => {
+    const { subject, text } = mailTemplates.signupConfirmation(
+      props({ mailSubject: null }, "waitlisted"),
+    );
+
+    expect(subject).toBe("You're on the waiting list for Winter table");
+    expect(text).toContain("so you're on the waiting list.");
+    expect(text).toContain("We'll email you as soon as a seat is yours.");
+    expect(text).toContain("Price once you have a seat\nAda: 45 CHF");
   });
 
   it("lists every guest's answers, the contact details and the prices", () => {
@@ -194,6 +208,6 @@ describe("signupConfirmation", () => {
       props({ mailSubject: "   ", mailMessage: "" }),
     );
 
-    expect(subject).toBe("You're registered for Winter table");
+    expect(subject).toBe("Your seat for Winter table is confirmed");
   });
 });

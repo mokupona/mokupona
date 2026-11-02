@@ -15,8 +15,8 @@ describe("liveDataTablesSchema", () => {
 
     expect(parsed.events[0]).toMatchObject({
       studentPrice: 20,
-      signupMailSubject: "See you at {event}",
-      signupMailMessage: null,
+      confirmedMailSubject: "See you at {event}",
+      confirmedMailMessage: null,
     });
   });
 
@@ -24,16 +24,54 @@ describe("liveDataTablesSchema", () => {
     const tables = overTheWire(liveDataFixture());
     for (const event of tables.events) {
       delete event.studentPrice;
-      delete event.signupMailSubject;
-      delete event.signupMailMessage;
+      delete event.confirmedMailSubject;
+      delete event.confirmedMailMessage;
+      delete event.waitlistMailSubject;
+      delete event.waitlistMailMessage;
     }
 
     const parsed = liveDataTablesSchema.parse(tables);
 
     expect(parsed.events[0]).toMatchObject({
       studentPrice: null,
-      signupMailSubject: null,
-      signupMailMessage: null,
+      confirmedMailSubject: null,
+      confirmedMailMessage: null,
+      waitlistMailSubject: null,
+      waitlistMailMessage: null,
+    });
+  });
+});
+
+describe("liveDataTablesSchema signups", () => {
+  it("keeps each signup's status, seats and email", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      status: "waitlisted",
+      seats: 1,
+      email: "ada@example.com",
+    });
+  });
+
+  it("reads signups from a live site that predates them as confirmed, sized from the answers", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.formSubmissions[0] = {
+      id: "old_submission",
+      formVersionId: tables.formSubmissions[0].formVersionId,
+      answers: {
+        name: "Ada",
+        email: " Ada@Example.com ",
+        friends: [{ name: "Grace" }, { name: "Alan" }],
+      },
+      createdAt: tables.formSubmissions[0].createdAt,
+    };
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      status: "confirmed",
+      seats: 3,
+      email: "ada@example.com",
     });
   });
 });

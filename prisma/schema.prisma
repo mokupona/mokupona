@@ -121,10 +121,12 @@ model Event {
   // "student" checkbox; null means students pay the full price
   studentPrice        Int?
   discounts           String?
-  // the signup confirmation mail's subject and message; null falls back to
-  // the default copy in app/features/mail/templates.ts
-  signupMailSubject   String?
-  signupMailMessage   String?
+  // the signup mail's subject and message, one pair per outcome; null falls
+  // back to the default copy in app/features/signup-form/confirmation-mail.ts
+  confirmedMailSubject String?
+  confirmedMailMessage String?
+  waitlistMailSubject  String?
+  waitlistMailMessage  String?
 
   // the cover slot — deleting the image leaves the event standing (SetNull)
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -173,6 +175,14 @@ model FormVersion {
 model FormSubmission {
   id      String @id @default(cuid())
   answers Json
+  // "confirmed" | "waitlisted" | "cancelled", decided when the signup is
+  // stored (app/models/event-signup.server.ts); only confirmed seats count
+  // against Event.slots
+  status  String @default("confirmed")
+  // the signer plus their friends, fixed at signup
+  seats   Int    @default(1)
+  // lowercased, to stop one address from signing up twice for an event
+  email   String @default("")
 
   createdAt DateTime @default(now())
 

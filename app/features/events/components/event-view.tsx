@@ -79,7 +79,10 @@ export function EventStory({ event }: EventViewProps) {
   );
 }
 
-export function EventFactList({ event }: EventViewProps) {
+export function EventFactList({
+  event,
+  seatsLeft = null,
+}: EventViewProps & { seatsLeft?: number | null }) {
   const eventDate = new Date(event.date);
 
   return (
@@ -111,7 +114,7 @@ export function EventFactList({ event }: EventViewProps) {
         </Popover>
       </div>
 
-      <EventSeatsFact slots={event.slots} />
+      <EventSeatsFact slots={event.slots} seatsLeft={seatsLeft} />
     </div>
   );
 }

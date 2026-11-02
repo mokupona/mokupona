@@ -2,13 +2,35 @@
 // which fills it in, and the admin event form, which shows the defaults and
 // validates what an admin types.
 
-export const DEFAULT_SIGNUP_MAIL_SUBJECT = "You're registered for {event}";
+export type SignupMailKind = "confirmed" | "waitlisted";
 
-export const DEFAULT_SIGNUP_MAIL_MESSAGE = [
-  "Hi {name},",
-  "you've successfully registered for {event} on {date}. Here's everything you sent us.",
-  "We'll email you again to confirm whether a seat is yours.",
-].join("\n\n");
+export interface SignupMailCopy {
+  subject: string;
+  message: string;
+}
+
+/**
+ * "confirmed" goes out when a signup gets a seat straight away and when an
+ * admin later moves it up from the waiting list, so it reads right for both.
+ */
+export const DEFAULT_SIGNUP_MAIL_COPY: Record<SignupMailKind, SignupMailCopy> =
+  {
+    confirmed: {
+      subject: "Your seat for {event} is confirmed",
+      message: [
+        "Hi {name},",
+        "your seat for {event} on {date} is confirmed. Here's everything you sent us.",
+      ].join("\n\n"),
+    },
+    waitlisted: {
+      subject: "You're on the waiting list for {event}",
+      message: [
+        "Hi {name},",
+        "thanks for signing up for {event} on {date}. There aren't enough seats left right now, so you're on the waiting list.",
+        "We'll email you as soon as a seat is yours. Here's everything you sent us.",
+      ].join("\n\n"),
+    },
+  };
 
 export const SIGNUP_MAIL_PLACEHOLDERS = {
   name: "name of the person who signed up",

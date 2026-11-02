@@ -283,5 +283,5 @@ export function acceptPrivacyAndJoin() {
   cy.findByLabelText(/agree to the privacy policy/i).click();
   cy.findByRole("button", { name: /join/i }).click();
   cy.location("pathname").should("equal", "/events");
-  cy.findByText(/signup complete/i);
+  cy.findByText(/you're in!|you're on the waiting list/i);
 }

@@ -33,8 +33,10 @@ export interface EventCreateData {
   price: number;
   studentPrice?: number | null;
   discounts?: string | null;
-  signupMailSubject?: string | null;
-  signupMailMessage?: string | null;
+  confirmedMailSubject?: string | null;
+  confirmedMailMessage?: string | null;
+  waitlistMailSubject?: string | null;
+  waitlistMailMessage?: string | null;
   addressId: string;
   image: ImageCreateData;
   createdById: string;

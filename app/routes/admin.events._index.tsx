@@ -20,13 +20,13 @@ import {
   isPastEvent,
   orderEventsByStatus,
 } from "~/features/events/event-status";
-import { getAttendeeCountsForEvents } from "~/features/signup-form/read.server";
 import { cn } from "~/lib/utils";
+import { getSeatCountsByEvent } from "~/models/event-signup.server";
 import { getEventsWithAddress } from "~/models/event.server";
 
 export async function loader() {
   const events = await getEventsWithAddress();
-  const seatCounts = await getAttendeeCountsForEvents(
+  const seatCounts = await getSeatCountsByEvent(
     events.map((event) => event.id),
   );
 
@@ -38,7 +38,8 @@ export async function loader() {
       image: event.image,
       slots: event.slots,
       location: `${event.address.streetName} ${event.address.houseNumber}`,
-      signups: seatCounts[event.id] ?? 0,
+      confirmed: seatCounts[event.id]?.confirmed ?? 0,
+      waitlisted: seatCounts[event.id]?.waitlisted ?? 0,
     })),
   };
 }
@@ -182,13 +183,16 @@ function EventCard({ event }: { event: Event }) {
         </div>
         <div className="max-w-xs">
           <div className="mb-2 flex justify-between text-xs">
-            <span className="text-foreground/80">{event.signups} signups</span>
+            <span className="text-foreground/80">
+              {event.confirmed} confirmed
+              {event.waitlisted > 0 ? ` · ${event.waitlisted} waiting` : ""}
+            </span>
             <span className="text-foreground/50">
-              {event.signups} / {event.slots}
+              {event.confirmed} / {event.slots}
             </span>
           </div>
           <SeatProgress
-            taken={event.signups}
+            taken={event.confirmed}
             total={event.slots}
             muted={event.past}
           />

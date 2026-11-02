@@ -16,12 +16,14 @@ describe("event form schemas", () => {
   });
 
   it("rejects signup mail copy with a placeholder the mail can't fill", () => {
-    const { signupMailSubject, signupMailMessage } = EventSchema.shape;
+    const { confirmedMailSubject, confirmedMailMessage } = EventSchema.shape;
 
-    expect(signupMailSubject.safeParse("See you, {name}").success).toBe(true);
-    expect(signupMailMessage.safeParse(undefined).success).toBe(true);
+    expect(confirmedMailSubject.safeParse("See you, {name}").success).toBe(
+      true,
+    );
+    expect(confirmedMailMessage.safeParse(undefined).success).toBe(true);
 
-    const typo = signupMailMessage.safeParse("Hi {nmae}");
+    const typo = confirmedMailMessage.safeParse("Hi {nmae}");
     expect(typo.success).toBe(false);
     expect(typo.error?.issues[0].message).toMatch(
       /Unknown placeholder \{nmae\}\. Available: \{name\}/,
@@ -30,7 +32,7 @@ describe("event form schemas", () => {
 
   it("caps the subject's length", () => {
     expect(
-      EventSchema.shape.signupMailSubject.safeParse("x".repeat(201)).success,
+      EventSchema.shape.confirmedMailSubject.safeParse("x".repeat(201)).success,
     ).toBe(false);
   });
 });

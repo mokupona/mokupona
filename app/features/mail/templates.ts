@@ -7,27 +7,37 @@ import {
   type BookingSummary,
 } from "~/features/signup-form/booking-summary";
 import {
-  DEFAULT_SIGNUP_MAIL_MESSAGE,
-  DEFAULT_SIGNUP_MAIL_SUBJECT,
+  DEFAULT_SIGNUP_MAIL_COPY,
   fillSignupMailPlaceholders,
+  type SignupMailKind,
   type SignupMailValues,
 } from "~/features/signup-form/confirmation-mail";
 import type { InvitableRole } from "~/features/users/invite.shared";
 
 export interface SignupConfirmationProps {
+  /** Whether the signup holds a seat or a waiting-list spot. */
+  status: SignupMailKind;
   event: {
     title: string;
     date: Date;
     /** Absolute link to the public event page. */
     url: string;
-    /** The admin's copy for this event; null or blank uses the default. */
+    /**
+     * The admin's copy for this event and status; null or blank uses the
+     * default copy for the status.
+     */
     mailSubject: string | null;
     mailMessage: string | null;
   };
   booking: BookingSummary;
 }
 
-function signupConfirmation({ event, booking }: SignupConfirmationProps) {
+function signupConfirmation({
+  status,
+  event,
+  booking,
+}: SignupConfirmationProps) {
+  const defaults = DEFAULT_SIGNUP_MAIL_COPY[status];
   const [signer] = booking.guests;
   const values: SignupMailValues = {
     name: signer.name,
@@ -38,14 +48,14 @@ function signupConfirmation({ event, booking }: SignupConfirmationProps) {
   };
 
   const subject = fillSignupMailPlaceholders(
-    event.mailSubject?.trim() || DEFAULT_SIGNUP_MAIL_SUBJECT,
+    event.mailSubject?.trim() || defaults.subject,
     values,
   )
     // a subject is one header line, whatever was typed
     .replace(/\s+/g, " ")
     .trim();
   const message = fillSignupMailPlaceholders(
-    event.mailMessage?.trim() || DEFAULT_SIGNUP_MAIL_MESSAGE,
+    event.mailMessage?.trim() || defaults.message,
     values,
   )
     // browsers submit textarea line breaks as CRLF
@@ -71,7 +81,7 @@ function signupConfirmation({ event, booking }: SignupConfirmationProps) {
     ...(booking.contact.length > 0
       ? [details("Your details", booking.contact)]
       : []),
-    details("Price", [
+    details(status === "waitlisted" ? "Price once you have a seat" : "Price", [
       ...booking.guests.map(
         (guest) =>
           [

@@ -57,7 +57,9 @@ describe("event signup", () => {
 
     readLatestMailTo(email).then((mail) => {
       expect(mail.from).to.equal("moku pona <noreply@mokupona.ch>");
-      expect(mail.subject).to.match(/^You're registered for /);
+      expect(mail.subject).to.match(
+        /^(Your seat for .+ is confirmed|You're on the waiting list for .+)$/,
+      );
       expect(mail.text).to.include(`Guest 1: ${signerName} (you)`);
       expect(mail.text).to.include(`Guest 2: ${friendName}`);
       expect(mail.text).to.include(`Email: ${email}`);
@@ -93,6 +95,7 @@ describe("event signup", () => {
           });
 
         cy.request(`/admin/events/${eventId}/signups.csv`).then((response) => {
+          expect(response.body).to.match(/^\uFEFF?"?Status"?,/);
           expect(response.body).to.include(signerName);
           expect(response.body).to.include(friendName);
         });

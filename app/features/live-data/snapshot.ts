@@ -2,6 +2,12 @@ import { z } from "zod";
 
 import { LIVE_DATA_TABLES, type LiveDataCounts } from "./tables";
 
+import {
+  normalizeSignupEmail,
+  partySize,
+  toSignupStatus,
+} from "~/features/signup-form/signup-status";
+
 /**
  * Wire format of a live-data copy. The live site serialises its content
  * tables to this shape; the copy target validates against it before touching
@@ -54,12 +60,32 @@ const formVersionRow = z.object({
   updatedAt: dateTime,
 });
 
-const formSubmissionRow = z.object({
-  id,
-  formVersionId: id,
-  answers: jsonDocument,
-  createdAt: dateTime,
-});
+const formSubmissionRow = z
+  .object({
+    id,
+    formVersionId: id,
+    answers: jsonDocument,
+    // added after format version 1 shipped: a live site on older code leaves
+    // them out. Its signups were all accepted, and seats and email can be
+    // read off the answers the same way the migration backfilled them.
+    status: z.string().optional(),
+    seats: int.positive().optional(),
+    email: z.string().optional(),
+    createdAt: dateTime,
+  })
+  .transform(({ status, seats, email, ...row }) => {
+    const answers = Array.isArray(row.answers) ? {} : row.answers;
+    return {
+      ...row,
+      status: toSignupStatus(status),
+      seats: seats ?? partySize(answers),
+      email:
+        email ??
+        normalizeSignupEmail(
+          typeof answers.email === "string" ? answers.email : "",
+        ),
+    };
+  });
 
 const eventRow = z.object({
   id,
@@ -74,8 +100,10 @@ const eventRow = z.object({
   // them out, which reads as "not set"
   studentPrice: int.nullable().default(null),
   discounts: nullableText,
-  signupMailSubject: nullableText.default(null),
-  signupMailMessage: nullableText.default(null),
+  confirmedMailSubject: nullableText.default(null),
+  confirmedMailMessage: nullableText.default(null),
+  waitlistMailSubject: nullableText.default(null),
+  waitlistMailMessage: nullableText.default(null),
   imageId: id.nullable(),
   addressId: id,
   formId: id,

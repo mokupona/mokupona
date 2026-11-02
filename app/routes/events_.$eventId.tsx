@@ -32,12 +32,15 @@ import { EventGallerySection } from "~/features/gallery/components/event-gallery
 import { loadEventGallerySection } from "~/features/gallery/event-section.server";
 import { buildSignupSchema } from "~/features/signup-form/build-schema";
 import { sendSignupConfirmation } from "~/features/signup-form/confirmation-mail.server";
+import { partySize, seatsLeft } from "~/features/signup-form/signup-status";
 import { cn } from "~/lib/utils";
-import { getEventWithCurrentFormVersion } from "~/models/event.server";
 import {
-  createFormSubmission,
-  FormVersionChangedError,
-} from "~/models/form-submission.server";
+  createEventSignup,
+  DuplicateSignupError,
+  getSeatCounts,
+} from "~/models/event-signup.server";
+import { getEventWithCurrentFormVersion } from "~/models/event.server";
+import { FormVersionChangedError } from "~/models/form-submission.server";
 import {
   getClientIPAddress,
   getDomainUrl,
@@ -56,15 +59,19 @@ export async function loader({ params }: Route.LoaderArgs) {
   );
 
   // the gallery belongs to evenings that already happened; upcoming events
-  // pay nothing for it
-  const gallery = isPastEvent(event.date, new Date())
-    ? await loadEventGallerySection(event.id)
-    : null;
+  // pay nothing for it, and only they need the seat count
+  const isPast = isPastEvent(event.date, new Date());
+  const [gallery, seats] = await Promise.all([
+    isPast ? loadEventGallerySection(event.id) : null,
+    isPast ? null : getSeatCounts(event.id),
+  ]);
 
   return {
     event: toEventDetailModel(event),
     formFields: parseStoredFormSchemaOrLog(version),
     formVersionId: version.id,
+    // a snapshot for the page; the action decides again under a lock
+    seatsLeft: seats ? seatsLeft(event.slots, seats.confirmed) : null,
     gallery,
   };
 }
@@ -72,12 +79,21 @@ export async function loader({ params }: Route.LoaderArgs) {
 const FORM_CHANGED_ERROR =
   "The signup form was updated while you were filling it out. Please review your answers and submit again.";
 
-// shared with the spam-trap response, which must be indistinguishable from a
-// real success
-const SIGNUP_SUCCESS_TOAST = {
-  title: "Signup complete",
-  description: "We'll contact you if you were able to get a spot on the event.",
+const DUPLICATE_SIGNUP_ERROR =
+  "This email address is already signed up for this event. If you'd like to change your signup, please get in touch with us.";
+
+// also the spam-trap response, which must look like a real success
+const CONFIRMED_TOAST = {
+  title: "You're in!",
+  description: "Your seat is confirmed. We've emailed you the details.",
   type: "success",
+} as const;
+
+const WAITLISTED_TOAST = {
+  title: "You're on the waiting list",
+  description:
+    "There weren't enough seats left. We've emailed you the details and will let you know as soon as a seat is yours.",
+  type: "message",
 } as const;
 
 export async function action({ params, request, context }: Route.ActionArgs) {
@@ -114,7 +130,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       "Blocked event signup caught by the spam trap",
     );
 
-    return redirectWithToast("/events", SIGNUP_SUCCESS_TOAST);
+    return redirectWithToast("/events", CONFIRMED_TOAST);
   }
 
   const submission = parseWithZod(formData, { schema });
@@ -166,13 +182,25 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   const email =
     typeof values.email === "string" ? values.email : "unknown@no-domain.com";
 
+  let signup: Awaited<ReturnType<typeof createEventSignup>>;
   try {
-    await createFormSubmission({
+    signup = await createEventSignup({
+      eventId: event.id,
       formVersionId: version.id,
-      answers,
       expectedVersionUpdatedAt: version.updatedAt,
+      answers,
+      email,
     });
   } catch (reason) {
+    if (reason instanceof DuplicateSignupError) {
+      logger.info(
+        { ip: getClientIPAddress(request), event: event.id, email },
+        "Rejected a second event signup from the same email",
+      );
+
+      return submission.reply({ formErrors: [DUPLICATE_SIGNUP_ERROR] });
+    }
+
     if (reason instanceof FormVersionChangedError) {
       logger.warn(
         {
@@ -205,6 +233,8 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       ip: getClientIPAddress(request),
       event: event.id,
       email,
+      status: signup.status,
+      seats: signup.seats,
     },
     "Successful submission for event signup",
   );
@@ -213,6 +243,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     try {
       await sendSignupConfirmation({
         to: values.email,
+        status: signup.status,
         event,
         formFields,
         answers,
@@ -227,7 +258,10 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     }
   }
 
-  return redirectWithToast("/events", SIGNUP_SUCCESS_TOAST);
+  return redirectWithToast(
+    "/events",
+    signup.status === "confirmed" ? CONFIRMED_TOAST : WAITLISTED_TOAST,
+  );
 }
 
 export const meta: Route.MetaFunction = ({ loaderData, matches, location }) => {
@@ -259,7 +293,7 @@ export default function EventPage({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { event, formFields, formVersionId, gallery } = loaderData;
+  const { event, formFields, formVersionId, seatsLeft, gallery } = loaderData;
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
   const signupFields = eventIsPast ? null : formFields;
@@ -283,7 +317,7 @@ export default function EventPage({
             id="sign-up"
             className="flex flex-col gap-4 p-5 lg:sticky lg:top-6 lg:p-7"
           >
-            <EventFactList event={event} />
+            <EventFactList event={event} seatsLeft={seatsLeft} />
 
             <>
               <div aria-hidden className="bg-border h-px" />
@@ -294,6 +328,7 @@ export default function EventPage({
                 key={JSON.stringify(signupFields)}
                 formFields={signupFields}
                 formVersionId={formVersionId}
+                seatsLeft={seatsLeft}
                 lastResult={actionData}
               />
             </>
@@ -309,10 +344,12 @@ export default function EventPage({
 function SignupForm({
   formFields,
   formVersionId,
+  seatsLeft,
   lastResult,
 }: {
   formFields: FieldDescriptor[];
   formVersionId: string;
+  seatsLeft: number | null;
   lastResult: Route.ComponentProps["actionData"];
 }) {
   const schema = useMemo(() => buildSignupSchema(formFields), [formFields]);
@@ -325,6 +362,11 @@ function SignupForm({
       return parseWithZod(formData, { schema });
     },
   });
+
+  // the server decides again when the form arrives; this only says what to
+  // expect with the seats left when the page loaded
+  const party = partySize(form.value ?? {});
+  const willWait = seatsLeft !== null && party > seatsLeft;
 
   return (
     <FormProvider context={form.context}>
@@ -372,12 +414,21 @@ function SignupForm({
 
         <ErrorList id={form.errorId} errors={form.errors} />
 
+        {willWait && seatsLeft !== null && seatsLeft > 0 ? (
+          <p role="status" className="text-primary text-sm leading-normal">
+            only {seatsLeft} {seatsLeft === 1 ? "seat" : "seats"} left, so a
+            group of {party} goes on the waiting list.
+          </p>
+        ) : null}
+
         <Button type="submit" size="lg" className="w-full">
-          join this event
+          {willWait ? "join the waiting list" : "join this event"}
         </Button>
 
         <p className="text-foreground/50 text-center text-xs leading-normal">
-          we&apos;ll email you to confirm if a seat is yours.
+          {seatsLeft === 0
+            ? "this event is fully booked. we'll email you as soon as a seat is yours."
+            : "we'll email you right away whether you have a seat."}
         </p>
       </Form>
     </FormProvider>

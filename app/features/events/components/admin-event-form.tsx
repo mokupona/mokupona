@@ -29,9 +29,9 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import {
-  DEFAULT_SIGNUP_MAIL_MESSAGE,
-  DEFAULT_SIGNUP_MAIL_SUBJECT,
+  DEFAULT_SIGNUP_MAIL_COPY,
   SIGNUP_MAIL_PLACEHOLDERS,
+  type SignupMailCopy,
 } from "~/features/signup-form/confirmation-mail";
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
 import { cn } from "~/lib/utils";
@@ -82,43 +82,103 @@ function SectionCard({
   );
 }
 
+function SignupMailCopyFields({
+  legend,
+  description,
+  subject,
+  message,
+  defaults,
+}: {
+  legend: string;
+  description: string;
+  subject: AdminEventFormProps["fields"]["confirmedMailSubject"];
+  message: AdminEventFormProps["fields"]["confirmedMailMessage"];
+  defaults: SignupMailCopy;
+}) {
+  const form = useFormMetadata();
+  const isBlank = !subject.value && !message.value;
+
+  return (
+    <fieldset className="flex flex-col gap-4 border-t pt-5 first:border-t-0 first:pt-0">
+      <legend className="float-left mb-1 w-full">
+        <span className="font-semibold">{legend}</span>
+        <span className="text-foreground/65 mt-1 block text-sm">
+          {description}
+        </span>
+      </legend>
+
+      <Field
+        labelProps={{ children: "Subject" }}
+        inputProps={{
+          ...getInputProps(subject, { type: "text" }),
+          placeholder: defaults.subject,
+        }}
+        errors={subject.errors}
+      />
+
+      <TextareaField
+        labelProps={{ children: "Message" }}
+        textareaProps={{
+          ...getTextareaProps(message),
+          placeholder: defaults.message,
+          rows: 7,
+        }}
+        errors={message.errors}
+      />
+
+      {isBlank ? (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              form.update({ name: subject.name, value: defaults.subject });
+              form.update({ name: message.name, value: defaults.message });
+            }}
+          >
+            Start from the default text
+          </Button>
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function SignupMailFields({
   fields,
 }: {
   fields: Pick<
     AdminEventFormProps["fields"],
-    "signupMailSubject" | "signupMailMessage"
+    | "confirmedMailSubject"
+    | "confirmedMailMessage"
+    | "waitlistMailSubject"
+    | "waitlistMailMessage"
   >;
 }) {
-  const form = useFormMetadata();
-  const isBlank =
-    !fields.signupMailSubject.value && !fields.signupMailMessage.value;
-
   return (
     <>
-      <Field
-        labelProps={{ children: "Subject" }}
-        inputProps={{
-          ...getInputProps(fields.signupMailSubject, { type: "text" }),
-          placeholder: DEFAULT_SIGNUP_MAIL_SUBJECT,
-        }}
-        errors={fields.signupMailSubject.errors}
+      <SignupMailCopyFields
+        legend="Seat confirmed"
+        description="Sent when a group gets its seats at signup, and when you confirm a group from the waiting list."
+        subject={fields.confirmedMailSubject}
+        message={fields.confirmedMailMessage}
+        defaults={DEFAULT_SIGNUP_MAIL_COPY.confirmed}
       />
 
-      <TextareaField
-        labelProps={{ children: "Message" }}
-        description="A blank line starts a new paragraph. The guest list, everyone's answers and the prices are added below the message automatically."
-        textareaProps={{
-          ...getTextareaProps(fields.signupMailMessage),
-          placeholder: DEFAULT_SIGNUP_MAIL_MESSAGE,
-          rows: 8,
-        }}
-        errors={fields.signupMailMessage.errors}
+      <SignupMailCopyFields
+        legend="Waiting list"
+        description="Sent when there aren't enough seats left for the whole group."
+        subject={fields.waitlistMailSubject}
+        message={fields.waitlistMailMessage}
+        defaults={DEFAULT_SIGNUP_MAIL_COPY.waitlisted}
       />
 
-      <div className="flex flex-col gap-2 text-sm">
+      <div className="flex flex-col gap-2 border-t pt-5 text-sm">
         <p className="text-foreground/65">
-          These placeholders are replaced in both the subject and the message:
+          A blank line starts a new paragraph. The guest list, everyone&apos;s
+          answers and the prices are added below the message automatically.
+          These placeholders work in subjects and messages:
         </p>
         <ul className="flex flex-col gap-1">
           {Object.entries(SIGNUP_MAIL_PLACEHOLDERS).map(([name, meaning]) => (
@@ -129,27 +189,6 @@ function SignupMailFields({
           ))}
         </ul>
       </div>
-
-      {isBlank ? (
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              form.update({
-                name: fields.signupMailSubject.name,
-                value: DEFAULT_SIGNUP_MAIL_SUBJECT,
-              });
-              form.update({
-                name: fields.signupMailMessage.name,
-                value: DEFAULT_SIGNUP_MAIL_MESSAGE,
-              });
-            }}
-          >
-            Start from the default text
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 }
@@ -356,7 +395,7 @@ export function AdminEventForm({
           <SectionCard
             id="section-signup-email"
             title="Signup email"
-            description="Sent to everyone who signs up for this event. A blank field uses the default text shown in grey."
+            description="Sent to everyone who signs up, depending on whether they got seats. A blank field uses the default text shown in grey."
           >
             <SignupMailFields fields={fields} />
           </SectionCard>

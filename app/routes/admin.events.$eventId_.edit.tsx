@@ -76,8 +76,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         price,
         studentPrice,
         discounts,
-        signupMailSubject,
-        signupMailMessage,
+        confirmedMailSubject,
+        confirmedMailMessage,
+        waitlistMailSubject,
+        waitlistMailMessage,
         cover,
         addressId,
         signupForm,
@@ -117,8 +119,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           // the form always sends these, so an empty field means "clear it"
           studentPrice: studentPrice ?? null,
           discounts,
-          signupMailSubject: signupMailSubject ?? null,
-          signupMailMessage: signupMailMessage ?? null,
+          confirmedMailSubject: confirmedMailSubject ?? null,
+          confirmedMailMessage: confirmedMailMessage ?? null,
+          waitlistMailSubject: waitlistMailSubject ?? null,
+          waitlistMailMessage: waitlistMailMessage ?? null,
           addressId,
           ...(cover && {
             image: {

@@ -103,7 +103,7 @@ describe("event signup action", () => {
       title: "Winter table",
       price: 45,
       studentPrice: 30,
-      signupMailSubject: "See you at {event}",
+      confirmedMailSubject: "See you at {event}",
     });
 
     expectSuccessRedirect(
@@ -124,6 +124,7 @@ describe("event signup action", () => {
     expect(to).toBe("ada@example.com");
     expect(options).toEqual({ from: "moku pona <noreply@mokupona.ch>" });
     expect(props).toMatchObject({
+      status: "confirmed",
       event: {
         title: "Winter table",
         url: `http://localhost:3000/events/${eventId}`,
@@ -138,6 +139,48 @@ describe("event signup action", () => {
         total: 75,
       },
     });
+  });
+
+  it("waitlists a party that doesn't fit and mails the waiting-list copy", async () => {
+    const { eventId, versionId } = await createTestEvent({
+      slots: 1,
+      waitlistMailSubject: "Hang tight for {event}",
+    });
+
+    expectSuccessRedirect(
+      await submit(
+        eventId,
+        fromBrowser({
+          ...answers(versionId),
+          "friends[0].name": "Grace Friend",
+        }),
+      ),
+    );
+
+    const stored = await storedFor(versionId);
+    expect(stored).toMatchObject([
+      { status: "waitlisted", seats: 2, email: "ada@example.com" },
+    ]);
+    expect(sendTemplateMock.mock.calls[0][2]).toMatchObject({
+      status: "waitlisted",
+      event: { mailSubject: "Hang tight for {event}" },
+    });
+  });
+
+  it("turns away a second signup from the same email with a form error", async () => {
+    const { eventId, versionId } = await createTestEvent();
+    await submit(eventId, fromBrowser(answers(versionId)));
+
+    const result = await submit(
+      eventId,
+      fromBrowser({ ...answers(versionId), email: "ADA@example.com" }),
+    );
+
+    expect(readFormErrors(result)).toEqual([
+      expect.stringMatching(/already signed up for this event/),
+    ]);
+    expect(await storedFor(versionId)).toHaveLength(1);
+    expect(sendTemplateMock).toHaveBeenCalledOnce();
   });
 
   it("keeps the signup when the confirmation mail fails", async () => {

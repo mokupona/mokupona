@@ -1,10 +1,10 @@
 import { DEFAULT_FORM } from "./default-form";
+import { toSignupStatus, type SignupStatus } from "./signup-status";
 
 import type { parseStoredFormSchema } from "~/features/forms/serialization";
 import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.server";
 import { requestLogger } from "~/logger/request-context.server";
 import {
-  countEventResponsesByEvent,
   getEventResponsesForEvent,
   type EventResponse,
 } from "~/models/event-response.server";
@@ -16,6 +16,8 @@ import { getCurrentFormVersionForEvent } from "~/models/form.server";
 
 export interface Attendee {
   submissionId: string;
+  /** Shared by everyone in a party; legacy rows read as confirmed. */
+  status: SignupStatus;
   isSigner: boolean | null;
   name: string;
   email: string;
@@ -63,44 +65,6 @@ export async function getAttendeesForEvent(
 ): Promise<Attendee[]> {
   const { attendees } = await loadRoster(eventId);
   return attendees;
-}
-
-export async function getAttendeeCountsForEvents(
-  eventIds: string[],
-): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
-  if (eventIds.length === 0) return counts;
-
-  const [legacyCounts, submissions] = await Promise.all([
-    countEventResponsesByEvent(eventIds),
-    getFormSubmissionAnswersByEvent(eventIds),
-  ]);
-
-  for (const { eventId, _count } of legacyCounts) {
-    counts[eventId] = (counts[eventId] ?? 0) + _count._all;
-  }
-
-  let submissionsWithoutEvent = 0;
-  for (const submission of submissions) {
-    const eventId = submission.formVersion.form.event?.id;
-    if (!eventId) {
-      submissionsWithoutEvent += 1;
-      continue;
-    }
-    const answers = asRecord(submission.answers);
-    const friends = answers?.[FRIENDS_LIST_NAME];
-    const party = 1 + (Array.isArray(friends) ? friends.length : 0);
-    counts[eventId] = (counts[eventId] ?? 0) + party;
-  }
-
-  if (submissionsWithoutEvent > 0) {
-    requestLogger.error(
-      { reason: { submissionsWithoutEvent } },
-      "Dropped form submissions that no longer point at an event",
-    );
-  }
-
-  return counts;
 }
 
 export type AnswerCountsByFieldKey = Record<
@@ -277,6 +241,7 @@ function flattenSubmission(
 
   const shared = {
     submissionId: submission.id,
+    status: toSignupStatus(submission.status),
     email: asString(topLevel["email"]),
     phone: asString(topLevel["phone"]),
     createdAt: submission.createdAt,
@@ -325,6 +290,7 @@ function flattenSubmission(
 function legacyRowToAttendee(row: EventResponse): Attendee {
   return {
     submissionId: row.id,
+    status: "confirmed",
     isSigner: null,
     name: row.name,
     email: row.email,

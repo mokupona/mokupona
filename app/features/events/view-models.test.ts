@@ -13,8 +13,10 @@ const event = {
   price: 30,
   studentPrice: 20,
   discounts: "Student discount",
-  signupMailSubject: null,
-  signupMailMessage: null,
+  confirmedMailSubject: null,
+  confirmedMailMessage: null,
+  waitlistMailSubject: null,
+  waitlistMailMessage: null,
   image: {
     id: "image-id",
     storageKey: "abc123",

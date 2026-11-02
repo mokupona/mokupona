@@ -3,6 +3,7 @@ import type { Prisma } from "#prisma/generated/client";
 import { prisma } from "~/db.server";
 import type { LiveDataTables } from "~/features/live-data/snapshot";
 import type { LiveDataCounts } from "~/features/live-data/tables";
+import { toSignupStatus } from "~/features/signup-form/signup-status";
 
 const INSERT_CHUNK_SIZE = 200;
 const REPLACE_TIMEOUT_MS = 120_000;
@@ -127,6 +128,9 @@ export async function readLiveDataTables({
         id: true,
         formVersionId: true,
         answers: true,
+        status: true,
+        seats: true,
+        email: true,
         createdAt: true,
       },
     }),
@@ -143,8 +147,10 @@ export async function readLiveDataTables({
         price: true,
         studentPrice: true,
         discounts: true,
-        signupMailSubject: true,
-        signupMailMessage: true,
+        confirmedMailSubject: true,
+        confirmedMailMessage: true,
+        waitlistMailSubject: true,
+        waitlistMailMessage: true,
         imageId: true,
         addressId: true,
         formId: true,
@@ -200,6 +206,7 @@ export async function readLiveDataTables({
     })),
     formSubmissions: formSubmissions.map((row) => ({
       ...row,
+      status: toSignupStatus(row.status),
       answers:
         row.answers as LiveDataTables["formSubmissions"][number]["answers"],
     })),

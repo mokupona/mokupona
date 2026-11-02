@@ -58,8 +58,10 @@ export const EventSchema = z.object({
     .int()
     .optional(),
   discounts: z.string().trim().optional(),
-  signupMailSubject: signupMailCopy(MAX_SIGNUP_MAIL_SUBJECT_LENGTH),
-  signupMailMessage: signupMailCopy(MAX_SIGNUP_MAIL_MESSAGE_LENGTH),
+  confirmedMailSubject: signupMailCopy(MAX_SIGNUP_MAIL_SUBJECT_LENGTH),
+  confirmedMailMessage: signupMailCopy(MAX_SIGNUP_MAIL_MESSAGE_LENGTH),
+  waitlistMailSubject: signupMailCopy(MAX_SIGNUP_MAIL_SUBJECT_LENGTH),
+  waitlistMailMessage: signupMailCopy(MAX_SIGNUP_MAIL_MESSAGE_LENGTH),
   cover: imageFileSchema(),
   addressId: z.string({ error: "Address is required" }).trim(),
 });
