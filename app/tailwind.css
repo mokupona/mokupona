@@ -159,6 +159,39 @@
   filter: hue-rotate(var(--art-hue-shift));
 }
 
+/* A soft patch of frosted paper behind text that sits over decoration (the
+ * landing page's glyph backdrop). Feathered on every side so it reads as the
+ * glyphs fading out around the words, not as a panel. */
+@utility text-halo {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1rem -1.75rem;
+    z-index: -1;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    mask-image:
+      linear-gradient(
+        to right,
+        transparent,
+        #000 1.75rem,
+        #000 calc(100% - 1.75rem),
+        transparent
+      ),
+      linear-gradient(
+        to bottom,
+        transparent,
+        #000 1rem,
+        #000 calc(100% - 1rem),
+        transparent
+      );
+    mask-composite: intersect;
+  }
+}
+
 @utility animate-page-in {
   animation: page-in 300ms ease-out;
 }

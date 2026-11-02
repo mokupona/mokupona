@@ -95,7 +95,8 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   const pastDinners = orderedPast.slice(0, PAST_DINNERS_ON_LANDING);
 
   return (
-    <main>
+    // text sits over the glyph backdrop, so give it a halo of frosted paper
+    <main className="[&_:is(h1,h2,h3,p)]:text-halo [&_a[href^='#']]:text-halo">
       <SitelenBackdrop />
 
       <TitleCardBlockView blockData={titleCardData} />

@@ -7,21 +7,25 @@ import { rowOffset, wallRows } from "./scroll-offset";
 import { cn } from "~/lib/utils";
 
 const SPRITE_URL = "/sitelen/sprite.svg";
-/** px of sideways row travel per px of page scroll */
-const SPEED = 0.55;
 /**
  * px the glyph wall drifts up the screen per px of page scroll — less than 1,
  * so it moves with the page but lags behind it (parallax).
  */
 const DRIFT = 0.35;
 /** vertical gap between rows, px */
-const ROW_GAP = 4;
+const ROW_GAP = 14;
 /**
- * Rows repeat every 6: directions alternate (period 2) and the words cycle
- * through rows.json's three lists (period 3). Keeping the row count a multiple
- * of this lets a row recycled from the top to the bottom keep its words.
+ * Rows cycle through rows.json's three word lists. Keeping the row count a
+ * multiple of this lets a row recycled from the top to the bottom keep its
+ * words.
  */
-const ROW_PERIOD = 6;
+const ROW_PERIOD = rowsData.rows.length;
+/** every this-many-th row slides sideways as the page scrolls; the rest hold still */
+const SLIDE_EVERY = 7;
+/** px of sideways travel per px of page scroll, for the sliding rows */
+const SLIDE_SPEED = 0.55;
+/** px each row is shifted sideways from the one above, so columns don't line up */
+const ROW_STAGGER = 173;
 /** copies of each row laid end to end, so a wide screen never sees the end */
 const COPIES = 3;
 /** smallest row pitch (mobile glyph + gap), used to work out how many rows fill the screen */
@@ -35,10 +39,11 @@ const TAP_POP_MS = 650;
 /**
  * A full-screen wallpaper of torn-paper toki pona glyphs (sitelen moku pona)
  * sitting behind the page. As the page scrolls the wall drifts up at a
- * fraction of the scroll speed while its rows slide alternately left and
- * right — and all of it runs back on the way up. Rows leaving the top are
- * recycled to the bottom, so the wall never runs out. The glyphs rest faint; the one under the
- * pointer pops up and comes to full strength. On touch screens a tap pops it.
+ * fraction of the scroll speed (and back down on the way up), and every
+ * seventh row also slides sideways, alternating left and right; rows leaving
+ * the top are recycled to the bottom, so the wall never runs out. The
+ * glyphs rest faint; the one under the pointer pops up and comes to full
+ * strength. On touch screens a tap pops it.
  *
  * The layer never takes pointer events (the page above it stays fully
  * clickable), so the glyph under the pointer is found by hit-testing the
@@ -121,7 +126,7 @@ function Glyph({ word, index }: { word: string; index: number }) {
   return (
     <span
       data-glyph
-      className="group relative -mx-1 block shrink-0 data-active:z-10 md:mx-0"
+      className="group relative mx-1.5 block shrink-0 data-active:z-10 md:mx-2.5"
       style={{ transform: `translateY(${nudge}px)` }}
     >
       <svg
@@ -226,9 +231,18 @@ function useScrollLinkedRows(
         if (!row) return;
         const k = slot(i);
         const copyWidth = row.scrollWidth / COPIES;
-        const direction = k % 2 === 0 ? -1 : 1;
-        // stagger the rows so the same words don't line up vertically
-        const x = rowOffset(y, direction, copyWidth, SPEED, k * 173);
+        // every SLIDE_EVERY-th row slides, alternating left and right; the
+        // rest keep a fixed sideways stagger. Either way the offset wraps
+        // within one copy, so the row's left end never shows.
+        const sliding = mod(k, SLIDE_EVERY) === 0;
+        const direction = mod(k / SLIDE_EVERY, 2) === 0 ? -1 : 1;
+        const x = rowOffset(
+          sliding ? y : 0,
+          direction,
+          copyWidth,
+          SLIDE_SPEED,
+          k * ROW_STAGGER,
+        );
         row.style.transform = `translate3d(${x}px, ${top(k)}px, 0)`;
       });
     };
@@ -335,4 +349,8 @@ function usePointerPop(
       setActive(null);
     };
   }, [ready, rowRefs]);
+}
+
+function mod(n: number, m: number) {
+  return m > 0 ? ((n % m) + m) % m : 0;
 }
