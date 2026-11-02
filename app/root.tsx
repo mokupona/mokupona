@@ -14,7 +14,6 @@ import { RouteErrorContent } from "./components/route-error-content";
 import { SiteNav } from "./components/site-nav";
 import { Toaster } from "./components/ui/sonner";
 import { useToast } from "./hooks/useToast";
-import { getNextEvent } from "./models/event.server";
 import { getDomainUrl } from "./shared/http.server";
 import { getToast } from "./utils/toast.server";
 
@@ -52,7 +51,6 @@ export const middleware: Route.MiddlewareFunction[] = [
 export const loader = async ({ request, context }: Route.LoaderArgs) => {
   const domainUrl = getDomainUrl(request);
   const user = await context.get(optionalUserContext)();
-  const nextEvent = await getNextEvent();
   const { toast, headers } = await getToast(request);
   const allowIndexing = process.env.ALLOW_INDEXING !== "false";
   const cypressSupport = process.env.CYPRESS_SUPPORT === "true";
@@ -65,7 +63,6 @@ export const loader = async ({ request, context }: Route.LoaderArgs) => {
       domainUrl,
       allowIndexing,
       cypressSupport,
-      nextEventId: nextEvent?.id ?? null,
       imageProvider,
       cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? null,
       honeypot: getHoneypotInputProps(),
@@ -94,10 +91,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <Links />
       </head>
       <body className="dark h-full scheme-dark">
-        <Document
-          toast={loaderData.toast}
-          nextEventId={loaderData.nextEventId}
-        />
+        <Document toast={loaderData.toast} />
         <ScrollRestoration />
         <Scripts />
         <Toaster />
@@ -108,18 +102,14 @@ export default function App({ loaderData }: Route.ComponentProps) {
 
 function Document({
   toast,
-  nextEventId,
 }: {
   toast: Route.ComponentProps["loaderData"]["toast"];
-  nextEventId: string | null;
 }) {
   useToast(toast);
 
-  const joinHref = nextEventId ? `/events/${nextEventId}` : "/events";
-
   return (
     <div className="flex min-h-full flex-col">
-      <SiteNav joinHref={joinHref} />
+      <SiteNav />
       <div className="flex grow flex-col">
         <Outlet />
       </div>

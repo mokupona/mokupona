@@ -19,7 +19,7 @@ The app includes:
 - Prisma ORM with SQLite (`@prisma/adapter-better-sqlite3`)
 - Vitest + Testing Library
 - Cypress for end-to-end tests
-- Fly.io deployment via Docker
+- Railway deployment via Docker
 
 ## Requirements
 
@@ -72,8 +72,8 @@ Required:
 
 Auth & mail:
 
-- `BETTER_AUTH_URL`: canonical origin for auth callbacks and emailed links (set on Fly; inferred from the request in local dev)
-- `MAIL_PROVIDER`: `console` (dev default), `capture` (e2e), or `resend` (prod/staging, set in `fly.toml`)
+- `BETTER_AUTH_URL`: canonical origin for auth callbacks and emailed links (set in production; inferred from the request in local dev)
+- `MAIL_PROVIDER`: `console` (dev default), `capture` (e2e), or `resend` (production)
 - `RESEND_API_KEY`: required when `MAIL_PROVIDER=resend`
 - `MAIL_FROM`: sender address, defaults to `moku pona <no-reply@mail.mokupona.ch>`
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth; the "Continue with Google" buttons hide while unset
@@ -81,7 +81,7 @@ Auth & mail:
 Optional:
 
 - `ALLOW_INDEXING`: set to `false` to disable search engine indexing tags
-- `PORT`: server port (Fly uses `8080`)
+- `PORT`: server port (defaults to `3000`)
 
 ## Useful scripts
 
@@ -107,58 +107,27 @@ Optional:
 - `prisma/seed.ts`: seed data
 - `cypress/e2e`: end-to-end tests
 
-## Deployment (Fly.io)
+## Deployment
+
+Production runs on [Railway](https://railway.com), which deploys `main` directly
+from GitHub. GitHub Actions only runs CI (lint, typecheck, Vitest, Cypress) on
+pull requests and on pushes to `main` and `dev`; it does not deploy.
 
 This project uses:
 
-- `fly.toml` for Fly runtime configuration
 - `Dockerfile` for the production image build
-- `start.sh` for boot-time Prisma migrations and server startup
-- `.github/workflows/ci.yml` for CI
+- `start.sh` for boot-time Prisma migrations, log rotation (`cron` +
+  `logrotate.conf`) and server startup
 
 Runtime details:
 
-- App listens on port `8080`
-- SQLite database is stored at `/data/sqlite.db`
-- Uploaded images are stored under `/data/uploads/images`
-- `start.sh` runs `prisma migrate deploy` before starting the app
-- The migration step happens on boot intentionally because the app depends on the mounted `/data` volume
+- Runtime configuration (`DATABASE_URL`, `MAIL_PROVIDER`, `BETTER_AUTH_*`,
+  `RESEND_API_KEY`, Google OAuth, Cloudinary, …) is set as variables on the
+  Railway service
+- `DATABASE_URL` must point at a SQLite file on a persistent volume
+- `start.sh` runs `prisma migrate deploy` before starting the app, so
+  migrations apply on every boot
 - Health endpoint: `/healthcheck`
-
-### Deployment flow
-
-- Pull requests run CI only.
-- Pushes to `dev` that pass CI trigger a `staging` deployment in the same workflow run.
-- Pushes to `main` that pass CI trigger a `production` deployment job in the same workflow run and wait for environment approval.
-- The CI workflow is the single source of truth for both verification and deployment.
-
-### Environment configuration
-
-1. Create GitHub Environments named `staging` and `production`.
-2. Add `FLY_APP_NAME` as an environment variable to both environments.
-3. Add `FLY_API_TOKEN` as an environment secret to both environments.
-4. Configure required reviewers on the `production` environment.
-5. Confirm both Fly apps exist and have a persistent volume mounted at `/data`.
-6. Set `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `RESEND_API_KEY` and the Google OAuth secrets as Fly secrets for both apps.
-
-`DATABASE_URL` and `PORT` are set in `fly.toml` and do not need to be duplicated as Fly secrets.
-
-### Operational checks
-
-Keep these repository settings aligned with the workflow:
-
-1. GitHub Actions policy must allow the selected actions and shell steps.
-2. The `production` environment should require approval before deployment.
-3. Both `FLY_API_TOKEN` secrets should have the intended scope.
-4. Branch policy should match the promotion flow: `dev` to staging, `main` to production.
-
-### Useful Fly commands
-
-```sh
-fly secrets set BETTER_AUTH_SECRET=$(openssl rand -hex 32) --app <fly-app-name>
-fly volumes create data --size 1 --app <fly-app-name>
-fly ssh console -C database-cli --app <fly-app-name>
-```
 
 ## Testing
 

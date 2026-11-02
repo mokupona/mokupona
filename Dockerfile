@@ -29,8 +29,8 @@ RUN npm prune --omit=dev
 FROM base AS build
 
 WORKDIR /myapp
-# Prisma config resolves DATABASE_URL during the image build, before Fly runtime
-# env vars exist. Use a local SQLite path here; Fly sets the real runtime value.
+# Prisma config resolves DATABASE_URL during the image build, before runtime env
+# vars exist. Use a local SQLite path here; the host sets the real runtime value.
 ENV DATABASE_URL=file:./prisma/data.db
 
 COPY --from=deps /myapp/node_modules /myapp/node_modules
@@ -64,7 +64,7 @@ COPY --from=build /myapp/package.json /myapp/package.json
 COPY --from=build /myapp/start.sh /myapp/start.sh
 COPY --from=build /myapp/prisma /myapp/prisma
 COPY --from=build /myapp/prisma.config.ts /myapp/prisma.config.ts
-# ops scripts run on the VM via `fly ssh console` + tsx (a runtime dep for
+# ops scripts run inside the production container via tsx (a runtime dep for
 # this reason); they import app/ sources through the tsconfig path alias
 COPY --from=build /myapp/scripts /myapp/scripts
 COPY --from=build /myapp/app /myapp/app
