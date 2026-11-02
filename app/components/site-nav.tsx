@@ -1,9 +1,11 @@
 import { ChevronRightIcon, XIcon } from "lucide-react";
 import {
   useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ElementType,
+  type RefObject,
 } from "react";
 import { Form, Link, useLocation } from "react-router";
 
@@ -19,8 +21,6 @@ import { cn } from "~/lib/utils";
 const INSTAGRAM_URL = "https://instagram.com/mokupona";
 /** the "join an event" button's throwing-star shape (see star-points) */
 const JOIN_STAR = "star-points bg-transparent hover:bg-transparent";
-/** px of scroll before a `hideAtTop` header slides in */
-const REVEAL_AFTER = 80;
 
 type NavItem =
   | {
@@ -100,10 +100,11 @@ function buildNavItems({
 }
 
 /**
- * `hideAtTop`: the page opens without a header; it slides in, fixed and on
- * solid paper, once the page is scrolled (or when keyboard focus lands in
- * it). Decoration behind the page — the landing page's glyphs — then passes
- * under it.
+ * `hideAtTop`: the page opens without a header. It's fixed, on solid paper,
+ * and slides down with the scroll — one px per px from the very first one,
+ * fully in once the page has scrolled its height, and back up the same way.
+ * Keyboard focus inside it shows it outright. Decoration behind the page —
+ * the landing page's glyphs — passes under it.
  */
 export function SiteNav({
   joinHref,
@@ -113,7 +114,8 @@ export function SiteNav({
   hideAtTop?: boolean;
 }) {
   const optionalUser = useOptionalUser();
-  const revealed = useScrolledPast(REVEAL_AFTER, hideAtTop);
+  const navRef = useRef<HTMLElement>(null);
+  useScrollReveal(navRef, hideAtTop);
   const loggedIn = Boolean(optionalUser);
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,15 +139,16 @@ export function SiteNav({
   return (
     <>
       <nav
+        ref={navRef}
         // the glyph backdrop ignores the pointer over anything marked this way
         data-glyph-cover
+        // until hydration places it, a hideAtTop header starts out of sight
+        data-hidden={hideAtTop ? "" : undefined}
         className={cn(
           "relative border-b",
+          // --nav-offset is set from the scroll position by useScrollReveal
           hideAtTop &&
-            "bg-background fixed inset-x-0 top-0 z-40 transition-[translate,opacity] duration-300 ease-out motion-reduce:transition-none",
-          hideAtTop &&
-            !revealed &&
-            "pointer-events-none -translate-y-full opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100",
+            "bg-background fixed inset-x-0 top-0 z-40 [translate:0_var(--nav-offset,-100%)] focus-within:[translate:0_0] data-hidden:pointer-events-none data-hidden:focus-within:pointer-events-auto",
         )}
       >
         <div className="flex h-16 items-center justify-between px-10 max-md:hidden">
@@ -226,20 +229,37 @@ export function SiteNav({
   );
 }
 
-/** Whether the window is scrolled more than `px`; always true when not `enabled`. */
-function useScrolledPast(px: number, enabled: boolean) {
-  const [past, setPast] = useState(!enabled);
+/**
+ * Slides a fixed header in with the scroll: its offset is -(its height) at
+ * the top of the page and reaches 0 once the page has scrolled that far.
+ * Written straight to the element each frame rather than through state, so
+ * scrolling doesn't re-render the nav.
+ */
+function useScrollReveal(ref: RefObject<HTMLElement | null>, enabled: boolean) {
   useEffect(() => {
-    if (!enabled) {
-      setPast(true);
-      return;
-    }
-    const check = () => setPast(window.scrollY > px);
-    check();
-    window.addEventListener("scroll", check, { passive: true });
-    return () => window.removeEventListener("scroll", check);
-  }, [px, enabled]);
-  return past;
+    const nav = ref.current;
+    if (!enabled || !nav) return;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const height = nav.offsetHeight;
+      const offset = Math.min(0, window.scrollY - height);
+      nav.style.setProperty("--nav-offset", `${offset}px`);
+      nav.toggleAttribute("data-hidden", offset <= -height);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) cancelAnimationFrame(frame);
+      nav.style.removeProperty("--nav-offset");
+    };
+  }, [ref, enabled]);
 }
 
 function MobileMenu({
