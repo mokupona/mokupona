@@ -9,7 +9,6 @@ import { Form, Link, useLocation } from "react-router";
 
 import { BrandLockup } from "./brand-lockup";
 import { Glow } from "./section";
-import { buttonVariants } from "./ui/button";
 
 import { InstagramIcon } from "~/components/icons";
 import { ADMIN_ROLE_NAMES } from "~/features/auth/roles";
@@ -72,19 +71,12 @@ function buildNavItems({
       },
       { kind: "logout" },
     );
-  } else {
-    items.push({
-      kind: "link",
-      label: "login",
-      to: "/login",
-      isActive: (pathname) => pathname.startsWith("/login"),
-    });
   }
 
   return items;
 }
 
-export function SiteNav({ joinHref }: { joinHref: string }) {
+export function SiteNav() {
   const optionalUser = useOptionalUser();
   const loggedIn = Boolean(optionalUser);
   const location = useLocation();
@@ -151,10 +143,6 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
                   );
               }
             })}
-
-            <Link to={joinHref} className={buttonVariants({ size: "sm" })}>
-              join an event
-            </Link>
           </div>
         </div>
 
@@ -174,22 +162,16 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
       </nav>
 
       {menuOpen ? (
-        <MobileMenu
-          joinHref={joinHref}
-          navItems={navItems}
-          onClose={() => setMenuOpen(false)}
-        />
+        <MobileMenu navItems={navItems} onClose={() => setMenuOpen(false)} />
       ) : null}
     </>
   );
 }
 
 function MobileMenu({
-  joinHref,
   navItems,
   onClose: closeMenu,
 }: {
-  joinHref: string;
   navItems: NavItem[];
   onClose: () => void;
 }) {
@@ -234,13 +216,6 @@ function MobileMenu({
             }
           })}
         </div>
-
-        <Link
-          to={joinHref}
-          className={cn(buttonVariants({ size: "lg" }), "mt-8")}
-        >
-          join an event
-        </Link>
 
         <div className="mt-auto flex flex-col gap-4 pt-9">
           <div className="text-foreground/80 flex gap-6 text-sm">

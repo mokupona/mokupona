@@ -43,9 +43,8 @@ describe("smoke tests", () => {
   it("should allow you to register, verify your email and login", () => {
     const loginForm = fakeSignupForm();
 
-    cy.visitAndCheck("/");
+    cy.visitAndCheck("/login");
 
-    cy.findByRole("link", { name: /login/i }).click();
     cy.findAllByRole("link", { name: /sign up/i })
       .first()
       .click();
@@ -61,7 +60,8 @@ describe("smoke tests", () => {
     fillLoginForm(loginForm.email, loginForm.password);
 
     cy.findByRole("button", { name: /logout/i }).click();
-    cy.findByRole("link", { name: /login/i });
+    cy.location("pathname").should("equal", "/");
+    cy.findByRole("button", { name: /logout/i }).should("not.exist");
   });
 
   it("should re-send the verification link on an unverified login attempt", () => {
@@ -117,7 +117,7 @@ describe("smoke tests", () => {
     cy.login();
     cy.visitAndCheck("/");
 
-    cy.findByRole("link", { name: /join an event/i }).click();
+    cy.findByRole("link", { name: /reserve a seat/i }).click();
     cy.location("pathname").should("match", /^\/events\/[^/]+$/);
 
     cy.findByRole("textbox", { name: /name/i }).type(testCredentials.name);
