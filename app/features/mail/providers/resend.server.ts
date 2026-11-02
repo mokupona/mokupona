@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 import type { MailMessage, MailProvider } from "../types";
 
-const DEFAULT_FROM = "moku pona <no-reply@mail.mokupona.ch>";
+const DEFAULT_FROM = "moku pona <noreply@mokupona.ch>";
 
 export function createResendProvider(
   env: NodeJS.ProcessEnv = process.env,
