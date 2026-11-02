@@ -17,8 +17,12 @@ const DRIFT = 0.35;
 const ROW_GAP = 14;
 /** glyphs per row (before the row is repeated COPIES times) */
 const ROW_LENGTH = 20;
-/** every this-many-th row slides sideways as the page scrolls; the rest hold still */
-const SLIDE_EVERY = 3;
+/**
+ * Every this-many-th row slides sideways as the page scrolls, alternating
+ * left and right; the rest hold still. 0 turns sliding off (current setting).
+ * Tried and liked enough to keep around: 3 or 7.
+ */
+const SLIDE_EVERY: number = 0;
 /** px of sideways travel per px of page scroll, for the sliding rows */
 const SLIDE_SPEED = 0.55;
 /** px each row is shifted sideways from the one above, so columns don't line up */
@@ -36,8 +40,8 @@ const TAP_POP_MS = 650;
 /**
  * A full-screen wallpaper of torn-paper toki pona glyphs (sitelen moku pona)
  * sitting behind the page. As the page scrolls the wall drifts up at a
- * fraction of the scroll speed (and back down on the way up), and every
- * third row also slides sideways, alternating left and right; rows leaving
+ * fraction of the scroll speed (and back down on the way up) — optionally
+ * with some rows sliding sideways too, see SLIDE_EVERY; rows leaving
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
  * strength. On touch screens a tap pops it.
@@ -249,8 +253,8 @@ function useScrollLinkedRows(
         // every SLIDE_EVERY-th row slides, alternating left and right; the
         // rest keep a fixed sideways stagger. Either way the offset wraps
         // within one copy, so the row's left end never shows.
-        const sliding = mod(k, SLIDE_EVERY) === 0;
-        const direction = mod(k / SLIDE_EVERY, 2) === 0 ? -1 : 1;
+        const sliding = SLIDE_EVERY > 0 && mod(k, SLIDE_EVERY) === 0;
+        const direction = sliding && mod(k / SLIDE_EVERY, 2) === 1 ? 1 : -1;
         const x = rowOffset(
           sliding ? y : 0,
           direction,
