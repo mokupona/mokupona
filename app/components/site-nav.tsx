@@ -17,6 +17,10 @@ import { useOptionalUser } from "~/hooks/useOptionalUser";
 import { cn } from "~/lib/utils";
 
 const INSTAGRAM_URL = "https://instagram.com/mokupona";
+/** the "join an event" button's throwing-star shape (see star-points) */
+const JOIN_STAR = "star-points bg-transparent hover:bg-transparent";
+/** px of scroll before a `hideAtTop` header slides in */
+const REVEAL_AFTER = 80;
 
 type NavItem =
   | {
@@ -95,8 +99,21 @@ function buildNavItems({
   return items;
 }
 
-export function SiteNav({ joinHref }: { joinHref: string }) {
+/**
+ * `hideAtTop`: the page opens without a header; it slides in, fixed and on
+ * solid paper, once the page is scrolled (or when keyboard focus lands in
+ * it). Decoration behind the page — the landing page's glyphs — then passes
+ * under it.
+ */
+export function SiteNav({
+  joinHref,
+  hideAtTop = false,
+}: {
+  joinHref: string;
+  hideAtTop?: boolean;
+}) {
   const optionalUser = useOptionalUser();
+  const revealed = useScrolledPast(REVEAL_AFTER, hideAtTop);
   const loggedIn = Boolean(optionalUser);
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -119,7 +136,18 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
 
   return (
     <>
-      <nav className="relative border-b">
+      <nav
+        // the glyph backdrop ignores the pointer over anything marked this way
+        data-glyph-cover
+        className={cn(
+          "relative border-b",
+          hideAtTop &&
+            "bg-background fixed inset-x-0 top-0 z-40 transition-[translate,opacity] duration-300 ease-out motion-reduce:transition-none",
+          hideAtTop &&
+            !revealed &&
+            "pointer-events-none -translate-y-full opacity-0 focus-within:pointer-events-auto focus-within:translate-y-0 focus-within:opacity-100",
+        )}
+      >
         <div className="flex h-16 items-center justify-between px-10 max-md:hidden">
           <BrandLockup to="/" showWordmark={false} logoClassName="size-11" />
 
@@ -163,7 +191,10 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
               }
             })}
 
-            <Link to={joinHref} className={buttonVariants({ size: "sm" })}>
+            <Link
+              to={joinHref}
+              className={cn(buttonVariants({ size: "sm" }), JOIN_STAR)}
+            >
               join an event
             </Link>
           </div>
@@ -193,6 +224,22 @@ export function SiteNav({ joinHref }: { joinHref: string }) {
       ) : null}
     </>
   );
+}
+
+/** Whether the window is scrolled more than `px`; always true when not `enabled`. */
+function useScrolledPast(px: number, enabled: boolean) {
+  const [past, setPast] = useState(!enabled);
+  useEffect(() => {
+    if (!enabled) {
+      setPast(true);
+      return;
+    }
+    const check = () => setPast(window.scrollY > px);
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, [px, enabled]);
+  return past;
 }
 
 function MobileMenu({
@@ -248,7 +295,7 @@ function MobileMenu({
 
         <Link
           to={joinHref}
-          className={cn(buttonVariants({ size: "lg" }), "mt-8")}
+          className={cn(buttonVariants({ size: "lg" }), JOIN_STAR, "mt-8")}
         >
           join an event
         </Link>

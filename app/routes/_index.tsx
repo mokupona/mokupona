@@ -100,7 +100,9 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   return (
     // text sits over the glyph backdrop, so give it a halo of frosted paper
     <main className="[&_:is(h1,h2,h3,p)]:text-halo [&_a[href^='#']]:text-halo">
-      <TitleCardBlockView blockData={titleCardData} />
+      {/* no header at the top of this page (it slides in on scroll), so the
+          title card gets the whole first screen */}
+      <TitleCardBlockView blockData={titleCardData} className="min-h-svh" />
 
       <TextSectionBlockView id="vision" blockData={visionSectionData} />
 

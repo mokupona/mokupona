@@ -129,7 +129,7 @@ function Document({
     // negative z-index, which iOS Safari renders unreliably.
     <div className="bg-background isolate flex min-h-full flex-col">
       {glyphBackdrop ? <SitelenBackdrop /> : null}
-      <SiteNav joinHref={joinHref} />
+      <SiteNav joinHref={joinHref} hideAtTop={glyphBackdrop} />
       <div className="relative flex grow flex-col">
         <Outlet />
       </div>

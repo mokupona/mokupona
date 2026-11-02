@@ -307,6 +307,10 @@ function usePointerPop(
     let active: HTMLElement | null = null;
 
     const glyphAt = (x: number, y: number) => {
+      // something solid on top (the header) hides the wall there
+      if (document.elementFromPoint(x, y)?.closest("[data-glyph-cover]")) {
+        return null;
+      }
       for (const row of rowRefs.current) {
         if (!row) continue;
         const r = row.getBoundingClientRect();
