@@ -86,6 +86,79 @@ export async function updateNonAdminUserRole(
   });
 }
 
+export async function listAdmins(): Promise<
+  { id: string; email: string; name: string; createdAt: Date }[]
+> {
+  return prisma.user.findMany({
+    where: { role: { name: "admin" } },
+    select: { id: true, email: true, name: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export type GrantAdminResult = "granted" | "already-admin" | "user-not-found";
+
+/**
+ * Promotes a user to admin by email. Admin is never granted by invite, so
+ * this and the admin user edit page are the only ways in.
+ */
+export async function grantAdminRoleByEmail(
+  email: string,
+): Promise<GrantAdminResult> {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { role: true },
+    });
+    if (!user) return "user-not-found";
+    if (user.role.name === "admin") return "already-admin";
+
+    const adminRole = await tx.role.findUniqueOrThrow({
+      where: { name: "admin" },
+    });
+    await tx.user.update({
+      where: { id: user.id },
+      data: { roleId: adminRole.id },
+    });
+    return "granted";
+  });
+}
+
+export type RevokeAdminResult =
+  "revoked" | "not-admin" | "user-not-found" | "last-admin";
+
+/**
+ * Demotes an admin by email. The website never demotes admins; this is the
+ * only way out of the role. Refuses to remove the last remaining admin.
+ */
+export async function revokeAdminRoleByEmail(
+  email: string,
+  toRoleName: "moderator" | "user",
+): Promise<RevokeAdminResult> {
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { role: true },
+    });
+    if (!user) return "user-not-found";
+    if (user.role.name !== "admin") return "not-admin";
+
+    const adminCount = await tx.user.count({
+      where: { role: { name: "admin" } },
+    });
+    if (adminCount <= 1) return "last-admin";
+
+    const role = await tx.role.findUniqueOrThrow({
+      where: { name: toRoleName },
+    });
+    await tx.user.update({
+      where: { id: user.id },
+      data: { roleId: role.id },
+    });
+    return "revoked";
+  });
+}
+
 async function deleteUserInTx(tx: Prisma.TransactionClient, id: string) {
   return tx.user.delete({ where: { id } });
 }

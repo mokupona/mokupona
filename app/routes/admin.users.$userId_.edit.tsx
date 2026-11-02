@@ -11,11 +11,7 @@ import {
   requestLoggerContext,
   userContext,
 } from "~/features/auth/middleware.server";
-import { isAdminRole } from "~/features/auth/roles";
-import {
-  INVITABLE_ROLE_OPTIONS,
-  INVITABLE_ROLES,
-} from "~/features/users/invite.shared";
+import { isAdminRole, ROLE_NAMES, ROLE_OPTIONS } from "~/features/auth/roles";
 import { getRoleByName } from "~/models/role.server";
 import {
   getUserAccountSummary,
@@ -24,7 +20,7 @@ import {
 import { requireFound } from "~/shared/http.server";
 
 const schema = z.object({
-  roleName: z.enum(INVITABLE_ROLES),
+  roleName: z.enum(ROLE_NAMES),
 });
 
 export async function loader({ params }: Route.LoaderArgs) {
@@ -126,15 +122,22 @@ export default function EventsPage({
       >
         <SelectField
           labelProps={{ children: "Role" }}
+          description={
+            isAdmin
+              ? "Administrators can't be demoted from the website."
+              : "Administrators can manage users and settings and make other administrators. They can't be demoted from the website."
+          }
           selectProps={{
             ...getSelectProps(fields.roleName),
             disabled: isAdmin,
-            options: [...INVITABLE_ROLE_OPTIONS],
+            options: [...ROLE_OPTIONS],
           }}
           errors={fields.roleName.errors}
         />
 
-        <Button type="submit">Update User</Button>
+        <Button type="submit" disabled={isAdmin}>
+          Update User
+        </Button>
       </Form>
     </div>
   );

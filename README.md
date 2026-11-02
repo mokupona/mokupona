@@ -63,6 +63,30 @@ By default, the app runs at `http://localhost:3000`.
 - `moderator@mokupona.ch` (role: moderator)
 - `admin@mokupona.ch` (role: admin)
 
+## Roles and administrators
+
+Every account has one role:
+
+- `user`: a regular member account
+- `moderator`: also gets the admin area (events, locations, board, gallery)
+- `admin`: also manages users, invites and settings
+
+Admins can invite people as `user` or `moderator`, and change a non-admin's
+role on **Admin → Users → Edit**, including promoting them to administrator.
+The website never demotes an administrator. That, and listing who the admins
+are, is done with `scripts/admins.ts` in a shell on the production container
+(for example `railway ssh`):
+
+```sh
+npx tsx scripts/admins.ts list                    # who are the admins?
+npx tsx scripts/admins.ts grant someone@example.com
+npx tsx scripts/admins.ts revoke someone@example.com [--to moderator|user]
+```
+
+`grant` only works for an existing account, so the person signs up first.
+`revoke` demotes to `moderator` by default and refuses to remove the last
+admin.
+
 ## Environment variables
 
 Required:
