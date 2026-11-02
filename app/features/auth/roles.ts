@@ -12,6 +12,12 @@ const ROLE_LABELS = {
   admin: "administrator",
 } as const satisfies Record<RoleName, string>;
 
+export const ROLE_OPTIONS = [
+  { label: "User", value: "user" },
+  { label: "Moderator", value: "moderator" },
+  { label: "Administrator", value: "admin" },
+] as const satisfies ReadonlyArray<{ label: string; value: RoleName }>;
+
 export const ROLE_FILTER_OPTIONS = [
   { label: "Admin", value: "admin" },
   { label: "Moderator", value: "moderator" },

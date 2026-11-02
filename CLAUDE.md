@@ -11,6 +11,10 @@ pages with signup, gallery, auth (better-auth) and an admin area.
 - Prisma with SQLite; images on Cloudinary (`IMAGE_PROVIDER=local` in dev/CI)
 - Production runs on Railway, which deploys `main` from GitHub using the
   `Dockerfile`. GitHub Actions (`.github/workflows/ci.yml`) only runs CI.
+- Roles are `user`, `moderator` and `admin` (`app/features/auth/roles.ts`).
+  Invites stop at `moderator`. Admins can promote others to admin on the user
+  edit page, but only `scripts/admins.ts` can demote an admin. Keep it that way
+  unless the user asks otherwise.
 
 ## Layout
 
