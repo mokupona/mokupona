@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clockGlyphs,
   GAME_MS,
+  litSegments,
   maxUp,
   newGame,
   scoreGlyphs,
@@ -82,5 +83,22 @@ describe("whack", () => {
   it("ignores an empty hole", () => {
     const g = newGame();
     expect(whack(g, 4, 100)).toBe(g);
+  });
+});
+
+describe("litSegments", () => {
+  it("lights the bars of a seven-segment digit", () => {
+    expect(litSegments("1")).toEqual(["b", "c"]);
+    expect(litSegments("8")).toHaveLength(7);
+    expect(litSegments("0")).not.toContain("g");
+  });
+
+  it("gives every digit a different shape", () => {
+    const shapes = "0123456789".split("").map((d) => litSegments(d).join(""));
+    expect(new Set(shapes).size).toBe(10);
+  });
+
+  it("lights nothing for a non-digit", () => {
+    expect(litSegments("colon")).toEqual([]);
   });
 });

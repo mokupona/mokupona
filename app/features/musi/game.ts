@@ -30,7 +30,7 @@ export function newGame(): Game {
       pop: 0,
     })),
     score: 0,
-    nextPopAt: 600,
+    nextPopAt: 300,
   };
 }
 
@@ -41,7 +41,7 @@ function progress(elapsed: number) {
 
 /** How long a soweli stays up: generous at first, snappy by the end. */
 export function upTime(elapsed: number) {
-  return Math.round(1150 - 550 * progress(elapsed));
+  return Math.round(1050 - 450 * progress(elapsed));
 }
 
 /** How many may be up at once — the last stretch gets busy. */
@@ -53,7 +53,7 @@ export function maxUp(elapsed: number) {
 /** The pause before the next pop, shrinking as the minute runs out. */
 export function popGap(elapsed: number, rand: () => number) {
   const p = progress(elapsed);
-  return Math.round((380 + rand() * 520) * (1 - 0.45 * p));
+  return Math.round((340 + rand() * 460) * (1 - 0.42 * p));
 }
 
 /**
@@ -115,4 +115,29 @@ export function scoreGlyphs(score: number, width = 3): string[] {
   return String(Math.max(0, Math.floor(score)))
     .padStart(width, "0")
     .split("");
+}
+
+export const SEGMENTS = ["a", "b", "c", "d", "e", "f", "g"] as const;
+export type Segment = (typeof SEGMENTS)[number];
+
+/**
+ * Which bars of a seven-segment display light up for each digit: a top,
+ * b top-right, c bottom-right, d bottom, e bottom-left, f top-left, g middle.
+ */
+const LIT: Record<string, string> = {
+  "0": "abcdef",
+  "1": "bc",
+  "2": "abdeg",
+  "3": "abcdg",
+  "4": "bcfg",
+  "5": "acdfg",
+  "6": "acdefg",
+  "7": "abc",
+  "8": "abcdefg",
+  "9": "abcdfg",
+};
+
+export function litSegments(digit: string): Segment[] {
+  const lit = LIT[digit] ?? "";
+  return SEGMENTS.filter((s) => lit.includes(s));
 }

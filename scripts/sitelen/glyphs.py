@@ -477,3 +477,21 @@ DIGITS: dict[str, dict] = {
 }
 for _d in DIGITS.values():
     _d["keep_counters"] = True
+
+
+# ------------------------------------------------- seven-segment bars ----
+# The /musi countdown clock: one torn strip per bar of a seven-segment
+# display, so the page can light any digit from the same seven pieces
+# (a top, b top-right, c bottom-right, d bottom, e bottom-left, f top-left,
+# g middle), plus the colon's two dots.
+
+SEGMENTS: dict[str, dict] = {
+    "a": {"base": [line((33, 12), (67, 12))]},
+    "b": {"base": [line((76, 20), (76, 44))]},
+    "c": {"base": [line((76, 56), (76, 80))]},
+    "d": {"base": [line((33, 88), (67, 88))]},
+    "e": {"base": [line((24, 56), (24, 80))]},
+    "f": {"base": [line((24, 20), (24, 44))]},
+    "g": {"base": [line((33, 50), (67, 50))]},
+    "colon": {"base": [], "dots": [(50, 32, 6, "base"), (50, 68, 6, "base")]},
+}

@@ -6,11 +6,14 @@ import {
   clockGlyphs,
   GAME_MS,
   type Game,
+  litSegments,
   newGame,
   scoreGlyphs,
+  SEGMENTS,
   step,
   whack,
 } from "./game";
+import { type Sticker, stickerLayout } from "./stickers";
 
 import rowsData from "~/features/sitelen/rows.json";
 import { PaperPatterns, useSprite } from "~/features/sitelen/sitelen-backdrop";
@@ -120,7 +123,8 @@ export function Arcade() {
     return () => window.removeEventListener("keydown", onKey);
   }, [bonk]);
 
-  const hammer = useHammer();
+  // the ilo only takes over the pointer once the game is on
+  const hammer = useHammer(phase === "playing");
 
   return (
     <div
@@ -134,7 +138,9 @@ export function Arcade() {
         {
           "--smp-rim": "rgb(246 240 252)",
           "--smp-shadow": "rgb(43 18 56 / 0.25)",
-          "--smp-hole": "rgb(36 14 52)",
+          // a deep plum rather than black; the wall is the darker shade
+          "--smp-hole": "rgb(72 40 92)",
+          "--smp-hole-wall": "rgb(38 16 54)",
         } as React.CSSProperties
       }
       {...hammer.handlers}
@@ -151,16 +157,19 @@ export function Arcade() {
       <Clock msLeft={phase === "ready" ? GAME_MS : msLeft} />
 
       {/* ----------------------------------------------------- backbox -- */}
-      <div className="art-warm p-2.5 shadow-lg md:p-3" style={DARK_PAPER}>
+      <div
+        className="art-warm rounded-3xl p-2.5 shadow-lg md:p-3"
+        style={DARK_PAPER}
+      >
         <div
-          className="relative aspect-[16/8] overflow-hidden"
+          className="relative aspect-[16/8] overflow-hidden rounded-2xl"
           style={PALE_PAPER}
         >
           <Stickers />
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="p-1.5 shadow-md" style={DARK_PAPER}>
+            <div className="rounded-xl p-1.5 shadow-md" style={DARK_PAPER}>
               <div
-                className="flex flex-col items-center px-3 pt-1 pb-0.5"
+                className="flex flex-col items-center rounded-lg px-3 pt-1 pb-0.5"
                 style={PALE_PAPER}
               >
                 <span
@@ -199,7 +208,7 @@ export function Arcade() {
           under the backbox; % margins track the width, as the table does */}
       <div className="relative" style={{ marginTop: "-19%" }}>
         <div
-          className="art-warm p-2.5 shadow-xl md:p-3.5"
+          className="art-warm rounded-t-3xl p-2.5 shadow-xl md:p-3.5"
           style={{
             ...DARK_PAPER,
             transform: "perspective(1100px) rotateX(24deg)",
@@ -207,7 +216,7 @@ export function Arcade() {
           }}
         >
           <div
-            className="grid grid-cols-3 gap-x-2 px-3 pt-4 pb-1 md:gap-x-4 md:px-5"
+            className="grid grid-cols-3 gap-x-2 rounded-2xl px-3 pt-4 pb-1 md:gap-x-4 md:px-5"
             style={PALE_PAPER}
           >
             {game.holes.map((hole, i) => (
@@ -234,7 +243,7 @@ export function Arcade() {
 
       {/* --------------------------------------------- front panel + legs -- */}
       <div
-        className="relative flex h-14 items-center justify-between px-6 shadow-lg md:h-16"
+        className="relative flex h-14 items-center justify-between rounded-b-3xl px-6 shadow-lg md:h-16"
         style={{
           ...DARK_PAPER,
           // art-warm plus a shade darker: an inline filter replaces the class's
@@ -242,8 +251,8 @@ export function Arcade() {
         }}
       >
         <span className="flex gap-1.5" aria-hidden="true">
-          <span className="h-6 w-2 bg-black/50 shadow-inner" />
-          <span className="h-6 w-2 bg-black/50 shadow-inner" />
+          <span className="h-6 w-2 rounded-full bg-black/50 shadow-inner" />
+          <span className="h-6 w-2 rounded-full bg-black/50 shadow-inner" />
         </span>
         <button
           type="button"
@@ -344,46 +353,113 @@ function Clock({ msLeft }: { msLeft: number }) {
   return (
     <div className="art-warm mb-1 flex flex-col items-center">
       <div
-        className="p-2 shadow-lg"
+        className="rounded-2xl p-2 shadow-lg"
         style={DARK_PAPER}
         role="timer"
         aria-label={`${seconds} seconds left`}
       >
-        <div className="flex items-center px-2" style={PALE_PAPER}>
-          {glyphs.map((g, i) => (
-            <PopGlyph
-              key={i}
-              name={`digit-${g}`}
-              className={cn(
-                "size-16 md:size-20",
-                g === "colon" ? "-mx-3" : "-mx-1.5",
-              )}
-            />
-          ))}
+        <div
+          className="flex items-center rounded-xl px-3 py-1"
+          style={PALE_PAPER}
+        >
+          {glyphs.map((g, i) =>
+            g === "colon" ? (
+              <svg
+                key={i}
+                viewBox="-8 -8 116 116"
+                aria-hidden="true"
+                className="-mx-6 h-20 w-20 shrink-0 md:h-24 md:w-24"
+              >
+                <use href="#smp-seg-colon" />
+              </svg>
+            ) : (
+              <SegmentDigit key={i} digit={g} />
+            ),
+          )}
         </div>
       </div>
       {/* struts holding the clock above the backbox */}
       <div className="flex w-40 justify-between" aria-hidden="true">
-        <span className="h-5 w-2.5" style={DARK_PAPER} />
-        <span className="h-5 w-2.5" style={DARK_PAPER} />
+        <span className="h-5 w-2.5 rounded-b-full" style={DARK_PAPER} />
+        <span className="h-5 w-2.5 rounded-b-full" style={DARK_PAPER} />
       </div>
     </div>
   );
 }
 
 /**
- * A glyph that pops in with a wiggle whenever `name` changes, while the old
- * one twists away underneath it.
+ * One digit of the clock's seven-segment display, cut from torn paper. The
+ * unlit bars stay faintly visible, like an LCD; the lit ones pop in with a
+ * wiggle whenever the digit changes.
  */
-function PopGlyph({ name, className }: { name: string; className?: string }) {
-  const [items, setItems] = useState([{ name, key: 0, out: false }]);
-  const [shown, setShown] = useState(name);
+function SegmentDigit({ digit }: { digit: string }) {
+  return (
+    <span className="relative block h-20 w-16 shrink-0 md:h-24 md:w-20">
+      <svg
+        viewBox="-8 -8 116 116"
+        aria-hidden="true"
+        preserveAspectRatio="xMidYMid slice"
+        className="absolute inset-0 size-full opacity-[0.13]"
+      >
+        {SEGMENTS.map((s) => (
+          <use key={s} href={`#smp-seg-${s}`} />
+        ))}
+      </svg>
+      <PopSwap
+        value={digit}
+        className="absolute inset-0"
+        render={(d) => (
+          <svg
+            viewBox="-8 -8 116 116"
+            preserveAspectRatio="xMidYMid slice"
+            className="size-full"
+          >
+            {litSegments(d).map((s) => (
+              <use key={s} href={`#smp-seg-${s}`} />
+            ))}
+          </svg>
+        )}
+      />
+    </span>
+  );
+}
 
-  if (name !== shown) {
-    setShown(name);
+/** A torn-paper glyph that pops in with a wiggle whenever `name` changes. */
+function PopGlyph({ name, className }: { name: string; className?: string }) {
+  return (
+    <PopSwap
+      value={name}
+      className={cn("relative block shrink-0", className)}
+      render={(n) => (
+        <svg viewBox="-8 -8 116 116" className="size-full">
+          <use href={`#smp-${n}`} />
+        </svg>
+      )}
+    />
+  );
+}
+
+/**
+ * Renders `render(value)`, and whenever `value` changes pops the new one in
+ * with a wiggle while the old one twists away underneath it.
+ */
+function PopSwap({
+  value,
+  render,
+  className,
+}: {
+  value: string;
+  render: (value: string) => React.ReactNode;
+  className?: string;
+}) {
+  const [items, setItems] = useState([{ value, key: 0, out: false }]);
+  const [shown, setShown] = useState(value);
+
+  if (value !== shown) {
+    setShown(value);
     setItems((prev) => [
       ...prev.filter((it) => !it.out).map((it) => ({ ...it, out: true })),
-      { name, key: (prev[prev.length - 1]?.key ?? 0) + 1, out: false },
+      { value, key: (prev[prev.length - 1]?.key ?? 0) + 1, out: false },
     ]);
   }
 
@@ -398,19 +474,17 @@ function PopGlyph({ name, className }: { name: string; className?: string }) {
   }, [leaving]);
 
   return (
-    <span className={cn("relative block shrink-0", className)}>
+    <span aria-hidden="true" className={className}>
       {items.map((it) => (
-        <svg
+        <span
           key={it.key}
-          viewBox="-8 -8 116 116"
-          aria-hidden="true"
           className={cn(
-            "absolute inset-0 size-full motion-reduce:animate-none",
+            "absolute inset-0 motion-reduce:animate-none",
             it.out ? "animate-glyph-out" : "animate-glyph-in",
           )}
         >
-          <use href={`#smp-${it.name}`} />
-        </svg>
+          {render(it.value)}
+        </span>
       ))}
     </span>
   );
@@ -418,15 +492,7 @@ function PopGlyph({ name, className }: { name: string; className?: string }) {
 
 /* ---------------------------------------------------------- stickers -- */
 
-interface Sticker {
-  word: string;
-  x: number;
-  y: number;
-  size: number;
-  turn: number;
-}
-
-/** glyphs slapped on the backboard at random — new ones every visit */
+/** glyphs stuck on the backboard — a fresh pick and layout every visit */
 function Stickers() {
   const [stickers, setStickers] = useState<Sticker[]>([]);
 
@@ -434,16 +500,7 @@ function Stickers() {
     const pool = rowsData.rows
       .flat()
       .filter((w) => w !== "soweli" && w !== "ilo");
-    const picks = shuffle(pool).slice(0, 18);
-    setStickers(
-      picks.map((word) => ({
-        word,
-        x: -6 + Math.random() * 96,
-        y: -12 + Math.random() * 90,
-        size: 13 + Math.random() * 11,
-        turn: Math.round(Math.random() * 360 - 180),
-      })),
-    );
+    setStickers(stickerLayout(pool));
   }, []);
 
   return (
@@ -454,8 +511,10 @@ function Stickers() {
           viewBox="-8 -8 116 116"
           className="absolute aspect-square"
           style={{
-            left: `${s.x}%`,
-            top: `${s.y}%`,
+            // x/y are centres; the board is twice as wide as it is tall, so
+            // half a sticker's width is `size`% of the board's height
+            left: `${s.x - s.size / 2}%`,
+            top: `${s.y - s.size}%`,
             width: `${s.size}%`,
             transform: `rotate(${s.turn}deg)`,
           }}
@@ -483,16 +542,14 @@ function Notice({
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div
-        className="animate-glyph-in flex max-w-xs flex-col items-center gap-3 px-6 py-5 text-center shadow-xl"
+        className="animate-glyph-in flex max-w-xs flex-col items-center gap-3 rounded-2xl px-6 py-5 text-center shadow-xl"
         style={PALE_PAPER}
         role="status"
       >
         {phase === "ready" ? (
           <>
             <p className="text-ink text-xl font-semibold">bonk the soweli!</p>
-            <p className="text-ink text-sm">
-              they pop out of the holes. you have one minute.
-            </p>
+            <p className="text-ink text-sm">you have one minute.</p>
           </>
         ) : (
           <>
@@ -512,7 +569,7 @@ function Notice({
         <button
           type="button"
           onClick={onStart}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 text-sm font-semibold transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 rounded-full px-6 text-sm font-semibold transition-colors"
         >
           {phase === "ready" ? "start" : "play again"}
         </button>
@@ -536,15 +593,15 @@ function Legs() {
     <div className="art-warm relative h-24 md:h-28" aria-hidden="true">
       {/* back legs, set in and shaded */}
       <span
-        className="absolute top-0 left-[16%] h-[82%] w-[4%]"
+        className="absolute top-0 left-[16%] h-[82%] w-[4%] rounded-b-full"
         style={{ ...DARK_PAPER, filter: "brightness(0.6)" }}
       />
       <span
-        className="absolute top-0 right-[16%] h-[82%] w-[4%]"
+        className="absolute top-0 right-[16%] h-[82%] w-[4%] rounded-b-full"
         style={{ ...DARK_PAPER, filter: "brightness(0.6)" }}
       />
       <span
-        className="absolute top-[45%] right-[17%] left-[17%] h-2"
+        className="absolute top-[45%] right-[17%] left-[17%] h-2 rounded-full"
         style={{ ...DARK_PAPER, filter: "brightness(0.6)" }}
       />
       {/* front legs, splayed a touch, with feet */}
@@ -552,7 +609,7 @@ function Legs() {
         <span
           key={side}
           className={cn(
-            "absolute top-0 h-full w-[6%]",
+            "absolute top-0 h-full w-[6%] rounded-b-xl",
             side === "left" ? "left-[3%]" : "right-[3%]",
           )}
           style={{
@@ -562,7 +619,7 @@ function Legs() {
           }}
         >
           <span
-            className="absolute -bottom-1 left-1/2 h-2.5 w-[220%] -translate-x-1/2"
+            className="absolute -bottom-1 left-1/2 h-2.5 w-[220%] -translate-x-1/2 rounded-full"
             style={{ ...DARK_PAPER, filter: "brightness(0.75)" }}
           />
         </span>
@@ -596,12 +653,20 @@ interface HammerState {
   >;
 }
 
-/** The ilo follows the pointer around the machine and swings on a press. */
-function useHammer(): HammerState {
+/**
+ * The ilo follows the pointer around the machine and swings on a press —
+ * only while `enabled`; otherwise the pointer is the ordinary cursor.
+ */
+function useHammer(enabled: boolean): HammerState {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const [swinging, setSwinging] = useState(0);
   const touchHide = useRef(0);
+
+  // put the hammer down when the game ends (or before it starts)
+  useEffect(() => {
+    if (!enabled) setActive(false);
+  }, [enabled]);
 
   const place = (e: React.PointerEvent) => {
     const el = ref.current;
@@ -623,7 +688,7 @@ function useHammer(): HammerState {
     ref,
     handlers: {
       onPointerMove: (e) => {
-        if (e.pointerType !== "mouse") return;
+        if (!enabled || e.pointerType !== "mouse") return;
         place(e);
         setActive(true);
       },
@@ -631,6 +696,7 @@ function useHammer(): HammerState {
         if (e.pointerType === "mouse") setActive(false);
       },
       onPointerDown: (e) => {
+        if (!enabled) return;
         place(e);
         setActive(true);
         setSwinging((n) => n + 1);
@@ -674,15 +740,6 @@ function Hammer({ state }: { state: HammerState }) {
 }
 
 /* ------------------------------------------------------------- utils -- */
-
-function shuffle<T>(xs: T[]): T[] {
-  const out = xs.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
 
 function readBest(): number | null {
   try {
