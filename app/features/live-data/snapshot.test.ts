@@ -127,3 +127,32 @@ describe("liveDataSummarySchema", () => {
     expect(summary.counts.events).toBe(1);
   });
 });
+
+describe("liveDataTablesSchema payment bookkeeping", () => {
+  it("carries each signup's payment ticks and note", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      firstHalfPaid: true,
+      secondHalfPaid: false,
+      adminNote: "Pays the second half by transfer in December",
+    });
+  });
+
+  it("reads a live site that predates the ticks as unpaid, with no note", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const submission of tables.formSubmissions) {
+      delete submission.firstHalfPaid;
+      delete submission.secondHalfPaid;
+      delete submission.adminNote;
+    }
+
+    expect(liveDataTablesSchema.parse(tables).formSubmissions[0]).toMatchObject(
+      {
+        firstHalfPaid: false,
+        secondHalfPaid: false,
+        adminNote: "",
+      },
+    );
+  });
+});

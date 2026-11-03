@@ -25,6 +25,11 @@ export interface SignupBooking {
   isLegacy: boolean;
   /** The signer's own address, as they typed it. */
   signerEmail: string;
+  /** Admin bookkeeping: whether each half of the payment is in. */
+  firstHalfPaid: boolean;
+  secondHalfPaid: boolean;
+  /** Admin bookkeeping: free text, never shown to the guest. */
+  adminNote: string;
   booking: BookingSummary;
 }
 
@@ -61,6 +66,9 @@ export async function getSignupBookingsForEvent(
         createdAt: submission.createdAt,
         isLegacy: false,
         signerEmail: asString(answers.email),
+        firstHalfPaid: submission.firstHalfPaid,
+        secondHalfPaid: submission.secondHalfPaid,
+        adminNote: submission.adminNote,
         booking: summarizeBooking(formFields, answers, prices, t),
       },
     ];
@@ -72,6 +80,10 @@ export async function getSignupBookingsForEvent(
     createdAt: row.createdAt,
     isLegacy: true,
     signerEmail: row.email,
+    // pre-form signups have no payment bookkeeping; the page doesn't offer it
+    firstHalfPaid: false,
+    secondHalfPaid: false,
+    adminNote: "",
     booking: legacyBooking(row, prices, t),
   }));
 

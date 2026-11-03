@@ -3,6 +3,7 @@ import type { Prisma } from "#prisma/generated/client";
 import { FormVersionChangedError } from "./form-submission.server";
 
 import { prisma } from "~/db.server";
+import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import {
   ACTIVE_SIGNUP_STATUSES,
   decideSignupStatus,
@@ -186,6 +187,41 @@ export async function updateSignupStatus({
 
     return { previous };
   });
+}
+
+/**
+ * The admin's own bookkeeping for a signup: which halves of the payment are
+ * in, and a note. Touches nothing the guest or the seats depend on.
+ */
+export async function updateSignupBookkeeping({
+  eventId,
+  submissionId,
+  data,
+}: {
+  eventId: string;
+  submissionId: string;
+  data: {
+    firstHalfPaid?: boolean;
+    secondHalfPaid?: boolean;
+    adminNote?: string;
+  };
+}): Promise<void> {
+  if (
+    data.adminNote !== undefined &&
+    data.adminNote.length > MAX_ADMIN_NOTE_LENGTH
+  ) {
+    throw new RangeError(
+      `Admin notes are at most ${MAX_ADMIN_NOTE_LENGTH} characters`,
+    );
+  }
+  const { count } = await prisma.formSubmission.updateMany({
+    where: {
+      id: submissionId,
+      formVersion: { form: { event: { id: eventId } } },
+    },
+    data,
+  });
+  if (count === 0) throw new SignupNotFoundError();
 }
 
 export interface SeatCounts {

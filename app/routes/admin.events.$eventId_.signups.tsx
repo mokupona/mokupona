@@ -1,6 +1,6 @@
 import { DownloadIcon } from "lucide-react";
 import { Fragment, useState } from "react";
-import { Form } from "react-router";
+import { data, Form, useFetcher } from "react-router";
 
 import type { Route } from "./+types/admin.events.$eventId_.signups";
 
@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { Textarea } from "~/components/ui/textarea";
 import {
   requestLoggerContext,
   userContext,
@@ -29,6 +30,7 @@ import {
   getSignupBookingsForEvent,
   type SignupBooking,
 } from "~/features/signup-form/bookings.server";
+import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import { sendSeatConfirmedMail } from "~/features/signup-form/confirmation-mail.server";
 import {
   summarizeHeadcount,
@@ -49,6 +51,7 @@ import {
   DuplicateSignupError,
   getSeatCounts,
   SignupNotFoundError,
+  updateSignupBookkeeping,
   updateSignupStatus,
 } from "~/models/event-signup.server";
 import { getEventById } from "~/models/event.server";
@@ -70,6 +73,11 @@ interface Party {
   guests: BookingGuest[];
   /** Answers that belong to the signup as a whole. */
   contact: SummaryRow[];
+  /** Admin bookkeeping: whether each half of the payment is in. */
+  firstHalfPaid: boolean;
+  secondHalfPaid: boolean;
+  /** Admin bookkeeping: free text for the team, never shown to the guest. */
+  adminNote: string;
 }
 
 function toParty(signup: SignupBooking): Party {
@@ -86,6 +94,9 @@ function toParty(signup: SignupBooking): Party {
     createdAt: signup.createdAt,
     guests,
     contact,
+    firstHalfPaid: signup.firstHalfPaid,
+    secondHalfPaid: signup.secondHalfPaid,
+    adminNote: signup.adminNote,
   };
 }
 
@@ -145,6 +156,49 @@ export async function action({ params, request, context }: Route.ActionArgs) {
 
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  // the payment ticks and the note are the admin's own bookkeeping; they
+  // don't touch the seats, so they skip the status rules below
+  if (intent === "payments" || intent === "note") {
+    const bookkeepingId = formData.get("submissionId");
+    if (typeof bookkeepingId !== "string") {
+      throw new Response("Bad Request", { status: 400 });
+    }
+
+    const update =
+      intent === "payments"
+        ? {
+            firstHalfPaid: formData.has("firstHalfPaid"),
+            secondHalfPaid: formData.has("secondHalfPaid"),
+          }
+        : { adminNote: readNote(formData) };
+
+    try {
+      await updateSignupBookkeeping({
+        eventId,
+        submissionId: bookkeepingId,
+        data: update,
+      });
+    } catch (reason) {
+      if (reason instanceof SignupNotFoundError) {
+        throw new Response("Not Found", { status: 404 });
+      }
+      throw reason;
+    }
+
+    log.info(
+      {
+        userId: user.id,
+        event: eventId,
+        submission: bookkeepingId,
+        changed: Object.keys(update),
+      },
+      "Admin updated a signup's bookkeeping",
+    );
+
+    return data({ saved: intent });
+  }
+
   const submissionId = formData.get("submissionId");
   if (!isIntent(intent) || typeof submissionId !== "string") {
     throw new Response("Bad Request", { status: 400 });
@@ -205,6 +259,14 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   }
 
   return redirectWithToast(page, statusToast(status, previous, mailFailed));
+}
+
+function readNote(formData: FormData): string {
+  const note = formData.get("note");
+  if (typeof note !== "string" || note.length > MAX_ADMIN_NOTE_LENGTH) {
+    throw new Response("Bad Request", { status: 400 });
+  }
+  return note.trim();
 }
 
 function statusToast(
@@ -520,6 +582,7 @@ function PartyTable({
             <TableHead>Email</TableHead>
             <TableHead className="text-center">Party</TableHead>
             <TableHead className="text-right">Price</TableHead>
+            <TableHead>Payments</TableHead>
             <TableHead className="text-right">Signed up</TableHead>
             <TableHead className="text-right">
               <span className="sr-only">Actions</span>
@@ -538,7 +601,7 @@ function PartyTable({
           {parties.length === 0 ? (
             <TableRow className="hover:bg-transparent">
               <TableCell
-                colSpan={6}
+                colSpan={7}
                 className="text-muted-foreground py-8 text-center text-sm"
               >
                 {emptyText}
@@ -575,6 +638,9 @@ function PartyRow({
             />
             <div className="flex flex-col items-start gap-1">
               <span className="font-semibold">{party.name}</span>
+              {party.adminNote ? (
+                <span className="text-primary text-xs">Has a note</span>
+              ) : null}
               <button
                 type="button"
                 aria-expanded={open}
@@ -591,6 +657,9 @@ function PartyRow({
         <TableCell className="text-center">{party.size}</TableCell>
         <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums">
           {formatCHF(party.total)}
+        </TableCell>
+        <TableCell>
+          <PaymentTicks party={party} />
         </TableCell>
         <TableCell className="text-right">
           <time
@@ -611,7 +680,7 @@ function PartyRow({
         <TableRow className="hover:bg-transparent">
           <TableCell
             id={detailsId}
-            colSpan={6}
+            colSpan={7}
             className="bg-foreground/[0.02] whitespace-normal"
           >
             <PartyDetails party={party} />
@@ -625,6 +694,8 @@ function PartyRow({
 function PartyDetails({ party }: { party: Party }) {
   return (
     <div className="flex flex-col gap-4 py-3">
+      {party.isLegacy ? null : <NoteForm party={party} />}
+
       {party.contact.length > 0 ? (
         <div className="flex flex-col gap-2">
           <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
@@ -692,6 +763,103 @@ function AnswerList({ rows }: { rows: readonly SummaryRow[] }) {
         </Fragment>
       ))}
     </dl>
+  );
+}
+
+function PaymentTicks({ party }: { party: Party }) {
+  const fetcher = useFetcher();
+
+  if (party.isLegacy) {
+    return <span className="text-muted-foreground text-sm">—</span>;
+  }
+
+  // the ticks are native checkboxes: a click shows at once, and each one is
+  // remounted from the saved value once the page has reloaded its data
+  return (
+    <fetcher.Form
+      method="post"
+      className="flex flex-col items-start gap-1 text-sm"
+    >
+      <input type="hidden" name="intent" value="payments" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <PaymentTick
+        name="firstHalfPaid"
+        label="1st half paid"
+        checked={party.firstHalfPaid}
+      />
+      <PaymentTick
+        name="secondHalfPaid"
+        label="2nd half paid"
+        checked={party.secondHalfPaid}
+      />
+    </fetcher.Form>
+  );
+}
+
+function PaymentTick({
+  name,
+  label,
+  checked,
+}: {
+  name: string;
+  label: string;
+  checked: boolean;
+}) {
+  return (
+    <label className="inline-flex items-center gap-2 whitespace-nowrap">
+      <input
+        key={String(checked)}
+        type="checkbox"
+        name={name}
+        defaultChecked={checked}
+        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        className="accent-primary size-4"
+      />
+      {label}
+    </label>
+  );
+}
+
+function NoteForm({ party }: { party: Party }) {
+  const fetcher = useFetcher<typeof action>();
+  const saved =
+    fetcher.state === "idle" &&
+    fetcher.data !== undefined &&
+    "saved" in fetcher.data &&
+    fetcher.data.saved === "note";
+  const noteId = `note-${party.submissionId}`;
+
+  return (
+    <fetcher.Form method="post" className="flex flex-col gap-2">
+      <input type="hidden" name="intent" value="note" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <label htmlFor={noteId} className="text-sm font-semibold">
+        Notes for us
+      </label>
+      <Textarea
+        id={noteId}
+        name="note"
+        defaultValue={party.adminNote}
+        rows={3}
+        maxLength={MAX_ADMIN_NOTE_LENGTH}
+        placeholder="Anything we have to remember about this group"
+      />
+      <div className="flex items-center gap-3">
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={fetcher.state !== "idle"}
+        >
+          Save note
+        </Button>
+        {saved ? (
+          <span role="status" className="text-muted-foreground text-sm">
+            Saved
+          </span>
+        ) : null}
+      </div>
+    </fetcher.Form>
   );
 }
 

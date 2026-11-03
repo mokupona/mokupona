@@ -8,6 +8,7 @@ import {
   getSeatCounts,
   getSeatCountsByEvent,
   SignupNotFoundError,
+  updateSignupBookkeeping,
   updateSignupStatus,
 } from "./event-signup.server";
 import { createEvent } from "./event.server";
@@ -15,6 +16,7 @@ import { FormVersionChangedError } from "./form-submission.server";
 import { getCurrentFormVersion } from "./form.server";
 
 import { prisma } from "~/db.server";
+import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 
 async function createTestEvent(slots: number) {
   const event = await createEvent({ ...(await buildEventData()), slots });
@@ -281,5 +283,73 @@ describe("getSeatCountsByEvent", () => {
     expect(await getSeatCountsByEvent([one.event.id, other.event.id])).toEqual({
       [one.event.id]: { confirmed: 2, waitlisted: 3 },
     });
+  });
+});
+
+describe("updateSignupBookkeeping", () => {
+  async function signupFor(fixture: TestEvent) {
+    await signUp(fixture, { email: `book-${++emailCounter}@example.com` });
+    return prisma.formSubmission.findFirstOrThrow({
+      where: { formVersionId: fixture.version.id },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  it("records the payment ticks and the note, and leaves the seat alone", async () => {
+    const fixture = await createTestEvent(4);
+    const before = await signupFor(fixture);
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: before.id,
+      data: {
+        firstHalfPaid: true,
+        secondHalfPaid: false,
+        adminNote: "Transfer",
+      },
+    });
+
+    const after = await prisma.formSubmission.findUniqueOrThrow({
+      where: { id: before.id },
+    });
+    expect(after).toMatchObject({
+      firstHalfPaid: true,
+      secondHalfPaid: false,
+      adminNote: "Transfer",
+      status: before.status,
+      seats: before.seats,
+    });
+  });
+
+  it("won't touch a signup that belongs to another event", async () => {
+    const mine = await createTestEvent(4);
+    const theirs = await createTestEvent(4);
+    const theirSignup = await signupFor(theirs);
+
+    await expect(
+      updateSignupBookkeeping({
+        eventId: mine.event.id,
+        submissionId: theirSignup.id,
+        data: { firstHalfPaid: true },
+      }),
+    ).rejects.toBeInstanceOf(SignupNotFoundError);
+
+    const unchanged = await prisma.formSubmission.findUniqueOrThrow({
+      where: { id: theirSignup.id },
+    });
+    expect(unchanged.firstHalfPaid).toBe(false);
+  });
+
+  it("refuses a note longer than the limit", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+
+    await expect(
+      updateSignupBookkeeping({
+        eventId: fixture.event.id,
+        submissionId: signup.id,
+        data: { adminNote: "x".repeat(MAX_ADMIN_NOTE_LENGTH + 1) },
+      }),
+    ).rejects.toBeInstanceOf(RangeError);
   });
 });

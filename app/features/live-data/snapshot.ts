@@ -71,21 +71,38 @@ const formSubmissionRow = z
     status: z.string().optional(),
     seats: int.positive().optional(),
     email: z.string().optional(),
+    // the admin's payment ticks and note; a live site on older code has none
+    firstHalfPaid: z.boolean().optional(),
+    secondHalfPaid: z.boolean().optional(),
+    adminNote: z.string().optional(),
     createdAt: dateTime,
   })
-  .transform(({ status, seats, email, ...row }) => {
-    const answers = Array.isArray(row.answers) ? {} : row.answers;
-    return {
-      ...row,
-      status: toSignupStatus(status),
-      seats: seats ?? partySize(answers),
-      email:
-        email ??
-        normalizeSignupEmail(
-          typeof answers.email === "string" ? answers.email : "",
-        ),
-    };
-  });
+  .transform(
+    ({
+      status,
+      seats,
+      email,
+      firstHalfPaid,
+      secondHalfPaid,
+      adminNote,
+      ...row
+    }) => {
+      const answers = Array.isArray(row.answers) ? {} : row.answers;
+      return {
+        ...row,
+        status: toSignupStatus(status),
+        seats: seats ?? partySize(answers),
+        email:
+          email ??
+          normalizeSignupEmail(
+            typeof answers.email === "string" ? answers.email : "",
+          ),
+        firstHalfPaid: firstHalfPaid ?? false,
+        secondHalfPaid: secondHalfPaid ?? false,
+        adminNote: adminNote ?? "",
+      };
+    },
+  );
 
 const eventRow = z.object({
   id,

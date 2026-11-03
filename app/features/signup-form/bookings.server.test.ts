@@ -30,6 +30,8 @@ describe("getSignupBookingsForEvent", () => {
         status: "waitlisted",
         seats: 2,
         email: "ada@example.com",
+        firstHalfPaid: true,
+        adminNote: "Pays the rest in December",
         answers: {
           name: "Ada",
           email: "ada@example.com",
@@ -61,6 +63,9 @@ describe("getSignupBookingsForEvent", () => {
       status: "waitlisted",
       isLegacy: false,
       signerEmail: "ada@example.com",
+      firstHalfPaid: true,
+      secondHalfPaid: false,
+      adminNote: "Pays the rest in December",
       booking: {
         total: 75,
         guests: [

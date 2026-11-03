@@ -183,6 +183,12 @@ model FormSubmission {
   seats   Int    @default(1)
   // lowercased, to stop one address from signing up twice for an event
   email   String @default("")
+  // admin bookkeeping for the staggered payments: whether each half of what
+  // the party owes has come in. Never shown to the guest.
+  firstHalfPaid  Boolean @default(false)
+  secondHalfPaid Boolean @default(false)
+  // free text for the admin team, e.g. "pays by transfer, allergy call"
+  adminNote String @default("")
 
   createdAt DateTime @default(now())
 
