@@ -31,6 +31,10 @@ import {
 } from "~/features/signup-form/bookings.server";
 import { sendSeatConfirmedMail } from "~/features/signup-form/confirmation-mail.server";
 import {
+  summarizeHeadcount,
+  type HeadcountSummary,
+} from "~/features/signup-form/headcount";
+import {
   formatCHF,
   summarizeRevenue,
   type RevenueSummary,
@@ -113,6 +117,9 @@ export async function loader({ params }: Route.LoaderArgs) {
         people: party.size,
         total: party.total,
       })),
+    ),
+    headcount: summarizeHeadcount(
+      parties.map((party) => ({ status: party.status, guests: party.guests })),
     ),
   };
 }
@@ -256,7 +263,7 @@ const SECTIONS: { status: SignupStatus; title: string; empty: string }[] = [
 ];
 
 export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
-  const { event, seats, parties, revenue } = loaderData;
+  const { event, seats, parties, revenue, headcount } = loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
   ).length;
@@ -286,6 +293,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
       />
 
       <RevenueSummary revenue={revenue} />
+
+      <Headcount headcount={headcount} />
 
       {overbookedBy > 0 ? (
         <Notice>
@@ -363,6 +372,87 @@ function RevenueSummary({ revenue }: { revenue: RevenueSummary }) {
           note="Average over confirmed seats, students at the student price"
         />
       </div>
+    </section>
+  );
+}
+
+function Headcount({ headcount }: { headcount: HeadcountSummary }) {
+  const { confirmed, waitlisted } = headcount;
+
+  const rows = [
+    {
+      label: "People",
+      confirmed: confirmed.people,
+      waitlisted: waitlisted.people,
+      strong: true,
+    },
+    {
+      label: "Vegetarian",
+      confirmed: confirmed.vegetarian,
+      waitlisted: waitlisted.vegetarian,
+    },
+    {
+      label: "Not vegetarian",
+      confirmed: confirmed.notVegetarian,
+      waitlisted: waitlisted.notVegetarian,
+    },
+    ...(confirmed.dietNotAsked + waitlisted.dietNotAsked > 0
+      ? [
+          {
+            label: "Diet not asked on this form",
+            confirmed: confirmed.dietNotAsked,
+            waitlisted: waitlisted.dietNotAsked,
+          },
+        ]
+      : []),
+    {
+      label: "Students",
+      confirmed: confirmed.students,
+      waitlisted: waitlisted.students,
+    },
+    {
+      label: "Not students",
+      confirmed: confirmed.notStudents,
+      waitlisted: waitlisted.notStudents,
+    },
+  ];
+
+  return (
+    <section aria-labelledby="headcount-heading" className="mb-8">
+      <h2 id="headcount-heading" className="mb-3 text-lg font-semibold">
+        Headcount
+      </h2>
+      <Card className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Who</TableHead>
+              <TableHead className="text-right">Confirmed</TableHead>
+              <TableHead className="text-right">Waiting list</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.label} className="hover:bg-transparent">
+                <TableCell className={row.strong ? "font-semibold" : undefined}>
+                  {row.label}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums",
+                    row.strong && "font-semibold",
+                  )}
+                >
+                  {row.confirmed}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-right tabular-nums">
+                  {row.waitlisted}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
     </section>
   );
 }

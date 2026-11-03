@@ -155,6 +155,7 @@ describe("signupConfirmation", () => {
           {
             name: "Ada",
             isStudent: false,
+            vegetarian: true,
             price: 45,
             email: null,
             rows: [["Vegan / Vegetarian", "yes"]],
@@ -162,6 +163,7 @@ describe("signupConfirmation", () => {
           {
             name: "Grace <3",
             isStudent: true,
+            vegetarian: false,
             price: 30,
             email: null,
             rows: [["Vegan / Vegetarian", "no"]],
@@ -277,7 +279,14 @@ describe("mail copy from the site texts", () => {
         },
         booking: {
           guests: [
-            { name: "Ada", isStudent: false, price: 45, email: null, rows: [] },
+            {
+              name: "Ada",
+              isStudent: false,
+              vegetarian: false,
+              price: 45,
+              email: null,
+              rows: [],
+            },
           ],
           contact: [],
           total: 45,
@@ -301,6 +310,7 @@ describe("friendSignup", () => {
     isStudent: true,
     price: 30,
     email: "grace@example.com",
+    vegetarian: false,
     rows: [["Vegan / Vegetarian", "no"] as const],
   };
 
@@ -353,7 +363,14 @@ describe("friendSignup", () => {
         },
         booking: {
           guests: [
-            { name: "Ada", isStudent: false, price: 45, email: null, rows: [] },
+            {
+              name: "Ada",
+              isStudent: false,
+              vegetarian: false,
+              price: 45,
+              email: null,
+              rows: [],
+            },
             grace,
           ],
           contact: [],

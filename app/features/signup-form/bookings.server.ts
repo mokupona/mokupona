@@ -94,6 +94,8 @@ function legacyBooking(
   const guest: BookingGuest = {
     name: row.name,
     isStudent,
+    // the old form always asked about diet, so an unanswered row reads as no
+    vegetarian: row.vegetarian === true,
     price,
     email: null,
     rows: [

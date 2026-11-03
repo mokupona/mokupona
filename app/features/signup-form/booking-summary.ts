@@ -8,6 +8,8 @@ const FRIENDS_LIST_NAME = "friends";
 const NAME_FIELD = "name";
 // a guest who ticks this checkbox pays the event's student price, if it has one
 const STUDENT_FIELD = "student";
+// ticked by a guest who eats vegetarian (the checkbox reads "Vegan / Vegetarian")
+const VEGETARIAN_FIELD = "vegetarian";
 /**
  * Optional, inside the friends list: where to send the friend a note that the
  * signer put them down. Read as the guest's `email`, not as a row.
@@ -21,6 +23,8 @@ export type SummaryRow = readonly [label: string, value: string];
 export interface BookingGuest {
   name: string;
   isStudent: boolean;
+  /** Whether they eat vegetarian; null when the form doesn't ask. */
+  vegetarian: boolean | null;
   /** What this guest pays, in CHF. */
   price: number;
   /** Where they asked to hear about the signup; null when none was given. */
@@ -110,10 +114,14 @@ function toGuest(
   const isStudent = answers[STUDENT_FIELD] === true;
 
   const friendEmail = answers[FRIEND_EMAIL_FIELD];
+  const asksVegetarian = fields.some(
+    (field) => field.data.name === VEGETARIAN_FIELD,
+  );
 
   return {
     name: typeof name === "string" && name.trim() ? name.trim() : fallbackName,
     isStudent,
+    vegetarian: asksVegetarian ? answers[VEGETARIAN_FIELD] === true : null,
     price:
       isStudent && prices.studentPrice !== null
         ? prices.studentPrice

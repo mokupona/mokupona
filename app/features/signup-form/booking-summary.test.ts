@@ -38,6 +38,7 @@ describe("summarizeBooking", () => {
       {
         name: "Ada Signer",
         isStudent: false,
+        vegetarian: true,
         price: 45,
         email: null,
         rows: [
@@ -49,6 +50,7 @@ describe("summarizeBooking", () => {
       {
         name: "Grace",
         isStudent: true,
+        vegetarian: false,
         price: 45,
         email: null,
         rows: [
@@ -91,6 +93,34 @@ describe("summarizeBooking", () => {
     expect(summary.contact.map(([label]) => label)).not.toContain(
       "Their email",
     );
+  });
+
+  it("marks diet as not asked when the form has no vegetarian question for guests", () => {
+    const fields: FieldDescriptor[] = DEFAULT_FORM.map((field) =>
+      field.type === "list"
+        ? {
+            ...field,
+            data: {
+              ...field.data,
+              itemFields: field.data.itemFields.filter(
+                (item) => item.data.name !== "vegetarian",
+              ),
+            },
+          }
+        : field,
+    );
+
+    const summary = summarizeBooking(
+      fields,
+      { ...signer, friends: [{ name: "Grace" }] },
+      { price: 45, studentPrice: null },
+      defaultText,
+    );
+
+    expect(summary.guests.map((guest) => guest.vegetarian)).toEqual([
+      null,
+      null,
+    ]);
   });
 
   it("keeps the signup-wide answers apart from the guests", () => {
