@@ -304,6 +304,9 @@ function statusToast(
   }
 }
 
+// the party table is wide; the admin layout gives this page the room it needs
+export const handle = { wideLayout: true };
+
 export const meta: Route.MetaFunction = ({ loaderData }) => {
   return [
     {
@@ -484,7 +487,7 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
       <h2 id="headcount-heading" className="mb-3 text-lg font-semibold">
         Headcount
       </h2>
-      <Card className="overflow-x-auto">
+      <Card>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -574,7 +577,7 @@ function PartyTable({
 }) {
   // the table scrolls sideways on a phone rather than being cut off
   return (
-    <Card className="overflow-x-auto">
+    <Card>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
