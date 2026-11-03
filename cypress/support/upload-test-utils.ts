@@ -230,7 +230,7 @@ export function fillEventForm(values: ReturnType<typeof eventFormValues>) {
 }
 
 /**
- * Picks a cover file. A decodable image opens the crop dialog, which is
+ * Picks a cover file. A decodable image opens the edit dialog, which is
  * accepted as-is; pass `crop: false` for files that never reach the cropper
  * (e.g. oversized garbage bytes meant to trip validation).
  */
@@ -240,7 +240,7 @@ export function uploadEventCover(
 ) {
   cy.findByLabelText(/^cover$/i).selectFile(file, { force: true });
   if (crop) {
-    cy.findByRole("dialog", { name: /crop cover photo/i })
+    cy.findByRole("dialog", { name: /edit cover photo/i })
       .findByRole("button", { name: /use photo/i })
       .click();
     cy.findByRole("dialog").should("not.exist");

@@ -245,7 +245,7 @@ function CoverCropper({
       <div
         ref={frameRef}
         role="application"
-        aria-label="Crop area. Drag or use the arrow keys to move the photo, plus and minus to zoom."
+        aria-label="Photo editor. Drag or use the arrow keys to move the photo, plus and minus to zoom."
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -454,7 +454,7 @@ export function CoverPhotoField({
       setDialogOpen(false);
       revalidate();
     } catch {
-      setCropError("Could not crop this photo. Try a different file.");
+      setCropError("Could not edit this photo. Try a different file.");
     } finally {
       setApplying(false);
     }
@@ -488,7 +488,7 @@ export function CoverPhotoField({
       setCrop(INITIAL_CROP);
       setDialogOpen(true);
     } catch {
-      setCropError("Could not load the current cover for cropping.");
+      setCropError("Could not load the current cover for editing.");
     } finally {
       setLoadingCurrent(false);
     }
@@ -520,7 +520,7 @@ export function CoverPhotoField({
           {applied ? (
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={recrop}>
-                Adjust crop
+                Edit photo
               </Button>
               <Button type="button" variant="ghost" onClick={removeNewPhoto}>
                 {currentImage ? "Keep current cover" : "Remove photo"}
@@ -534,7 +534,7 @@ export function CoverPhotoField({
                 onClick={cropCurrent}
                 disabled={loadingCurrent}
               >
-                {loadingCurrent ? "Loading…" : "Crop current cover"}
+                {loadingCurrent ? "Loading…" : "Edit current cover"}
               </Button>
             </div>
           )}
@@ -551,7 +551,7 @@ export function CoverPhotoField({
         description={
           applied || currentImage
             ? "Choose a new photo to replace the cover."
-            : "JPEG, PNG or WebP. You can crop it to the 3:2 cover frame after choosing."
+            : "JPEG, PNG or WebP. You can edit it to fit the 3:2 cover frame after choosing."
         }
         inputProps={{
           ...getInputProps(field, { type: "file" }),
@@ -580,7 +580,7 @@ export function CoverPhotoField({
       >
         <DialogContent className="max-w-2xl">
           <div className="flex flex-col gap-1">
-            <DialogTitle>Crop cover photo</DialogTitle>
+            <DialogTitle>Edit cover photo</DialogTitle>
             <DialogDescription>
               Drag to reposition, zoom to tighten. The frame is exactly what
               guests will see.
@@ -610,7 +610,7 @@ export function CoverPhotoField({
               onClick={applyCrop}
               disabled={!source || applying}
             >
-              {applying ? "Cropping…" : "Use photo"}
+              {applying ? "Applying…" : "Use photo"}
             </Button>
           </div>
         </DialogContent>
