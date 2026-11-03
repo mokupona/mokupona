@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { zodForField, type NonListFieldDescriptor } from "./non-list";
 
+import { defaultText } from "~/features/site-text/text";
+
 function descriptor(
   type: Exclude<NonListFieldDescriptor["type"], "select">,
   required: boolean,
@@ -16,64 +18,64 @@ function descriptor(
 describe("zodForField", () => {
   describe.each(["text", "textarea", "phone"] as const)("%s", (type) => {
     it("trims and accepts a value", () => {
-      const schema = zodForField(descriptor(type, true));
+      const schema = zodForField(descriptor(type, true), defaultText);
       expect(schema.parse("  hello  ")).toBe("hello");
     });
 
     it("rejects an empty value when required", () => {
-      const schema = zodForField(descriptor(type, true));
+      const schema = zodForField(descriptor(type, true), defaultText);
       expect(schema.safeParse("   ").success).toBe(false);
       expect(schema.safeParse("").success).toBe(false);
       expect(schema.safeParse(undefined).success).toBe(false);
     });
 
     it("accepts a missing value when optional", () => {
-      const schema = zodForField(descriptor(type, false));
+      const schema = zodForField(descriptor(type, false), defaultText);
       expect(schema.parse(undefined)).toBeUndefined();
     });
   });
 
   describe("email", () => {
     it("accepts a valid email", () => {
-      const schema = zodForField(descriptor("email", true));
+      const schema = zodForField(descriptor("email", true), defaultText);
       expect(schema.parse("a@example.com")).toBe("a@example.com");
     });
 
     it("trims before validating", () => {
-      const schema = zodForField(descriptor("email", true));
+      const schema = zodForField(descriptor("email", true), defaultText);
       expect(schema.parse(" a@example.com ")).toBe("a@example.com");
     });
 
     it("rejects an invalid email", () => {
-      const schema = zodForField(descriptor("email", true));
+      const schema = zodForField(descriptor("email", true), defaultText);
       expect(schema.safeParse("not-an-email").success).toBe(false);
     });
 
     it("rejects a missing value when required", () => {
-      const schema = zodForField(descriptor("email", true));
+      const schema = zodForField(descriptor("email", true), defaultText);
       expect(schema.safeParse(undefined).success).toBe(false);
     });
 
     it("accepts a missing value when optional", () => {
-      const schema = zodForField(descriptor("email", false));
+      const schema = zodForField(descriptor("email", false), defaultText);
       expect(schema.parse(undefined)).toBeUndefined();
     });
   });
 
   describe("checkbox", () => {
     it("defaults to false when optional and missing", () => {
-      const schema = zodForField(descriptor("checkbox", false));
+      const schema = zodForField(descriptor("checkbox", false), defaultText);
       expect(schema.parse(undefined)).toBe(false);
     });
 
     it("accepts true and false when optional", () => {
-      const schema = zodForField(descriptor("checkbox", false));
+      const schema = zodForField(descriptor("checkbox", false), defaultText);
       expect(schema.parse(true)).toBe(true);
       expect(schema.parse(false)).toBe(false);
     });
 
     it("must be checked when required", () => {
-      const schema = zodForField(descriptor("checkbox", true));
+      const schema = zodForField(descriptor("checkbox", true), defaultText);
       expect(schema.parse(true)).toBe(true);
       expect(schema.safeParse(false).success).toBe(false);
       expect(schema.safeParse(undefined).success).toBe(false);
@@ -96,27 +98,27 @@ describe("zodForField select", () => {
   }
 
   it("accepts a configured option", () => {
-    const schema = zodForField(selectDescriptor(true));
+    const schema = zodForField(selectDescriptor(true), defaultText);
     expect(schema.parse("Vegan")).toBe("Vegan");
   });
 
   it("rejects a value outside the options", () => {
-    const schema = zodForField(selectDescriptor(true));
+    const schema = zodForField(selectDescriptor(true), defaultText);
     expect(schema.safeParse("Fish").success).toBe(false);
   });
 
   it("rejects a missing value when required", () => {
-    const schema = zodForField(selectDescriptor(true));
+    const schema = zodForField(selectDescriptor(true), defaultText);
     expect(schema.safeParse(undefined).success).toBe(false);
   });
 
   it("accepts a missing value when optional", () => {
-    const schema = zodForField(selectDescriptor(false));
+    const schema = zodForField(selectDescriptor(false), defaultText);
     expect(schema.parse(undefined)).toBeUndefined();
   });
 
   it("still rejects a non-option when optional", () => {
-    const schema = zodForField(selectDescriptor(false));
+    const schema = zodForField(selectDescriptor(false), defaultText);
     expect(schema.safeParse("Fish").success).toBe(false);
   });
 });

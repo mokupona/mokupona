@@ -44,10 +44,11 @@ Already exists (`app/routes/admin*.tsx`): dinners CRUD, locations, board members
 
 ## 6. Admin-editable public-facing strings, category-based
 
-- [ ] Audit every public string (landing, `/dinners`, `/about`, `/privacy`, impressum, FAQ, nav, footer, emails)
-- [ ] Category-based editor UI (About, FAQ, Impressum, Landing, Footer, Emails, …) — likely the natural home/extension for `app/features/cms`
-- [ ] Decide storage: structured per-field rows vs. rich-text blocks (CMS blocks already do hero/image/text-section/title-card — may extend that model rather than inventing a new one)
-- [ ] Versioning/preview before publish would be nice-to-have, not required for v1
+- [x] 2026-11-03 Audit every public string (landing, events, signup, gallery, about, privacy, impressum, nav, footer, auth pages, account, invites, error pages, emails, musi) — all in `app/features/site-text/registry`
+- [x] 2026-11-03 Category-based editor UI at `/admin/texts`, with search across every text, reset to default and a preview for the long pages
+- [x] 2026-11-03 Storage: defaults stay in code, an admin's edit is one `SiteText` row per text; privacy policy and impressum are one markup text each. Copied by `/admin/sync` like other content
+- [ ] Versioning/preview before publish would be nice-to-have, not required for v1 (only the long pages have a preview so far)
+- [ ] FAQ (#4) will need its texts added to the registry when it's built
 
 ## 7. About page — volunteers, board members, who we are
 

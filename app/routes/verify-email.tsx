@@ -6,6 +6,9 @@ import type { Route } from "./+types/verify-email";
 import { AuthShell } from "~/components/auth-layout";
 import { AuthStatus } from "~/components/auth-status";
 import { buttonVariants } from "~/components/ui/button";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
@@ -16,10 +19,13 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
   };
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Verify email" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("auth.verify.metaTitle") },
+];
 
 export default function VerifyEmail({ loaderData }: Route.ComponentProps) {
   const { failed, email } = loaderData;
+  const t = useText();
 
   if (failed) {
     return (
@@ -27,14 +33,14 @@ export default function VerifyEmail({ loaderData }: Route.ComponentProps) {
         standalone
         tone="neutral"
         icon={<Link2OffIcon className="size-7" />}
-        heading="this link has expired"
-        body="just log in and we'll send a new link to verify your email."
+        heading={t("auth.verify.failedHeading")}
+        body={t("auth.verify.failedBody")}
       >
         <Link
           to="/login"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          back to log in
+          {t("auth.backToLogin")}
         </Link>
       </AuthStatus>
     );
@@ -43,23 +49,28 @@ export default function VerifyEmail({ loaderData }: Route.ComponentProps) {
   return (
     <AuthShell
       brand={{
-        eyebrow: "you're in",
-        heading: "a seat at the table is yours",
-        body: "your email is confirmed. log in to browse the next events and reserve your spot.",
+        eyebrow: t("auth.verify.eyebrow"),
+        heading: t("auth.verify.panelHeading"),
+        body: t("auth.verify.panelBody"),
       }}
     >
       <AuthStatus
         icon={<CircleCheckIcon className="size-7" />}
-        heading="your email is verified"
+        heading={t("auth.verify.heading")}
         body={
           email ? (
-            <>
-              thanks for confirming{" "}
-              <strong className="text-foreground font-semibold">{email}</strong>
-              . you&apos;re all set to sign in.
-            </>
+            <RichText
+              text={t("auth.verify.bodyWithEmail")}
+              vars={{
+                email: (
+                  <strong className="text-foreground font-semibold">
+                    {email}
+                  </strong>
+                ),
+              }}
+            />
           ) : (
-            "you're all set to sign in."
+            t("auth.verify.body")
           )
         }
       >
@@ -67,13 +78,13 @@ export default function VerifyEmail({ loaderData }: Route.ComponentProps) {
           to="/login"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          continue to log in
+          {t("auth.continueToLogin")}
         </Link>
         <Link
           to="/events"
           className="text-primary text-sm font-semibold hover:underline"
         >
-          browse events instead
+          {t("auth.verify.browse")}
         </Link>
       </AuthStatus>
     </AuthShell>

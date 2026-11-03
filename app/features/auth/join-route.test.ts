@@ -3,7 +3,6 @@
 import { RouterContextProvider } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { SIGNUP_CLOSED_MESSAGE } from "./auth-settings";
 import {
   resetAuthSettings,
   setAuthToggleEnabled,
@@ -11,10 +10,10 @@ import {
 
 import {
   HONEYPOT_FIELD_NAME,
-  HONEYPOT_RETRY_MESSAGE,
   HONEYPOT_VALID_FROM_FIELD_NAME,
 } from "~/features/forms/honeypot";
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
+import { defaultText } from "~/features/site-text/text";
 import { getUserByEmail } from "~/models/user.server";
 import { action } from "~/routes/join";
 
@@ -90,7 +89,7 @@ describe("join action", () => {
 
     expect(readReply(await submit(fromBrowser(VALID_SIGNUP)))).toEqual({
       status: 403,
-      formErrors: [SIGNUP_CLOSED_MESSAGE],
+      formErrors: [defaultText("auth.join.closed")],
     });
   });
 
@@ -131,7 +130,7 @@ describe("join action", () => {
 
     expect(readReply(result)).toEqual({
       status: 400,
-      formErrors: [HONEYPOT_RETRY_MESSAGE],
+      formErrors: [defaultText("site.forms.retry")],
     });
     expect(await getUserByEmail(SPAM_EMAIL)).toBeNull();
   });

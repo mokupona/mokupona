@@ -16,6 +16,8 @@ import {
 } from "./game";
 import { type Sticker, stickerLayout } from "./stickers";
 
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
 import rowsData from "~/features/sitelen/rows.json";
 import { PaperPatterns, useSprite } from "~/features/sitelen/sitelen-backdrop";
 import { cn } from "~/lib/utils";
@@ -63,6 +65,7 @@ type Phase = "ready" | "playing" | "over";
  * with an ilo hammer. Reached by clicking moku or pona on the landing page.
  */
 export function Arcade() {
+  const t = useText();
   const words = useSprite(WORD_SPRITE);
   const arcade = useSprite(ARCADE_SPRITE);
   const ready = words !== null && arcade !== null;
@@ -182,12 +185,12 @@ export function Arcade() {
                     filter: "hue-rotate(calc(-1 * var(--art-hue-shift)))",
                   }}
                 >
-                  pona
+                  {t("musi.machineLabel")}
                 </span>
                 <span
                   className="flex"
                   role="img"
-                  aria-label={`score ${game.score}`}
+                  aria-label={t("musi.score", { score: game.score })}
                 >
                   {scoreGlyphs(game.score).map((d, i) => (
                     <PopGlyph
@@ -261,7 +264,7 @@ export function Arcade() {
           type="button"
           onClick={start}
           disabled={phase === "playing"}
-          aria-label="start"
+          aria-label={t("musi.start")}
           className="size-9 rounded-full border-2 border-[rgb(246_240_252)] shadow-[0_3px_0_rgb(20_6_40)] transition-transform active:translate-y-0.5 active:shadow-none disabled:opacity-60 md:size-10"
           style={{
             backgroundImage: "url(/sitelen/paper-light.jpg)",
@@ -272,7 +275,7 @@ export function Arcade() {
       <Legs />
 
       <p className="text-muted-foreground mt-6 text-center text-sm [@media(pointer:coarse)]:hidden">
-        tip: the number keys work too — 7 8 9 / 4 5 6 / 1 2 3
+        {t("musi.tip")}
       </p>
 
       <Hammer state={hammer} />
@@ -293,11 +296,13 @@ function HoleCell({
   pop: number;
   onBonk: (i: number) => void;
 }) {
+  const t = useText();
+
   return (
     <button
       type="button"
       tabIndex={-1}
-      aria-label={state === "up" ? "soweli! bonk it" : "empty hole"}
+      aria-label={state === "up" ? t("musi.holeUp") : t("musi.holeEmpty")}
       className="relative aspect-square cursor-[inherit] outline-none"
       onPointerDown={() => onBonk(index)}
     >
@@ -351,6 +356,7 @@ function HoleCell({
 /* ------------------------------------------------------------- clock -- */
 
 function Clock({ msLeft }: { msLeft: number }) {
+  const t = useText();
   const glyphs = clockGlyphs(msLeft);
   const seconds = Math.ceil(msLeft / 1000);
   return (
@@ -359,7 +365,7 @@ function Clock({ msLeft }: { msLeft: number }) {
         className="rounded-2xl p-2 shadow-lg"
         style={DARK_PAPER}
         role="timer"
-        aria-label={`${seconds} seconds left`}
+        aria-label={t("musi.timeLeft", { seconds })}
       >
         <div
           className="flex items-center rounded-xl px-3 py-1"
@@ -542,6 +548,8 @@ function Notice({
   best: number | null;
   onStart: () => void;
 }) {
+  const t = useText();
+
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6">
       <div
@@ -551,19 +559,32 @@ function Notice({
       >
         {phase === "ready" ? (
           <>
-            <p className="text-ink text-xl font-semibold">bonk the soweli!</p>
-            <p className="text-ink text-sm">you have one minute.</p>
+            <p className="text-ink text-xl font-semibold">
+              {t("musi.readyTitle")}
+            </p>
+            <p className="text-ink text-sm">{t("musi.readyBody")}</p>
           </>
         ) : (
           <>
-            <p className="text-ink text-xl font-semibold">tenpo li pini!</p>
+            <p className="text-ink text-xl font-semibold">
+              {t("musi.overTitle")}
+            </p>
             <p className="text-ink text-sm">
-              time&apos;s up — you bonked{" "}
-              <strong className="font-semibold">{score}</strong> soweli.
+              <RichText
+                text={t("musi.overBody")}
+                vars={{
+                  score: <strong className="font-semibold">{score}</strong>,
+                }}
+              />
               {best !== null && best > 0 ? (
                 <>
                   <br />
-                  best so far: <strong className="font-semibold">{best}</strong>
+                  <RichText
+                    text={t("musi.overBest")}
+                    vars={{
+                      best: <strong className="font-semibold">{best}</strong>,
+                    }}
+                  />
                 </>
               ) : null}
             </p>
@@ -574,14 +595,14 @@ function Notice({
           onClick={onStart}
           className="bg-primary text-primary-foreground hover:bg-primary/90 h-10 rounded-full px-6 text-sm font-semibold transition-colors"
         >
-          {phase === "ready" ? "start" : "play again"}
+          {phase === "ready" ? t("musi.start") : t("musi.playAgain")}
         </button>
         {phase === "over" ? (
           <Link
             to="/"
             className="text-ink text-sm underline-offset-4 hover:underline"
           >
-            back to moku pona
+            {t("musi.backHome")}
           </Link>
         ) : null}
       </div>

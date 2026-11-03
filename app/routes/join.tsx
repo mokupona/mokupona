@@ -1,5 +1,6 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
+import { useMemo } from "react";
 import { data, Form, Link, redirect, useSearchParams } from "react-router";
 import { z } from "zod";
 
@@ -10,36 +11,46 @@ import { AuthNotice } from "~/components/auth-notice";
 import { ErrorList, Field } from "~/components/forms";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import {
-  EMAIL_SIGNUP_CLOSED_MESSAGE,
-  SIGNUP_CLOSED_MESSAGE,
-} from "~/features/auth/auth-settings";
 import { isAuthToggleEnabled } from "~/features/auth/auth-settings.server";
 import { auth } from "~/features/auth/auth.server";
 import { GoogleSignInButton } from "~/features/auth/components/google-button";
-import { displayNameSchema, emailSchema } from "~/features/auth/form-schemas";
+import {
+  createDisplayNameSchema,
+  createEmailSchema,
+} from "~/features/auth/form-schemas";
 import {
   anonymousAuthPageLoader,
   requestLoggerContext,
 } from "~/features/auth/middleware.server";
 import { withPasswordConfirmation } from "~/features/auth/password-schema";
-import { HONEYPOT_RETRY_MESSAGE } from "~/features/forms/honeypot";
 import { HoneypotField } from "~/features/forms/honeypot-field";
 import { checkHoneypot } from "~/features/forms/honeypot.server";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { getUserByEmail } from "~/models/user.server";
 import { getClientIPAddress } from "~/shared/http.server";
 
-const schema = withPasswordConfirmation({
-  name: displayNameSchema,
-  email: emailSchema,
-  redirectTo: z.string().optional(),
-});
+function joinSchema(t: Text) {
+  return withPasswordConfirmation(
+    {
+      name: createDisplayNameSchema(t),
+      email: createEmailSchema(t),
+      redirectTo: z.string().optional(),
+    },
+    t,
+  );
+}
 
 export const loader = anonymousAuthPageLoader;
 
 export const action = async ({ request, context }: Route.ActionArgs) => {
   const logger = context.get(requestLoggerContext);
   const formData = await request.formData();
+  const t = await getText();
+  const schema = joinSchema(t);
 
   // Answered with the success path's redirect: a caught bot must not learn it
   // was caught. Checked before the signup gate so it cannot learn whether
@@ -64,7 +75,7 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
     );
 
     const rejected = parseWithZod(formData, { schema });
-    return data(rejected.reply({ formErrors: [HONEYPOT_RETRY_MESSAGE] }), {
+    return data(rejected.reply({ formErrors: [t("site.forms.retry")] }), {
       status: 400,
     });
   }
@@ -75,7 +86,7 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
       "Blocked signup request while self-signup is disabled",
     );
     const rejected = parseWithZod(formData, { schema });
-    return data(rejected.reply({ formErrors: [SIGNUP_CLOSED_MESSAGE] }), {
+    return data(rejected.reply({ formErrors: [t("auth.join.closed")] }), {
       status: 403,
     });
   }
@@ -88,8 +99,7 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
         ctx.issues.push({
           code: "custom",
           path: ["email"],
-          message:
-            "an account already exists with this email. try logging in instead.",
+          message: t("auth.join.accountExists"),
           input: ctx.value.email,
         });
       }
@@ -139,11 +149,15 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   return redirect(`/check-your-inbox?${search}`);
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Sign Up" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("auth.join.metaTitle") },
+];
 
 export default function Join({ loaderData, actionData }: Route.ComponentProps) {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? undefined;
+  const t = useText();
+  const schema = useMemo(() => joinSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: actionData,
     shouldValidate: "onBlur",
@@ -160,7 +174,7 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
   return (
     <AuthShell mode="join" search={searchParams.toString()}>
       <h1 className="mt-1 text-3xl leading-tight font-light tracking-tight">
-        sign up
+        {t("auth.join.title")}
       </h1>
 
       <Form
@@ -172,7 +186,7 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
           <ErrorList id={form.errorId} errors={form.errors} />
         ) : (
           <AuthNotice variant="destructive">
-            {googleOpen ? EMAIL_SIGNUP_CLOSED_MESSAGE : SIGNUP_CLOSED_MESSAGE}
+            {googleOpen ? t("auth.join.emailClosed") : t("auth.join.closed")}
           </AuthNotice>
         )}
 
@@ -181,25 +195,25 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
           className="flex flex-col gap-4 disabled:opacity-60"
         >
           <Field
-            labelProps={{ children: "name" }}
+            labelProps={{ children: t("auth.field.name") }}
             inputProps={{
               ...getInputProps(fields.name, { type: "text" }),
-              placeholder: "e.g. lena huber",
+              placeholder: t("auth.join.namePlaceholder"),
             }}
             errors={fields.name.errors}
           />
 
           <Field
-            labelProps={{ children: "email address" }}
+            labelProps={{ children: t("auth.field.email") }}
             inputProps={{
               ...getInputProps(fields.email, { type: "email" }),
-              placeholder: "you@example.com",
+              placeholder: t("auth.field.emailPlaceholder"),
             }}
             errors={fields.email.errors}
           />
 
           <Field
-            labelProps={{ children: "password" }}
+            labelProps={{ children: t("auth.field.password") }}
             inputProps={{
               ...getInputProps(fields.password, { type: "password" }),
             }}
@@ -207,7 +221,7 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
           />
 
           <Field
-            labelProps={{ children: "confirm password" }}
+            labelProps={{ children: t("auth.join.confirmPassword") }}
             inputProps={{
               ...getInputProps(fields.confirmPassword, { type: "password" }),
             }}
@@ -219,14 +233,20 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
           <HoneypotField />
 
           <p className="text-muted-foreground text-center text-xs">
-            by creating an account you accept the{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              privacy policy
-            </Link>
+            <RichText
+              text={t("auth.join.privacy")}
+              tags={{
+                link: (children) => (
+                  <Link to="/privacy" className="text-primary hover:underline">
+                    {children}
+                  </Link>
+                ),
+              }}
+            />
           </p>
 
           <Button type="submit" size="lg" className="w-full">
-            create account
+            {t("auth.join.submit")}
           </Button>
         </fieldset>
 
@@ -235,16 +255,22 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
         ) : null}
 
         <p className="text-muted-foreground text-center text-sm">
-          already have an account?{" "}
-          <Link
-            to={{
-              pathname: "/login",
-              search: searchParams.toString(),
+          <RichText
+            text={t("auth.join.haveAccount")}
+            tags={{
+              link: (children) => (
+                <Link
+                  to={{
+                    pathname: "/login",
+                    search: searchParams.toString(),
+                  }}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  {children}
+                </Link>
+              ),
             }}
-            className="text-primary font-semibold hover:underline"
-          >
-            log in
-          </Link>
+          />
         </p>
       </Form>
     </AuthShell>

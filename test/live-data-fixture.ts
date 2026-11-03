@@ -136,6 +136,14 @@ export function liveDataFixture(
         ...stamps,
       },
     ],
+    siteTexts: [
+      {
+        key: "landing.vision.headline",
+        value: `${prefix}: food is how we meet`,
+        defaultAtEdit: "food as a way to connect",
+        ...stamps,
+      },
+    ],
   };
 }
 
@@ -149,4 +157,5 @@ export const EMPTY_LIVE_DATA: LiveDataTables = {
   eventResponses: [],
   eventGalleryImages: [],
   boardMembers: [],
+  siteTexts: [],
 };

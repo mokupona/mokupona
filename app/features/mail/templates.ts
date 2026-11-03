@@ -7,11 +7,12 @@ import {
   type BookingSummary,
 } from "~/features/signup-form/booking-summary";
 import {
-  DEFAULT_SIGNUP_MAIL_COPY,
+  defaultSignupMailCopy,
   fillSignupMailPlaceholders,
   type SignupMailKind,
   type SignupMailValues,
 } from "~/features/signup-form/confirmation-mail";
+import type { Text } from "~/features/site-text/text";
 import type { InvitableRole } from "~/features/users/invite.shared";
 
 export interface SignupConfirmationProps {
@@ -32,19 +33,22 @@ export interface SignupConfirmationProps {
   booking: BookingSummary;
 }
 
-function signupConfirmation({
-  status,
-  event,
-  booking,
-}: SignupConfirmationProps) {
-  const defaults = DEFAULT_SIGNUP_MAIL_COPY[status];
+function options(t: Text) {
+  return { linkFallback: t("emails.linkFallback") };
+}
+
+function signupConfirmation(
+  { status, event, booking }: SignupConfirmationProps,
+  t: Text,
+) {
+  const defaults = defaultSignupMailCopy(t)[status];
   const [signer] = booking.guests;
   const values: SignupMailValues = {
     name: signer.name,
     event: event.title,
     date: formatEventMailDate(event.date),
     guests: String(booking.guests.length),
-    total: formatChf(booking.total),
+    total: formatChf(booking.total, t),
   };
 
   const subject = fillSignupMailPlaceholders(
@@ -61,78 +65,105 @@ function signupConfirmation({
     // browsers submit textarea line breaks as CRLF
     .replace(/\r\n?/g, "\n");
 
-  const guestCount =
+  const total =
     booking.guests.length === 1
-      ? "1 person"
-      : `${booking.guests.length} people`;
+      ? t("emails.signup.total.one")
+      : t("emails.signup.total.other", { count: booking.guests.length });
 
-  return compose(subject, [
-    ...message
-      .split(/\n\s*\n/)
-      .map((text) => text.trim())
-      .filter(Boolean)
-      .map(paragraph),
-    ...booking.guests.map((guest, index) =>
+  return compose(
+    subject,
+    [
+      ...message
+        .split(/\n\s*\n/)
+        .map((text) => text.trim())
+        .filter(Boolean)
+        .map(paragraph),
+      ...booking.guests.map((guest, index) =>
+        details(
+          t(index === 0 ? "emails.signup.guestSelf" : "emails.signup.guest", {
+            number: index + 1,
+            name: guest.name,
+          }),
+          guest.rows,
+        ),
+      ),
+      ...(booking.contact.length > 0
+        ? [details(t("emails.signup.details"), booking.contact)]
+        : []),
       details(
-        `Guest ${index + 1}: ${guest.name}${index === 0 ? " (you)" : ""}`,
-        guest.rows,
+        status === "waitlisted"
+          ? t("emails.signup.priceWaitlisted")
+          : t("emails.signup.price"),
+        [
+          ...booking.guests.map(
+            (guest) =>
+              [
+                guest.isStudent
+                  ? t("emails.signup.student", { name: guest.name })
+                  : guest.name,
+                formatChf(guest.price, t),
+              ] as const,
+          ),
+          [total, formatChf(booking.total, t)],
+        ],
       ),
-    ),
-    ...(booking.contact.length > 0
-      ? [details("Your details", booking.contact)]
-      : []),
-    details(status === "waitlisted" ? "Price once you have a seat" : "Price", [
-      ...booking.guests.map(
-        (guest) =>
-          [
-            guest.isStudent ? `${guest.name} (student)` : guest.name,
-            formatChf(guest.price),
-          ] as const,
-      ),
-      [`Total for ${guestCount}`, formatChf(booking.total)],
-    ]),
-    action("View the event", event.url),
-    note("If you didn't sign up for this event, you can ignore this email."),
-  ]);
+      action(t("emails.signup.button"), event.url),
+      note(t("emails.signup.note")),
+    ],
+    options(t),
+  );
 }
 
+/**
+ * Every mail the site sends. Each takes its props and the site texts, so an
+ * admin's edits under Emails reach the inbox.
+ */
 export const mailTemplates = {
-  verifyEmail: ({ url }: { url: string }) =>
-    compose("Verify your email address", [
-      paragraph("Welcome to moku pona!"),
-      paragraph("Confirm your email address to activate your account:"),
-      action("Verify email address", url),
-      note("If you didn't create an account, you can ignore this email."),
-    ]),
+  verifyEmail: ({ url }: { url: string }, t: Text) =>
+    compose(
+      t("emails.verify.subject"),
+      [
+        paragraph(t("emails.verify.welcome")),
+        paragraph(t("emails.verify.body")),
+        action(t("emails.verify.button"), url),
+        note(t("emails.verify.note")),
+      ],
+      options(t),
+    ),
 
-  resetPassword: ({ url }: { url: string }) =>
-    compose("Reset your password", [
-      paragraph(
-        "Someone requested a password reset for your moku pona account.",
-      ),
-      paragraph("Set a new password here (the link expires in one hour):"),
-      action("Reset password", url),
-      note(
-        "If this wasn't you, you can ignore this email — your password stays unchanged.",
-      ),
-    ]),
+  resetPassword: ({ url }: { url: string }, t: Text) =>
+    compose(
+      t("emails.reset.subject"),
+      [
+        paragraph(t("emails.reset.intro")),
+        paragraph(t("emails.reset.body")),
+        action(t("emails.reset.button"), url),
+        note(t("emails.reset.note")),
+      ],
+      options(t),
+    ),
 
-  invite: ({ url, roleName }: { url: string; roleName: InvitableRole }) =>
-    compose("You're invited to moku pona", [
-      paragraph(
-        roleName === "moderator"
-          ? "You've been invited to join moku pona as a moderator and help run our events."
-          : "You've been invited to join moku pona.",
-      ),
-      paragraph(
-        "Accept your invite here (the link is tied to this email address and expires in 7 days):",
-      ),
-      action("Accept invite", url),
-      note("If you weren't expecting this, you can ignore this email."),
-    ]),
+  invite: (
+    { url, roleName }: { url: string; roleName: InvitableRole },
+    t: Text,
+  ) =>
+    compose(
+      t("emails.invite.subject"),
+      [
+        paragraph(
+          roleName === "moderator"
+            ? t("emails.invite.introModerator")
+            : t("emails.invite.introUser"),
+        ),
+        paragraph(t("emails.invite.body")),
+        action(t("emails.invite.button"), url),
+        note(t("emails.invite.note")),
+      ],
+      options(t),
+    ),
 
   signupConfirmation,
-} satisfies Record<string, (props: never) => MailBody>;
+} satisfies Record<string, (props: never, t: Text) => MailBody>;
 
 type MailTemplates = typeof mailTemplates;
 export type MailTemplateName = keyof MailTemplates;

@@ -7,6 +7,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "~/components/ui/button";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 type CarouselApi = UseEmblaCarouselType[1];
@@ -51,6 +52,7 @@ function Carousel({
   children,
   ...props
 }: React.ComponentProps<"div"> & CarouselProps) {
+  const t = useText();
   const [carouselRef, api] = useEmblaCarousel(
     {
       ...opts,
@@ -122,7 +124,7 @@ function Carousel({
         onKeyDownCapture={handleKeyDown}
         className={cn("relative", className)}
         role="region"
-        aria-roledescription="carousel"
+        aria-roledescription={t("site.a11y.carousel")}
         data-slot="carousel"
         {...props}
       >
@@ -155,11 +157,12 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
 
 function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   const { orientation } = useCarousel();
+  const t = useText();
 
   return (
     <div
       role="group"
-      aria-roledescription="slide"
+      aria-roledescription={t("site.a11y.slide")}
       data-slot="carousel-item"
       className={cn(
         "min-w-0 shrink-0 grow-0 basis-full",
@@ -178,6 +181,7 @@ function CarouselPrevious({
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { orientation, scrollPrev, canScrollPrev } = useCarousel();
+  const t = useText();
 
   return (
     <Button
@@ -196,7 +200,7 @@ function CarouselPrevious({
       {...props}
     >
       <ChevronLeftIcon className="size-4" />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">{t("site.a11y.previousSlide")}</span>
     </Button>
   );
 }
@@ -208,6 +212,7 @@ function CarouselNext({
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { orientation, scrollNext, canScrollNext } = useCarousel();
+  const t = useText();
 
   return (
     <Button
@@ -226,7 +231,7 @@ function CarouselNext({
       {...props}
     >
       <ChevronRightIcon className="size-4" />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{t("site.a11y.nextSlide")}</span>
     </Button>
   );
 }

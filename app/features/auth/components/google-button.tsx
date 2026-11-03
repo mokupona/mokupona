@@ -1,14 +1,17 @@
 import type { ButtonHTMLAttributes } from "react";
 
 import { authClient } from "~/features/auth/auth.client";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 function GoogleButton({
   className,
-  children = "Continue with Google",
+  children,
   type = "button",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const t = useText();
+
   return (
     <button
       type={type}
@@ -19,17 +22,21 @@ function GoogleButton({
       {...props}
     >
       <GoogleMark className="size-5" />
-      {children}
+      {children ?? t("site.google.continue")}
     </button>
   );
 }
 
 export function GoogleSignInButton({ callbackURL }: { callbackURL: string }) {
+  const t = useText();
+
   return (
     <>
       <div className="flex items-center gap-3" aria-hidden>
         <span className="bg-border h-px flex-1" />
-        <span className="text-muted-foreground text-xs">or</span>
+        <span className="text-muted-foreground text-xs">
+          {t("site.google.or")}
+        </span>
         <span className="bg-border h-px flex-1" />
       </div>
       <GoogleButton

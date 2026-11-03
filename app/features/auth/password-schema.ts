@@ -1,24 +1,34 @@
 import { z } from "zod";
 
-export const passwordSchema = z
-  .string({ error: "Password is required" })
-  .min(8, "password must be at least 8 characters.")
-  .max(128, "password must be at most 128 characters.");
+import type { Text } from "~/features/site-text/text";
+
+export function createPasswordSchema(t: Text) {
+  return z
+    .string({ error: t("auth.validation.passwordRequired") })
+    .min(8, t("auth.validation.passwordTooShort"))
+    .max(128, t("auth.validation.passwordTooLong"));
+}
 
 export function withPasswordConfirmation<Shape extends z.ZodRawShape>(
   shape: Shape,
+  t: Text,
 ) {
   return z
     .object({
       ...shape,
-      password: passwordSchema,
-      confirmPassword: z.string({ error: "Please confirm your password" }),
+      password: createPasswordSchema(t),
+      confirmPassword: z.string({
+        error: t("auth.validation.confirmRequired"),
+      }),
     })
     .refine(
       (value) => {
         const pair = value as { password: string; confirmPassword: string };
         return pair.password === pair.confirmPassword;
       },
-      { message: "passwords must match.", path: ["confirmPassword"] },
+      {
+        message: t("auth.validation.passwordsMatch"),
+        path: ["confirmPassword"],
+      },
     );
 }

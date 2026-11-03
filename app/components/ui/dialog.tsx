@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
 import React from "react";
 
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 const Dialog = DialogPrimitive.Root;
@@ -53,13 +54,18 @@ const DialogContent = ({
       {showClose ? (
         <DialogPrimitive.Close className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-5 right-5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-hidden">
           <XIcon className="size-4" />
-          <span className="sr-only">Close</span>
+          <CloseLabel />
         </DialogPrimitive.Close>
       ) : null}
     </DialogPrimitive.Popup>
   </DialogPrimitive.Portal>
 );
 DialogContent.displayName = "DialogContent";
+
+function CloseLabel() {
+  const t = useText();
+  return <span className="sr-only">{t("site.a11y.closeDialog")}</span>;
+}
 
 const DialogTitle = ({
   className,

@@ -14,6 +14,8 @@ import { Glow } from "./section";
 
 import { InstagramIcon } from "~/components/icons";
 import { ADMIN_ROLE_NAMES } from "~/features/auth/roles";
+import { useText } from "~/features/site-text/site-text-context";
+import type { Text } from "~/features/site-text/text";
 import { useOptionalUser } from "~/hooks/useOptionalUser";
 import { cn } from "~/lib/utils";
 
@@ -33,14 +35,16 @@ type NavItem =
 function buildNavItems({
   loggedIn,
   isModerator,
+  t,
 }: {
   loggedIn: boolean;
   isModerator: boolean;
+  t: Text;
 }): NavItem[] {
   const items: NavItem[] = [
     {
       kind: "link",
-      label: "events",
+      label: t("site.nav.events"),
       to: "/events",
       // an event's album belongs to the gallery tab, not this one
       isActive: (pathname) =>
@@ -48,7 +52,7 @@ function buildNavItems({
     },
     {
       kind: "link",
-      label: "gallery",
+      label: t("site.nav.gallery"),
       to: "/gallery",
       // per-event albums live under /events/:id/gallery, so also light up
       // this tab when the reader is inside one
@@ -57,7 +61,7 @@ function buildNavItems({
     },
     {
       kind: "link",
-      label: "about",
+      label: t("site.nav.about"),
       to: "/about",
       isActive: (pathname) => pathname.startsWith("/about"),
     },
@@ -67,7 +71,7 @@ function buildNavItems({
   if (isModerator) {
     items.push({
       kind: "link",
-      label: "admin area",
+      label: t("site.nav.admin"),
       to: "/admin",
       prefetch: "intent",
       isActive: (pathname) => pathname.startsWith("/admin"),
@@ -78,7 +82,7 @@ function buildNavItems({
     items.push(
       {
         kind: "link",
-        label: "account",
+        label: t("site.nav.account"),
         to: "/me",
         isActive: (pathname) => pathname === "/me",
       },
@@ -98,6 +102,7 @@ function buildNavItems({
  */
 export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
   const optionalUser = useOptionalUser();
+  const t = useText();
   const navRef = useRef<HTMLElement>(null);
   useScrollReveal(navRef, hideAtTop);
   const loggedIn = Boolean(optionalUser);
@@ -108,7 +113,7 @@ export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
     optionalUser?.role.name ?? "",
   );
 
-  const navItems = buildNavItems({ loggedIn, isModerator });
+  const navItems = buildNavItems({ loggedIn, isModerator, t });
 
   useEffect(() => {
     setMenuOpen(false);
@@ -164,14 +169,14 @@ export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
                       className="hover:text-foreground"
                     >
                       <InstagramIcon className="size-5" />
-                      <span className="sr-only">instagram</span>
+                      <span className="sr-only">{t("site.nav.instagram")}</span>
                     </a>
                   );
                 case "logout":
                   return (
                     <Form key="logout" action="/logout" method="POST">
                       <button className={sectionLinkClasses(false)}>
-                        logout
+                        {t("site.nav.logout")}
                       </button>
                     </Form>
                   );
@@ -184,7 +189,7 @@ export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
           <BrandLockup to="/" showWordmark={false} logoClassName="size-10" />
           <button
             type="button"
-            aria-label="Open menu"
+            aria-label={t("site.nav.openMenu")}
             aria-expanded={menuOpen}
             className="flex flex-col gap-1 py-2"
             onClick={() => setMenuOpen(true)}
@@ -242,6 +247,8 @@ function MobileMenu({
   navItems: NavItem[];
   onClose: () => void;
 }) {
+  const t = useText();
+
   return (
     <div className="bg-background fixed inset-0 z-50 flex flex-col overflow-hidden md:hidden">
       <Glow strong className="-top-10 -right-10 size-72" />
@@ -251,7 +258,7 @@ function MobileMenu({
           <BrandLockup to="/" showWordmark={false} logoClassName="size-10" />
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t("site.nav.closeMenu")}
             className="p-2"
             onClick={closeMenu}
           >
@@ -276,7 +283,7 @@ function MobileMenu({
                 return (
                   <Form key="logout" action="/logout" method="POST">
                     <MobileMenuLink as="button" className="w-full text-left">
-                      logout
+                      {t("site.nav.logout")}
                     </MobileMenuLink>
                   </Form>
                 );
@@ -287,13 +294,13 @@ function MobileMenu({
         <div className="mt-auto flex flex-col gap-4 pt-9">
           <div className="text-foreground/80 flex gap-6 text-sm">
             <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer">
-              instagram
+              {t("site.nav.instagram")}
             </a>
-            <Link to="/privacy">privacy policy</Link>
-            <Link to="/impressum">impressum</Link>
+            <Link to="/privacy">{t("site.footer.privacy")}</Link>
+            <Link to="/impressum">{t("site.footer.impressum")}</Link>
           </div>
           <span className="text-muted-foreground text-xs">
-            made with love in zürich
+            {t("site.footer.tagline")}
           </span>
         </div>
       </div>

@@ -25,6 +25,8 @@ import {
   resolveOptionalUserMiddleware,
 } from "~/features/auth/middleware.server";
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
+import { SiteTextProvider } from "~/features/site-text/site-text-context";
+import { getSiteTextOverrides } from "~/features/site-text/site-text.server";
 import stylesheet from "~/tailwind.css?url";
 
 export const links: LinksFunction = () => [
@@ -53,7 +55,11 @@ export const middleware: Route.MiddlewareFunction[] = [
 export const loader = async ({ request, context }: Route.LoaderArgs) => {
   const domainUrl = getDomainUrl(request);
   const user = await context.get(optionalUserContext)();
-  const { toast, headers } = await getToast(request);
+  const [{ toast, headers }, siteText] = await Promise.all([
+    getToast(request),
+    // only the admin's edits travel; the defaults ship with the code
+    getSiteTextOverrides(),
+  ]);
   const allowIndexing = process.env.ALLOW_INDEXING !== "false";
   const cypressSupport = process.env.CYPRESS_SUPPORT === "true";
   const imageProvider: "local" | "cloudinary" =
@@ -68,6 +74,7 @@ export const loader = async ({ request, context }: Route.LoaderArgs) => {
       imageProvider,
       cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? null,
       honeypot: getHoneypotInputProps(),
+      siteText,
     },
     { headers: headers ?? undefined },
   );
@@ -81,6 +88,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <head>
         {cypressSupport ? (
           <script data-cy-bootstrap suppressHydrationWarning>
+            {/* eslint-disable-next-line site-text/no-hardcoded-text -- script body, not copy */}
             {"/* placeholder */"}
           </script>
         ) : null}
@@ -93,7 +101,9 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <Links />
       </head>
       <body className="dark h-full scheme-dark">
-        <Document toast={loaderData.toast} />
+        <SiteTextProvider overrides={loaderData.siteText}>
+          <Document toast={loaderData.toast} />
+        </SiteTextProvider>
         <ScrollRestoration />
         <Scripts />
         <Toaster />

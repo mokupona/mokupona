@@ -13,6 +13,8 @@ import { formatEventDateLine } from "~/features/events/date-format";
 import { isPastEvent } from "~/features/events/event-status";
 import { listGalleryImagesForEvent } from "~/features/gallery/gallery.server";
 import { MosaicGallery } from "~/features/gallery/layouts/mosaic";
+import { textFromMatches } from "~/features/site-text/meta";
+import { useText } from "~/features/site-text/site-text-context";
 import { getEventById } from "~/models/event.server";
 import { requireFound } from "~/shared/http.server";
 
@@ -43,19 +45,25 @@ export async function loader({ params }: Route.LoaderArgs) {
   };
 }
 
-export const meta: Route.MetaFunction = ({ loaderData }) => [
-  { title: loaderData ? `${loaderData.event.title} — gallery` : "Gallery" },
-];
+export const meta: Route.MetaFunction = ({ loaderData, matches }) => {
+  const t = textFromMatches(matches);
+  return [
+    {
+      title: loaderData
+        ? t("gallery.album.metaTitle", { title: loaderData.event.title })
+        : t("gallery.meta.title"),
+    },
+  ];
+};
 
-export default function EventGalleryPage({
-  loaderData,
-}: Route.ComponentProps) {
+export default function EventGalleryPage({ loaderData }: Route.ComponentProps) {
   const { event, images } = loaderData;
+  const t = useText();
   const date = new Date(event.date);
 
   return (
     <PageContainer className="grow pt-14 pb-32 md:pt-20">
-      <BackLink to="/gallery">all galleries</BackLink>
+      <BackLink to="/gallery">{t("gallery.album.back")}</BackLink>
 
       <div className="mb-14 flex flex-col gap-4 md:mb-20">
         <Eyebrow variant="tracked" tone="primary">

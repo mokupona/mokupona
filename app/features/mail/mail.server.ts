@@ -6,6 +6,8 @@ import { mailTemplates } from "./templates";
 import type { MailTemplateName, MailTemplateProps } from "./templates";
 import type { MailProvider } from "./types";
 
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { requestLogger } from "~/logger/request-context.server";
 import { logger } from "~/logger.server";
 import { singleton } from "~/utils/singleton.server";
@@ -49,10 +51,12 @@ export async function sendTemplate<Name extends MailTemplateName>(
 ): Promise<void> {
   const render = mailTemplates[name] as (
     props: MailTemplateProps<Name>,
+    t: Text,
   ) => MailBody;
 
   try {
-    await provider.send({ to, ...(from && { from }), ...render(props) });
+    const body = render(props, await getText());
+    await provider.send({ to, ...(from && { from }), ...body });
   } catch (error) {
     requestLogger.error(
       { template: name, email: to, error },

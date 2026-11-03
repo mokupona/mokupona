@@ -106,13 +106,13 @@ export function Eyebrow({
 
 export function SectionDivider({
   className,
-  /** When set, the drawn heading replaces `children` as the visible label. */
+  /** When set, the drawn heading is the label and `children` go unused. */
   handwritten,
   children,
 }: {
   className?: string;
   handwritten?: HandwrittenHeadingName;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>

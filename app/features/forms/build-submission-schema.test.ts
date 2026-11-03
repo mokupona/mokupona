@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { buildSubmissionSchema } from "./build-submission-schema";
 import type { FieldDescriptor } from "./fields";
 
+import { defaultText } from "~/features/site-text/text";
+
 const FIELDS: Array<FieldDescriptor> = [
   {
     type: "text",
@@ -57,7 +59,7 @@ function withListData(
 
 describe("buildSubmissionSchema", () => {
   it("accepts a valid submission and applies defaults", () => {
-    const schema = buildSubmissionSchema(FIELDS);
+    const schema = buildSubmissionSchema(FIELDS, defaultText);
     const result = schema.parse({
       title: " Hello ",
       contact: "a@example.com",
@@ -73,7 +75,7 @@ describe("buildSubmissionSchema", () => {
   });
 
   it("rejects a missing required top-level field", () => {
-    const schema = buildSubmissionSchema(FIELDS);
+    const schema = buildSubmissionSchema(FIELDS, defaultText);
     const result = schema.safeParse({
       contact: "a@example.com",
       entries: [],
@@ -83,7 +85,7 @@ describe("buildSubmissionSchema", () => {
   });
 
   it("rejects a missing required field inside a list item", () => {
-    const schema = buildSubmissionSchema(FIELDS);
+    const schema = buildSubmissionSchema(FIELDS, defaultText);
     const result = schema.safeParse({
       title: "Hello",
       contact: "a@example.com",
@@ -94,7 +96,7 @@ describe("buildSubmissionSchema", () => {
   });
 
   it("rejects more list items than maxCount with a readable message", () => {
-    const schema = buildSubmissionSchema(FIELDS);
+    const schema = buildSubmissionSchema(FIELDS, defaultText);
     const result = schema.safeParse({
       title: "Hello",
       contact: "a@example.com",
@@ -109,7 +111,10 @@ describe("buildSubmissionSchema", () => {
   });
 
   it("accepts only an empty list when maxCount is 0", () => {
-    const schema = buildSubmissionSchema(withListData({ maxCount: 0 }));
+    const schema = buildSubmissionSchema(
+      withListData({ maxCount: 0 }),
+      defaultText,
+    );
 
     expect(
       schema.safeParse({
@@ -128,7 +133,10 @@ describe("buildSubmissionSchema", () => {
   });
 
   it("requires at least one item when the list is required", () => {
-    const schema = buildSubmissionSchema(withListData({ required: true }));
+    const schema = buildSubmissionSchema(
+      withListData({ required: true }),
+      defaultText,
+    );
 
     expect(
       schema.safeParse({

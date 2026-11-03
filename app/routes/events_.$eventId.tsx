@@ -22,7 +22,6 @@ import {
 import { isPastEvent } from "~/features/events/event-status";
 import { toEventDetailModel } from "~/features/events/view-models";
 import { getViewForField, type FieldDescriptor } from "~/features/forms/fields";
-import { HONEYPOT_RETRY_MESSAGE } from "~/features/forms/honeypot";
 import { HoneypotField } from "~/features/forms/honeypot-field";
 import { checkHoneypot } from "~/features/forms/honeypot.server";
 import { normalizeSubmissionValues } from "~/features/forms/normalize-submission";
@@ -32,6 +31,11 @@ import { loadEventGallerySection } from "~/features/gallery/event-section.server
 import { buildSignupSchema } from "~/features/signup-form/build-schema";
 import { sendSignupConfirmation } from "~/features/signup-form/confirmation-mail.server";
 import { partySize, seatsLeft } from "~/features/signup-form/signup-status";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { cn } from "~/lib/utils";
 import {
   createEventSignup,
@@ -75,25 +79,22 @@ export async function loader({ params }: Route.LoaderArgs) {
   };
 }
 
-const FORM_CHANGED_ERROR =
-  "The signup form was updated while you were filling it out. Please review your answers and submit again.";
-
-const DUPLICATE_SIGNUP_ERROR =
-  "This email address is already signed up for this event. If you'd like to change your signup, please get in touch with us.";
-
 // also the spam-trap response, which must look like a real success
-const CONFIRMED_TOAST = {
-  title: "You're in!",
-  description: "Your seat is confirmed. We've emailed you the details.",
-  type: "success",
-} as const;
+function confirmedToast(t: Text) {
+  return {
+    title: t("signup.toast.confirmedTitle"),
+    description: t("signup.toast.confirmedBody"),
+    type: "success",
+  } as const;
+}
 
-const WAITLISTED_TOAST = {
-  title: "You're on the waiting list",
-  description:
-    "There weren't enough seats left. We've emailed you the details and will let you know as soon as a seat is yours.",
-  type: "message",
-} as const;
+function waitlistedToast(t: Text) {
+  return {
+    title: t("signup.toast.waitlistedTitle"),
+    description: t("signup.toast.waitlistedBody"),
+    type: "message",
+  } as const;
+}
 
 export async function action({ params, request, context }: Route.ActionArgs) {
   const { eventId } = params;
@@ -113,7 +114,8 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     throw new Response("Internal Server Error", { status: 500 });
   }
 
-  const schema = buildSignupSchema(formFields);
+  const t = await getText();
+  const schema = buildSignupSchema(formFields, t);
   const formData = await request.formData();
 
   // Answered with the success path's toast redirect: a caught bot must not
@@ -129,7 +131,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       "Blocked event signup caught by the spam trap",
     );
 
-    return redirectWithToast("/events", CONFIRMED_TOAST);
+    return redirectWithToast("/events", confirmedToast(t));
   }
 
   const submission = parseWithZod(formData, { schema });
@@ -144,7 +146,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       "Rejected event signup with an unverifiable spam-trap stamp",
     );
 
-    return submission.reply({ formErrors: [HONEYPOT_RETRY_MESSAGE] });
+    return submission.reply({ formErrors: [t("site.forms.retry")] });
   }
 
   if (formData.get("formVersionId") !== version.id) {
@@ -157,7 +159,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       "Event signup submitted against an outdated form version",
     );
 
-    return submission.reply({ formErrors: [FORM_CHANGED_ERROR] });
+    return submission.reply({ formErrors: [t("signup.error.formChanged")] });
   }
 
   if (submission.status !== "success" || !submission.value) {
@@ -197,7 +199,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
         "Rejected a second event signup from the same email",
       );
 
-      return submission.reply({ formErrors: [DUPLICATE_SIGNUP_ERROR] });
+      return submission.reply({ formErrors: [t("signup.error.duplicate")] });
     }
 
     if (reason instanceof FormVersionChangedError) {
@@ -209,7 +211,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
         "Event signup raced an in-place form update",
       );
 
-      return submission.reply({ formErrors: [FORM_CHANGED_ERROR] });
+      return submission.reply({ formErrors: [t("signup.error.formChanged")] });
     }
 
     logger.error(
@@ -223,7 +225,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     );
 
     return submission.reply({
-      formErrors: ["Your signup could not be saved. Please try again."],
+      formErrors: [t("signup.error.saveFailed")],
     });
   }
 
@@ -259,22 +261,19 @@ export async function action({ params, request, context }: Route.ActionArgs) {
 
   return redirectWithToast(
     "/events",
-    signup.status === "confirmed" ? CONFIRMED_TOAST : WAITLISTED_TOAST,
+    signup.status === "confirmed" ? confirmedToast(t) : waitlistedToast(t),
   );
 }
 
 export const meta: Route.MetaFunction = ({ loaderData, matches, location }) => {
-  const metaTags = [
-    {
-      title: "Event",
-    },
-  ];
+  const t = textFromMatches(matches);
+  const metaTags = [{ title: t("events.detail.metaFallback") }];
 
   if (!loaderData) return metaTags;
 
   const { event } = loaderData;
   const tags = [
-    { title: `Event - ${event.title}` },
+    { title: t("events.detail.metaTitle", { title: event.title }) },
     { property: "og:title", content: event.title },
     { property: "og:type", content: "website" },
   ];
@@ -293,6 +292,7 @@ export default function EventPage({
   actionData,
 }: Route.ComponentProps) {
   const { event, formFields, formVersionId, seatsLeft, gallery } = loaderData;
+  const t = useText();
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
   const signupFields = eventIsPast ? null : formFields;
@@ -304,7 +304,7 @@ export default function EventPage({
   return (
     <PageContainer className="grow pt-7 pb-20">
       <BackLink to="/events" className="mb-6">
-        all events
+        {t("events.detail.back")}
       </BackLink>
 
       <div className={gridClasses}>
@@ -322,7 +322,7 @@ export default function EventPage({
             <>
               <div aria-hidden className="bg-border h-px" />
 
-              <h2 className="text-xl font-light">reserve your seat</h2>
+              <h2 className="text-xl font-light">{t("signup.heading")}</h2>
 
               <SignupForm
                 key={JSON.stringify(signupFields)}
@@ -352,7 +352,11 @@ function SignupForm({
   seatsLeft: number | null;
   lastResult: Route.ComponentProps["actionData"];
 }) {
-  const schema = useMemo(() => buildSignupSchema(formFields), [formFields]);
+  const t = useText();
+  const schema = useMemo(
+    () => buildSignupSchema(formFields, t),
+    [formFields, t],
+  );
 
   const [form, fields] = useForm({
     lastResult,
@@ -397,10 +401,16 @@ function SignupForm({
           labelProps={{
             children: (
               <span className="text-sm">
-                i agree to the{" "}
-                <Link to="/privacy" className="text-primary">
-                  privacy policy
-                </Link>
+                <RichText
+                  text={t("signup.privacy")}
+                  tags={{
+                    link: (children) => (
+                      <Link to="/privacy" className="text-primary">
+                        {children}
+                      </Link>
+                    ),
+                  }}
+                />
               </span>
             ),
           }}
@@ -416,19 +426,21 @@ function SignupForm({
 
         {willWait && seatsLeft !== null && seatsLeft > 0 ? (
           <p role="status" className="text-primary text-sm leading-normal">
-            only {seatsLeft} {seatsLeft === 1 ? "seat" : "seats"} left, so a
-            group of {party} goes on the waiting list.
+            {t(
+              seatsLeft === 1
+                ? "signup.waitlistWarning.one"
+                : "signup.waitlistWarning.other",
+              { left: seatsLeft, party },
+            )}
           </p>
         ) : null}
 
         <Button type="submit" size="lg" className="w-full">
-          {willWait ? "join the waiting list" : "join this event"}
+          {willWait ? t("signup.submitWaitlist") : t("signup.submit")}
         </Button>
 
         <p className="text-muted-foreground text-center text-xs leading-normal">
-          {seatsLeft === 0
-            ? "this event is fully booked. we'll email you as soon as a seat is yours."
-            : "we'll email you right away whether you have a seat."}
+          {seatsLeft === 0 ? t("signup.footnoteFull") : t("signup.footnote")}
         </p>
       </Form>
     </FormProvider>

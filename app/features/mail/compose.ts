@@ -27,7 +27,16 @@ export function details(title: string, rows: DetailRow[]): Block {
 
 export type MailBody = Omit<MailMessage, "to">;
 
-export function compose(subject: string, blocks: Block[]): MailBody {
+export interface ComposeOptions {
+  /** Shown under each button in html, above the bare link. */
+  linkFallback: string;
+}
+
+export function compose(
+  subject: string,
+  blocks: Block[],
+  options: ComposeOptions,
+): MailBody {
   for (const block of blocks) {
     if (block.kind === "action") assertWebUrl(block.url);
   }
@@ -35,7 +44,7 @@ export function compose(subject: string, blocks: Block[]): MailBody {
   return {
     subject,
     text: renderText(blocks),
-    html: renderHtml(subject, blocks),
+    html: renderHtml(subject, blocks, options),
   };
 }
 
@@ -60,10 +69,16 @@ const NOTE_STYLE = "color: #666; font-size: 13px;";
 const DETAIL_CELL_STYLE = "padding: 2px 0; vertical-align: top;";
 const DETAIL_LABEL_STYLE = `${DETAIL_CELL_STYLE} padding-right: 16px; color: #666;`;
 
-function renderHtml(subject: string, blocks: Block[]): string {
+function renderHtml(
+  subject: string,
+  blocks: Block[],
+  options: ComposeOptions,
+): string {
   const preheader =
     blocks.find((block) => block.kind === "paragraph")?.text ?? subject;
-  const body = blocks.map(renderBlock).join("\n      ");
+  const body = blocks
+    .map((block) => renderBlock(block, options))
+    .join("\n      ");
 
   return `<!doctype html>
 <html lang="en">
@@ -81,7 +96,7 @@ function renderHtml(subject: string, blocks: Block[]): string {
 </html>`;
 }
 
-function renderBlock(block: Block): string {
+function renderBlock(block: Block, { linkFallback }: ComposeOptions): string {
   switch (block.kind) {
     case "paragraph":
       return `<p>${escapeMultiline(block.text)}</p>`;
@@ -92,7 +107,7 @@ function renderBlock(block: Block): string {
     case "action":
       return [
         `<p><a href="${escapeHtml(block.url)}">${escapeHtml(block.label)}</a></p>`,
-        `<p style="${NOTE_STYLE}">If the link doesn't work, copy and paste this address into your browser:<br>${escapeHtml(block.url)}</p>`,
+        `<p style="${NOTE_STYLE}">${escapeHtml(linkFallback)}<br>${escapeHtml(block.url)}</p>`,
       ].join("\n      ");
   }
 }

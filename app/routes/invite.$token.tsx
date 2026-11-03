@@ -1,6 +1,7 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
 import { ArrowRightIcon, InfoIcon, Link2OffIcon, LockIcon } from "lucide-react";
+import { useMemo } from "react";
 import { data, Form, Link, redirect } from "react-router";
 import { z } from "zod";
 
@@ -16,14 +17,20 @@ import { Label } from "~/components/ui/label";
 import { isAuthToggleEnabled } from "~/features/auth/auth-settings.server";
 import { auth, googleAuthEnabled } from "~/features/auth/auth.server";
 import { GoogleSignInButton } from "~/features/auth/components/google-button";
-import { displayNameSchema } from "~/features/auth/form-schemas";
+import { createDisplayNameSchema } from "~/features/auth/form-schemas";
 import { logout } from "~/features/auth/guards.server";
 import {
   optionalUserContext,
   requestLoggerContext,
 } from "~/features/auth/middleware.server";
-import { passwordSchema } from "~/features/auth/password-schema";
+import { createPasswordSchema } from "~/features/auth/password-schema";
 import { landingPathForRole } from "~/features/auth/roles";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { roleText } from "~/features/site-text/role-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { normalizeInvitableRole } from "~/features/users/invite.shared";
 import { cn } from "~/lib/utils";
 import { requestLogger } from "~/logger/request-context.server";
@@ -36,11 +43,13 @@ import {
 import { getUserByEmail } from "~/models/user.server";
 import { getClientIPAddress, unknownIntent } from "~/shared/http.server";
 
-const signupSchema = z.object({
-  intent: z.literal("signup"),
-  name: displayNameSchema,
-  password: passwordSchema,
-});
+function inviteSignupSchema(t: Text) {
+  return z.object({
+    intent: z.literal("signup"),
+    name: createDisplayNameSchema(t),
+    password: createPasswordSchema(t),
+  });
+}
 
 async function acceptCurrentInvite(
   invite: Parameters<typeof acceptInvite>[0]["invite"],
@@ -159,7 +168,10 @@ export const action = async ({
   }
 
   if (intent === "signup") {
-    const submission = parseWithZod(formData, { schema: signupSchema });
+    const t = await getText();
+    const submission = parseWithZod(formData, {
+      schema: inviteSignupSchema(t),
+    });
     if (submission.status !== "success") {
       return data({ result: submission.reply(), formError: null });
     }
@@ -167,8 +179,7 @@ export const action = async ({
     if (await getUserByEmail(invite.email)) {
       return data({
         result: submission.reply(),
-        formError:
-          "an account already exists for this address. log in, then open the link again to accept it.",
+        formError: t("invite.signup.accountExists"),
       });
     }
 
@@ -206,30 +217,40 @@ export const action = async ({
   throw unknownIntent();
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Invite" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("invite.metaTitle") },
+];
 
-const DEAD_END_COPY = {
-  invalid: {
-    heading: "we don't recognise this invite",
-    body: "double-check you copied the whole thing from your email.",
-  },
-  expired: {
-    heading: "this invite has expired",
-    body: "invites last about a week. ask whoever invited you to send a fresh one, or browse our public events in the meantime.",
-  },
-  used: {
-    heading: "this invite has already been accepted",
-    body: "if that was you, just log in.",
-  },
-} as const;
+function deadEndCopy(t: Text, reason: string) {
+  switch (reason) {
+    case "expired":
+      return {
+        heading: t("invite.expired.heading"),
+        body: t("invite.expired.body"),
+      };
+    case "used":
+      return { heading: t("invite.used.heading"), body: t("invite.used.body") };
+    default:
+      return {
+        heading: t("invite.invalid.heading"),
+        body: t("invite.invalid.body"),
+      };
+  }
+}
+
+function Strong({ children }: { children: React.ReactNode }) {
+  return <strong className="text-foreground font-semibold">{children}</strong>;
+}
 
 export default function InvitePage({
   loaderData,
   actionData,
   params,
 }: Route.ComponentProps) {
+  const t = useText();
+
   if (loaderData.state === "dead-end") {
-    const copy = DEAD_END_COPY[loaderData.reason as keyof typeof DEAD_END_COPY];
+    const copy = deadEndCopy(t, loaderData.reason);
     return (
       <AuthStatus
         standalone
@@ -242,13 +263,13 @@ export default function InvitePage({
           to="/events"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          browse events
+          {t("invite.browseEvents")}
         </Link>
         <Link
           to="/login"
           className="text-primary text-sm font-semibold hover:underline"
         >
-          go to log in
+          {t("invite.goToLogin")}
         </Link>
       </AuthStatus>
     );
@@ -261,36 +282,43 @@ export default function InvitePage({
       <AuthStatus
         standalone
         icon={<LockIcon className="size-7" />}
-        heading="accept your invite"
+        heading={t("invite.acceptTitle")}
         body={
-          <>
-            you&apos;re signed in as{" "}
-            <strong className="text-foreground font-semibold">{email}</strong>.
-            {upgrades ? " accept to change your role:" : " accept to confirm."}
-          </>
+          <RichText
+            text={
+              upgrades
+                ? t("invite.confirm.bodyUpgrade")
+                : t("invite.confirm.body")
+            }
+            vars={{ email: <Strong>{email}</Strong> }}
+          />
         }
       >
         {upgrades ? (
           <div className="flex items-center gap-3" aria-hidden>
-            <RolePill>{currentRole}</RolePill>
+            <RolePill>{roleText(t, currentRole)}</RolePill>
             <ArrowRightIcon className="text-muted-foreground size-4" />
             <RolePill accent>
               <LockIcon className="size-3" />
-              {roleName}
+              {roleText(t, roleName)}
             </RolePill>
           </div>
         ) : null}
         <Form method="post" className="w-full">
           <input type="hidden" name="intent" value="accept" />
           <Button type="submit" size="lg" className="w-full">
-            {upgrades ? `accept and become a ${roleName}` : "accept invite"}
+            {upgrades
+              ? t("invite.confirm.acceptUpgrade", {
+                  role: roleText(t, roleName),
+                })
+              : t("invite.confirm.accept")}
           </Button>
         </Form>
         <Link
           to="/"
           className="text-primary text-sm font-semibold hover:underline"
         >
-          not now
+          {t("invite.confirm.notNow")}
         </Link>
       </AuthStatus>
     );
@@ -303,32 +331,28 @@ export default function InvitePage({
         standalone
         tone="neutral"
         icon={<InfoIcon className="size-7" />}
-        heading="this invite is for a different account"
+        heading={t("invite.mismatch.heading")}
         body={
-          <>
-            it was sent to{" "}
-            <strong className="text-foreground font-semibold">
-              {invitedEmail}
-            </strong>
-            , but you&apos;re signed in as{" "}
-            <strong className="text-foreground font-semibold">
-              {currentEmail}
-            </strong>
-            . log out and open the link again to accept it.
-          </>
+          <RichText
+            text={t("invite.mismatch.body")}
+            vars={{
+              invitedEmail: <Strong>{invitedEmail}</Strong>,
+              currentEmail: <Strong>{currentEmail}</Strong>,
+            }}
+          />
         }
       >
         <Form method="post" className="w-full">
           <input type="hidden" name="intent" value="logout-retry" />
           <Button type="submit" size="lg" className="w-full">
-            log out &amp; retry
+            {t("invite.mismatch.retry")}
           </Button>
         </Form>
         <Link
           to="/"
           className="text-primary text-sm font-semibold hover:underline"
         >
-          stay signed in
+          {t("invite.mismatch.stay")}
         </Link>
       </AuthStatus>
     );
@@ -363,6 +387,8 @@ function InviteSignup({
   token: string;
 }) {
   const { email, roleName, inviterName, googleEnabled } = loaderData;
+  const t = useText();
+  const signupSchema = useMemo(() => inviteSignupSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: actionData?.result ?? null,
     shouldValidate: "onBlur",
@@ -374,23 +400,28 @@ function InviteSignup({
 
   const brandBody =
     roleName === "moderator"
-      ? `${inviterName} invited you to help run our events. set a password to accept. your invite is tied to the email below.`
-      : `${inviterName} invited you to join our events. set a password to accept. your invite is tied to the email below.`;
+      ? t("invite.signup.bodyModerator", { inviter: inviterName })
+      : t("invite.signup.bodyUser", { inviter: inviterName });
 
   return (
     <AuthShell
       brand={{
-        eyebrow: "you've been invited",
+        eyebrow: t("invite.signup.eyebrow"),
         heading: (
-          <>
-            join moku pona as a <span className="text-primary">{roleName}</span>
-          </>
+          <RichText
+            text={t("invite.signup.heading")}
+            vars={{
+              role: (
+                <span className="text-primary">{roleText(t, roleName)}</span>
+              ),
+            }}
+          />
         ),
         body: brandBody,
       }}
     >
       <h1 className="mt-1 text-3xl leading-tight font-light tracking-tight">
-        accept your invite
+        {t("invite.acceptTitle")}
       </h1>
 
       <Form
@@ -405,7 +436,7 @@ function InviteSignup({
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="invite-email">email address</Label>
+          <Label htmlFor="invite-email">{t("auth.field.email")}</Label>
           <div className="relative">
             <Input
               id="invite-email"
@@ -420,21 +451,21 @@ function InviteSignup({
             />
           </div>
           <p className="text-muted-foreground text-sm">
-            this invite is tied to this address.
+            {t("invite.signup.emailHint")}
           </p>
         </div>
 
         <Field
-          labelProps={{ children: "name" }}
+          labelProps={{ children: t("auth.field.name") }}
           inputProps={{
             ...getInputProps(fields.name, { type: "text" }),
-            placeholder: "e.g. nadia fischer",
+            placeholder: t("invite.signup.namePlaceholder"),
           }}
           errors={fields.name.errors}
         />
 
         <Field
-          labelProps={{ children: "password" }}
+          labelProps={{ children: t("auth.field.password") }}
           inputProps={{
             ...getInputProps(fields.password, { type: "password" }),
           }}
@@ -442,7 +473,7 @@ function InviteSignup({
         />
 
         <Button type="submit" size="lg" className="w-full">
-          accept &amp; create account
+          {t("invite.signup.submit")}
         </Button>
 
         {googleEnabled ? (
@@ -452,18 +483,28 @@ function InviteSignup({
         <p className="text-muted-foreground text-center text-xs">
           {googleEnabled ? (
             <>
-              google must return{" "}
-              <strong className="text-foreground/80 font-semibold">
-                {email}
-              </strong>{" "}
-              to accept.{" "}
+              <RichText
+                text={t("invite.signup.googleNote")}
+                vars={{
+                  email: (
+                    <strong className="text-foreground/80 font-semibold">
+                      {email}
+                    </strong>
+                  ),
+                }}
+              />{" "}
             </>
           ) : null}
-          by continuing you accept the{" "}
-          <Link to="/privacy" className="text-primary hover:underline">
-            privacy policy
-          </Link>
-          .
+          <RichText
+            text={t("invite.signup.privacy")}
+            tags={{
+              link: (children) => (
+                <Link to="/privacy" className="text-primary hover:underline">
+                  {children}
+                </Link>
+              ),
+            }}
+          />
         </p>
       </Form>
     </AuthShell>

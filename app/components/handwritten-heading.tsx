@@ -1,28 +1,30 @@
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 /**
  * The hand-drawn section headings, with the intrinsic size of each file so
- * the browser can reserve space before it loads. `alt` carries the words the
- * artwork spells, which is what a screen reader announces in place of it.
+ * the browser can reserve space before it loads. `alt` names the site text
+ * with the words the artwork spells, which is what a screen reader announces
+ * in place of it.
  * `?v=` busts the hour-long cache on public/ files: bump it whenever the
  * artwork changes (same for the logo and the wordmark).
  */
 export const handwrittenHeadings = {
   ourVision: {
     src: "/our_vision.svg?v=alpha",
-    alt: "our vision",
+    alt: "site.headings.ourVision",
     width: 1064,
     height: 273,
   },
   nextDinner: {
     src: "/next_dinner.svg?v=alpha",
-    alt: "the next dinner",
+    alt: "site.headings.nextDinner",
     width: 1043,
     height: 325,
   },
   pastDinners: {
     src: "/past_dinners.svg?v=alpha",
-    alt: "past dinners",
+    alt: "site.headings.pastDinners",
     width: 1074,
     height: 351,
   },
@@ -37,12 +39,13 @@ export function HandwrittenHeading({
   name: HandwrittenHeadingName;
   className?: string;
 }) {
+  const t = useText();
   const { src, alt, width, height } = handwrittenHeadings[name];
 
   return (
     <img
       src={src}
-      alt={alt}
+      alt={t(alt)}
       width={width}
       height={height}
       loading="lazy"

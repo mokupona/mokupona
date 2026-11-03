@@ -17,6 +17,7 @@ export const LIVE_DATA_TABLES = [
   "eventResponses",
   "eventGalleryImages",
   "boardMembers",
+  "siteTexts",
 ] as const;
 
 export type LiveDataTable = (typeof LIVE_DATA_TABLES)[number];
@@ -33,4 +34,5 @@ export const LIVE_DATA_TABLE_LABELS: Record<LiveDataTable, string> = {
   eventResponses: "Signups (legacy)",
   eventGalleryImages: "Gallery photos",
   boardMembers: "Board members",
+  siteTexts: "Edited site texts",
 };

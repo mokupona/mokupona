@@ -148,6 +148,15 @@ const boardMemberRow = z.object({
   updatedAt: dateTime,
 });
 
+// an admin's wording from /admin/texts; texts nobody edited have no row
+const siteTextRow = z.object({
+  key: z.string().min(1),
+  value: text,
+  defaultAtEdit: text,
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
+
 export const liveDataTablesSchema = z.object({
   addresses: z.array(addressRow),
   images: z.array(imageRow),
@@ -158,16 +167,21 @@ export const liveDataTablesSchema = z.object({
   eventResponses: z.array(eventResponseRow),
   eventGalleryImages: z.array(eventGalleryImageRow),
   boardMembers: z.array(boardMemberRow),
+  // added after format version 1 shipped: a live site on older code has no
+  // edited texts, so the copy target shows the defaults just as it does
+  siteTexts: z.array(siteTextRow).default([]),
 });
 
 export type LiveDataTables = z.output<typeof liveDataTablesSchema>;
 export type LiveDataImageRow = LiveDataTables["images"][number];
 
-const countsSchema = z.object(
-  Object.fromEntries(
+const countsSchema = z.object({
+  ...(Object.fromEntries(
     LIVE_DATA_TABLES.map((table) => [table, int.nonnegative()]),
-  ) as Record<keyof LiveDataCounts, z.ZodNumber>,
-);
+  ) as Record<keyof LiveDataCounts, z.ZodNumber>),
+  // see siteTexts above: an older live site doesn't count them
+  siteTexts: int.nonnegative().default(0),
+});
 
 const sourceSchema = z.object({
   /** Latest migration applied on the live site, null on an empty history. */

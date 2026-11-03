@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { liveDataFixture } from "../../../test/live-data-fixture";
 
-import { liveDataTablesSchema } from "./snapshot";
+import {
+  countLiveDataRows,
+  LIVE_DATA_FORMAT,
+  LIVE_DATA_FORMAT_VERSION,
+  liveDataSummarySchema,
+  liveDataTablesSchema,
+} from "./snapshot";
 
 // what JSON.parse hands the importer: dates as ISO strings
 function overTheWire(value: unknown) {
@@ -73,5 +79,51 @@ describe("liveDataTablesSchema signups", () => {
       seats: 3,
       email: "ada@example.com",
     });
+  });
+});
+
+describe("liveDataTablesSchema site texts", () => {
+  it("carries the live site's edited texts", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.siteTexts).toEqual([
+      {
+        key: "landing.vision.headline",
+        value: "live: food is how we meet",
+        defaultAtEdit: "food as a way to connect",
+        createdAt: new Date("2025-01-10T10:00:00.000Z"),
+        updatedAt: new Date("2025-01-10T10:00:00.000Z"),
+      },
+    ]);
+  });
+
+  it("reads a live site that predates edited texts as having none", () => {
+    const tables = overTheWire(liveDataFixture());
+    delete tables.siteTexts;
+
+    expect(liveDataTablesSchema.parse(tables).siteTexts).toEqual([]);
+  });
+});
+
+describe("liveDataSummarySchema", () => {
+  it("counts no edited texts on a live site that predates them", () => {
+    const { siteTexts: _siteTexts, ...olderCounts } =
+      countLiveDataRows(liveDataFixture());
+
+    const summary = liveDataSummarySchema.parse({
+      format: LIVE_DATA_FORMAT,
+      formatVersion: LIVE_DATA_FORMAT_VERSION,
+      exportedAt: "2025-01-10T10:00:00.000Z",
+      includesSignups: false,
+      source: {
+        schemaVersion: null,
+        imageProvider: "local",
+        cloudinaryCloudName: null,
+      },
+      counts: olderCounts,
+    });
+
+    expect(summary.counts.siteTexts).toBe(0);
+    expect(summary.counts.events).toBe(1);
   });
 });

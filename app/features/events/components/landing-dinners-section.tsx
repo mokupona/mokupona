@@ -7,6 +7,7 @@ import {
   SecondaryCTA,
   SectionDivider,
 } from "~/components/section";
+import { useText } from "~/features/site-text/site-text-context";
 
 type LandingDinnersSectionProps = {
   upcoming: EventCardModel[];
@@ -27,13 +28,12 @@ export function LandingDinnersSection({
   past,
   hasMore,
 }: LandingDinnersSectionProps) {
+  const t = useText();
   const nextDinner = upcoming.at(0);
 
   return (
     <PageContainer as="section" className="pt-14 pb-20 md:pt-20 md:pb-28">
-      <SectionDivider className="mb-5" handwritten="nextDinner">
-        the next event
-      </SectionDivider>
+      <SectionDivider className="mb-5" handwritten="nextDinner" />
 
       {nextDinner ? (
         <div className="mb-14 md:mb-20">
@@ -41,16 +41,13 @@ export function LandingDinnersSection({
         </div>
       ) : (
         <p className="text-muted-foreground mb-14 max-w-md text-base font-light md:mb-20 md:text-lg">
-          nothing on the calendar right now — we&apos;re planning the next
-          gathering. the table is never empty for long.
+          {t("landing.dinners.empty")}
         </p>
       )}
 
       {past.length > 0 ? (
         <>
-          <SectionDivider className="mb-5" handwritten="pastDinners">
-            past events
-          </SectionDivider>
+          <SectionDivider className="mb-5" handwritten="pastDinners" />
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 lg:grid-cols-4">
             {past.map((event) => (
               <CompactEventCard key={event.id} event={event} />
@@ -63,7 +60,9 @@ export function LandingDinnersSection({
       {/* The tile already leads to /events, so the link would only repeat it. */}
       {!hasMore && (past.length > 0 || nextDinner) ? (
         <div className="mt-10 flex justify-center md:mt-14">
-          <SecondaryCTA to="/events">see all events →</SecondaryCTA>
+          <SecondaryCTA to="/events">
+            {t("landing.dinners.seeAll")}
+          </SecondaryCTA>
         </div>
       ) : null}
     </PageContainer>
@@ -76,9 +75,11 @@ export function LandingDinnersSection({
  * the link reads as part of the row rather than a fourth card.
  */
 function SeeMoreTile() {
+  const t = useText();
+
   return (
     <div className="flex aspect-3/2 items-center justify-center">
-      <SecondaryCTA to="/events">see more →</SecondaryCTA>
+      <SecondaryCTA to="/events">{t("landing.dinners.seeMore")}</SecondaryCTA>
     </div>
   );
 }

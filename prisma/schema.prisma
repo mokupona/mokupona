@@ -276,3 +276,17 @@ model BoardMember {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// An admin's edit of one public-facing text (app/features/site-text). A text
+// nobody has edited has no row and shows the default written in the code.
+model SiteText {
+  // the registry key, e.g. "landing.vision.headline"
+  key           String @id
+  value         String
+  // the code's default when this was saved, so the editor can point out an
+  // edit whose default has changed since
+  defaultAtEdit String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

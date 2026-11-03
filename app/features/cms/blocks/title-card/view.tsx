@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { TitleCardBlockType } from "./model";
 
 import { HandDrawnRule } from "~/components/hand-drawn";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 /** px of scroll over which the scroll cue fades out */
@@ -73,6 +74,7 @@ export function TitleCardBlockView({
  * scroll (and back in on the way up); fully gone it stops taking clicks.
  */
 function ScrollCue({ href }: { href: string }) {
+  const t = useText();
   const ref = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -102,7 +104,7 @@ function ScrollCue({ href }: { href: string }) {
       href={href}
       className="text-muted-foreground hover:text-foreground focus-visible:ring-ring mt-20 flex flex-col items-center gap-2 rounded-md px-3 py-2 text-xs tracking-[0.2em] uppercase transition-colors focus-visible:ring-2 focus-visible:outline-hidden md:mt-28"
     >
-      <span>scroll</span>
+      <span>{t("landing.titleCard.scroll")}</span>
       <svg
         viewBox="0 0 24 30"
         fill="none"

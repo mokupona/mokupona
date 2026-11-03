@@ -2,6 +2,7 @@ import type {
   FieldDescriptor,
   NonListFieldDescriptor,
 } from "~/features/forms/fields";
+import type { Text } from "~/features/site-text/text";
 
 const FRIENDS_LIST_NAME = "friends";
 const NAME_FIELD = "name";
@@ -43,6 +44,7 @@ export function summarizeBooking(
   descriptors: FieldDescriptor[],
   answers: Record<string, unknown>,
   prices: BookingPrices,
+  t: Text,
 ): BookingSummary {
   const friendsList = descriptors.find(
     (field) => field.type === "list" && field.data.name === FRIENDS_LIST_NAME,
@@ -59,14 +61,21 @@ export function summarizeBooking(
     topLevel.filter((field) => perGuestNames.has(field.data.name)),
     answers,
     prices,
-    "Guest 1",
+    t("emails.signup.guestFallback", { number: 1 }),
+    t,
   );
 
   const friendItems = Array.isArray(answers[FRIENDS_LIST_NAME])
     ? (answers[FRIENDS_LIST_NAME] as unknown[])
     : [];
   const friends = friendItems.map((item, index) =>
-    toGuest(itemFields, asRecord(item), prices, `Guest ${index + 2}`),
+    toGuest(
+      itemFields,
+      asRecord(item),
+      prices,
+      t("emails.signup.guestFallback", { number: index + 2 }),
+      t,
+    ),
   );
 
   const guests = [signer, ...friends];
@@ -78,7 +87,7 @@ export function summarizeBooking(
         (field) =>
           field.data.name !== NAME_FIELD && !perGuestNames.has(field.data.name),
       )
-      .map((field) => toRow(field, answers)),
+      .map((field) => toRow(field, answers, t)),
     total: guests.reduce((sum, guest) => sum + guest.price, 0),
   };
 }
@@ -88,6 +97,7 @@ function toGuest(
   answers: Record<string, unknown>,
   prices: BookingPrices,
   fallbackName: string,
+  t: Text,
 ): BookingGuest {
   const name = answers[NAME_FIELD];
   const isStudent = answers[STUDENT_FIELD] === true;
@@ -101,19 +111,26 @@ function toGuest(
         : prices.price,
     rows: fields
       .filter((field) => field.data.name !== NAME_FIELD)
-      .map((field) => toRow(field, answers)),
+      .map((field) => toRow(field, answers, t)),
   };
 }
 
 function toRow(
   field: NonListFieldDescriptor,
   answers: Record<string, unknown>,
+  t: Text,
 ): SummaryRow {
-  return [field.data.label, formatAnswer(field, answers[field.data.name])];
+  return [field.data.label, formatAnswer(field, answers[field.data.name], t)];
 }
 
-function formatAnswer(field: NonListFieldDescriptor, value: unknown): string {
-  if (field.type === "checkbox") return value === true ? "yes" : "no";
+function formatAnswer(
+  field: NonListFieldDescriptor,
+  value: unknown,
+  t: Text,
+): string {
+  if (field.type === "checkbox") {
+    return value === true ? t("emails.signup.yes") : t("emails.signup.no");
+  }
   if (typeof value === "string" && value.trim()) return value.trim();
   return EMPTY_ANSWER;
 }
@@ -125,6 +142,8 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export function formatChf(amount: number): string {
-  return amount === 0 ? "free" : `${amount} CHF`;
+export function formatChf(amount: number, t: Text): string {
+  return amount === 0
+    ? t("emails.signup.free")
+    : t("emails.signup.amount", { amount });
 }

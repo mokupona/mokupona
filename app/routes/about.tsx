@@ -12,6 +12,8 @@ import {
   TextSectionBlockView,
   type TextSectionBlockType,
 } from "~/features/cms/blocks/text-section";
+import { textFromMatches } from "~/features/site-text/meta";
+import { useText } from "~/features/site-text/site-text-context";
 import { listBoardMembers } from "~/models/board-member.server";
 import type { ImageMetadata } from "~/models/image.server";
 
@@ -22,28 +24,28 @@ export async function loader() {
   return { volunteers: await listBoardMembers() };
 }
 
-export const meta: Route.MetaFunction = () => [
-  { title: "About" },
-  {
-    name: "description",
-    content:
-      "The people behind moku pona — a dinner society in Zurich built on community, creativity, and hospitality.",
-  },
-];
-
-const whoWeAreSectionData: TextSectionBlockType = {
-  type: "text-section",
-  version: 1,
-  data: {
-    eyebrow: "who we are",
-    headline: "a community of around fifteen",
-    body: "what started as a shared love of cooking has grown into a community who come together to create, host, and share meals. as an association, moku pona is about community, creativity, and hospitality, not just dining, but making people feel welcome.",
-    variant: "feature",
-  },
+export const meta: Route.MetaFunction = ({ matches }) => {
+  const t = textFromMatches(matches);
+  return [
+    { title: t("about.meta.title") },
+    { name: "description", content: t("about.meta.description") },
+  ];
 };
 
 export default function AboutPage({ loaderData }: Route.ComponentProps) {
   const { volunteers } = loaderData;
+  const t = useText();
+
+  const whoWeAreSectionData: TextSectionBlockType = {
+    type: "text-section",
+    version: 1,
+    data: {
+      eyebrow: t("about.whoWeAre.eyebrow"),
+      headline: t("about.whoWeAre.headline"),
+      body: t("about.whoWeAre.body"),
+      variant: "feature",
+    },
+  };
 
   return (
     // TextSectionBlockView carries its own PageContainer, so the sections sit
@@ -53,12 +55,11 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
       <PageContainer as="div">
         <div className="flex flex-col gap-4">
           <Eyebrow variant="tracked" tone="primary">
-            the people
+            {t("about.eyebrow")}
           </Eyebrow>
-          <h1 className={pageTitleClassName}>about</h1>
-          <p className="text-muted-foreground max-w-2xl text-base font-light md:text-lg">
-            moku pona runs on volunteers — the ones who cook, host, wash up, and
-            somehow still have room for dessert.
+          <h1 className={pageTitleClassName}>{t("about.title")}</h1>
+          <p className="text-muted-foreground max-w-2xl text-base font-light whitespace-pre-line md:text-lg">
+            {t("about.intro")}
           </p>
         </div>
       </PageContainer>
@@ -67,7 +68,7 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
 
       <PageContainer as="div">
         <SectionDivider className="mb-8">
-          the moku pona hall of fame
+          {t("about.hallOfFame")}
         </SectionDivider>
 
         {volunteers.length > 0 ? (
@@ -77,9 +78,8 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
             ))}
           </ul>
         ) : (
-          <p className="text-muted-foreground max-w-md text-base font-light md:text-lg">
-            the hall is still being hung. check back once we&apos;ve persuaded
-            everyone to sit still for a photograph.
+          <p className="text-muted-foreground max-w-md text-base font-light whitespace-pre-line md:text-lg">
+            {t("about.hallEmpty")}
           </p>
         )}
       </PageContainer>

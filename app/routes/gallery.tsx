@@ -12,26 +12,30 @@ import {
 import { formatEventMonthYear } from "~/features/events/date-format";
 import { listGalleryAlbums } from "~/features/gallery/gallery.server";
 import type { GalleryAlbumModel } from "~/features/gallery/view-models";
+import { textFromMatches } from "~/features/site-text/meta";
+import { useText } from "~/features/site-text/site-text-context";
 
 export async function loader() {
   return { albums: await listGalleryAlbums() };
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "Gallery" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("gallery.meta.title") },
+];
 
 export default function GalleryPage({ loaderData }: Route.ComponentProps) {
   const { albums } = loaderData;
+  const t = useText();
 
   return (
     <PageContainer className="grow pt-14 pb-32 md:pt-20">
       <div className="mb-14 flex flex-col gap-4 md:mb-20">
         <Eyebrow variant="tracked" tone="primary">
-          from the table
+          {t("gallery.eyebrow")}
         </Eyebrow>
-        <h1 className={pageTitleClassName}>gallery</h1>
-        <p className="text-muted-foreground max-w-2xl text-base font-light md:text-lg">
-          plates, hands, half-finished glasses — everything we managed to
-          photograph before it was eaten. one room per event.
+        <h1 className={pageTitleClassName}>{t("gallery.title")}</h1>
+        <p className="text-muted-foreground max-w-2xl text-base font-light whitespace-pre-line md:text-lg">
+          {t("gallery.intro")}
         </p>
       </div>
 
@@ -42,9 +46,8 @@ export default function GalleryPage({ loaderData }: Route.ComponentProps) {
           ))}
         </ul>
       ) : (
-        <p className="text-muted-foreground max-w-md text-base font-light md:text-lg">
-          no photographs yet. the first album appears once an event has been
-          eaten and someone remembers to bring a camera.
+        <p className="text-muted-foreground max-w-md text-base font-light whitespace-pre-line md:text-lg">
+          {t("gallery.empty")}
         </p>
       )}
     </PageContainer>
@@ -52,6 +55,7 @@ export default function GalleryPage({ loaderData }: Route.ComponentProps) {
 }
 
 function AlbumCard({ album }: { album: GalleryAlbumModel }) {
+  const t = useText();
   const date = new Date(album.date);
 
   return (
@@ -76,7 +80,12 @@ function AlbumCard({ album }: { album: GalleryAlbumModel }) {
             </time>
             <span aria-hidden="true">·</span>
             <span>
-              {album.imageCount} {album.imageCount === 1 ? "photo" : "photos"}
+              {t(
+                album.imageCount === 1
+                  ? "site.photoCount.one"
+                  : "site.photoCount.other",
+                { count: album.imageCount },
+              )}
             </span>
           </span>
           <h2 className="text-lg leading-tight font-light group-hover:underline md:text-xl">

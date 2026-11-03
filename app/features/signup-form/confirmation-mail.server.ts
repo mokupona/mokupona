@@ -4,6 +4,7 @@ import type { SignupMailKind } from "./confirmation-mail";
 import type { FieldDescriptor } from "~/features/forms/fields";
 import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.server";
 import { sendTemplate } from "~/features/mail/mail.server";
+import { getText } from "~/features/site-text/site-text.server";
 import { getSignupForMail } from "~/models/event-signup.server";
 import type { Event } from "~/models/event.server";
 
@@ -73,10 +74,12 @@ export async function sendSignupConfirmation({
         url: new URL(`/events/${event.id}`, origin).href,
         ...mailCopyFor(event, status),
       },
-      booking: summarizeBooking(formFields, answers, {
-        price: event.price,
-        studentPrice: event.studentPrice,
-      }),
+      booking: summarizeBooking(
+        formFields,
+        answers,
+        { price: event.price, studentPrice: event.studentPrice },
+        await getText(),
+      ),
     },
     { from: eventSignupMailFrom() },
   );

@@ -13,6 +13,8 @@ import { TextField } from "./text/view";
 import { TextareaFieldSchema } from "./textarea/model";
 import { TextareaField } from "./textarea/view";
 
+import type { Text } from "~/features/site-text/text";
+
 export const NonListFieldDescriptorSchema = z.discriminatedUnion("type", [
   TextFieldSchema,
   TextareaFieldSchema,
@@ -62,10 +64,11 @@ export function getViewForNonListField(
   return NonListFieldViews[descriptor.type];
 }
 
-export function zodForField(descriptor: NonListFieldDescriptor) {
+export function zodForField(descriptor: NonListFieldDescriptor, t: Text) {
   const { label, required } = descriptor.data;
 
-  const requiredError = `${label} is required`;
+  const requiredError = t("signup.validation.required", { label });
+  const invalidError = t("signup.validation.invalid", { label });
 
   switch (descriptor.type) {
     case "text":
@@ -80,7 +83,7 @@ export function zodForField(descriptor: NonListFieldDescriptor) {
       const schema = z
         .string({ error: requiredError })
         .trim()
-        .pipe(z.email({ error: `${label} is invalid` }));
+        .pipe(z.email({ error: invalidError }));
       if (required) return schema;
       return schema.optional();
     }
@@ -89,7 +92,7 @@ export function zodForField(descriptor: NonListFieldDescriptor) {
       const schema = z.boolean().default(false);
       if (!required) return schema.optional();
       return schema.refine((value) => value === true, {
-        error: `${label} is required`,
+        error: requiredError,
       });
     }
 
@@ -98,7 +101,7 @@ export function zodForField(descriptor: NonListFieldDescriptor) {
       const schema = z
         .string({ error: requiredError })
         .refine((value) => options.includes(value), {
-          error: `${label} is invalid`,
+          error: invalidError,
         });
       if (required) return schema;
       return schema.optional();

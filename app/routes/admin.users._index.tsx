@@ -39,7 +39,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Label } from "~/components/ui/label";
-import { emailSchema } from "~/features/auth/form-schemas";
+import { createEmailSchema } from "~/features/auth/form-schemas";
 import {
   requestLoggerContext,
   userContext,
@@ -50,6 +50,7 @@ import {
   roleLabel,
   type RoleName,
 } from "~/features/auth/roles";
+import { defaultText } from "~/features/site-text/text";
 import {
   createAndSendInvite,
   resendInvite,
@@ -65,7 +66,8 @@ import { getDomainUrl, unknownIntent } from "~/shared/http.server";
 
 const inviteSchema = z.object({
   intent: z.literal("invite"),
-  email: emailSchema,
+  // the admin area isn't part of the editable site texts
+  email: createEmailSchema(defaultText),
   role: z.enum(INVITABLE_ROLES, { error: "Pick a role" }),
 });
 

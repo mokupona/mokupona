@@ -2,6 +2,8 @@
 // which fills it in, and the admin event form, which shows the defaults and
 // validates what an admin types.
 
+import type { Text } from "~/features/site-text/text";
+
 export type SignupMailKind = "confirmed" | "waitlisted";
 
 export interface SignupMailCopy {
@@ -10,27 +12,24 @@ export interface SignupMailCopy {
 }
 
 /**
+ * The copy an event without its own uses: the site-wide texts under Emails.
  * "confirmed" goes out when a signup gets a seat straight away and when an
  * admin later moves it up from the waiting list, so it reads right for both.
  */
-export const DEFAULT_SIGNUP_MAIL_COPY: Record<SignupMailKind, SignupMailCopy> =
-  {
+export function defaultSignupMailCopy(
+  t: Text,
+): Record<SignupMailKind, SignupMailCopy> {
+  return {
     confirmed: {
-      subject: "Your seat for {event} is confirmed",
-      message: [
-        "Hi {name},",
-        "your seat for {event} on {date} is confirmed. Here's everything you sent us.",
-      ].join("\n\n"),
+      subject: t("emails.signup.confirmedSubject"),
+      message: t("emails.signup.confirmedMessage"),
     },
     waitlisted: {
-      subject: "You're on the waiting list for {event}",
-      message: [
-        "Hi {name},",
-        "thanks for signing up for {event} on {date}. There aren't enough seats left right now, so you're on the waiting list.",
-        "We'll email you as soon as a seat is yours. Here's everything you sent us.",
-      ].join("\n\n"),
+      subject: t("emails.signup.waitlistedSubject"),
+      message: t("emails.signup.waitlistedMessage"),
     },
   };
+}
 
 export const SIGNUP_MAIL_PLACEHOLDERS = {
   name: "name of the person who signed up",

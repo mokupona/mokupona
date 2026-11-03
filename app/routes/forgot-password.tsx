@@ -1,6 +1,7 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
 import { MailIcon } from "lucide-react";
+import { useMemo } from "react";
 import { data, Form, Link } from "react-router";
 import { z } from "zod";
 
@@ -11,18 +12,29 @@ import { AuthStatus } from "~/components/auth-status";
 import { Field } from "~/components/forms";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { auth } from "~/features/auth/auth.server";
-import { emailSchema, parseRequestForm } from "~/features/auth/form-schemas";
+import {
+  createEmailSchema,
+  parseRequestForm,
+} from "~/features/auth/form-schemas";
 import { requestLoggerContext } from "~/features/auth/middleware.server";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { cn } from "~/lib/utils";
 import { getClientIPAddress } from "~/shared/http.server";
 
-const schema = z.object({
-  email: emailSchema,
-});
+function forgotSchema(t: Text) {
+  return z.object({ email: createEmailSchema(t) });
+}
 
 export const action = async ({ request, context }: Route.ActionArgs) => {
   const logger = context.get(requestLoggerContext);
-  const submission = await parseRequestForm(request, schema);
+  const submission = await parseRequestForm(
+    request,
+    forgotSchema(await getText()),
+  );
 
   if (submission.status !== "success") {
     return data({ result: submission.reply(), sentTo: null });
@@ -46,10 +58,14 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   return data({ result: submission.reply(), sentTo: email });
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Forgot password" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("auth.forgot.metaTitle") },
+];
 
 export default function ForgotPassword({ actionData }: Route.ComponentProps) {
   const sentTo = actionData?.sentTo ?? null;
+  const t = useText();
+  const schema = useMemo(() => forgotSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: actionData?.result,
     shouldValidate: "onBlur",
@@ -64,20 +80,25 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
       <AuthStatus
         standalone
         icon={<MailIcon className="size-7" />}
-        heading="check your inbox"
+        heading={t("auth.forgot.sentHeading")}
         body={
-          <>
-            if an account exists for{" "}
-            <strong className="text-foreground font-semibold">{sentTo}</strong>,
-            we&apos;ve sent a link to reset your password.
-          </>
+          <RichText
+            text={t("auth.forgot.sentBody")}
+            vars={{
+              email: (
+                <strong className="text-foreground font-semibold">
+                  {sentTo}
+                </strong>
+              ),
+            }}
+          />
         }
       >
         <Link
           to="/login"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          back to log in
+          {t("auth.backToLogin")}
         </Link>
       </AuthStatus>
     );
@@ -86,17 +107,17 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
   return (
     <AuthShell
       brand={{
-        eyebrow: "reset",
-        heading: "happens to everyone",
-        body: "tell us your email and we'll send a link to set a new password.",
+        eyebrow: t("auth.forgot.eyebrow"),
+        heading: t("auth.forgot.panelHeading"),
+        body: t("auth.forgot.panelBody"),
       }}
     >
       <div className="mt-1 flex flex-col gap-2">
         <h1 className="text-3xl leading-tight font-light tracking-tight">
-          forgot your password?
+          {t("auth.forgot.title")}
         </h1>
         <p className="text-muted-foreground text-sm">
-          enter the email you signed up with and we&apos;ll send a reset link.
+          {t("auth.forgot.intro")}
         </p>
       </div>
 
@@ -106,26 +127,32 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) {
         {...getFormProps(form)}
       >
         <Field
-          labelProps={{ children: "email address" }}
+          labelProps={{ children: t("auth.field.email") }}
           inputProps={{
             ...getInputProps(fields.email, { type: "email" }),
-            placeholder: "you@example.com",
+            placeholder: t("auth.field.emailPlaceholder"),
           }}
           errors={fields.email.errors}
         />
 
         <Button type="submit" size="lg" className="w-full">
-          send reset link
+          {t("auth.forgot.submit")}
         </Button>
 
         <p className="text-muted-foreground text-center text-sm">
-          remembered it?{" "}
-          <Link
-            to="/login"
-            className="text-primary font-semibold hover:underline"
-          >
-            back to log in
-          </Link>
+          <RichText
+            text={t("auth.forgot.remembered")}
+            tags={{
+              link: (children) => (
+                <Link
+                  to="/login"
+                  className="text-primary font-semibold hover:underline"
+                >
+                  {children}
+                </Link>
+              ),
+            }}
+          />
         </p>
       </Form>
     </AuthShell>

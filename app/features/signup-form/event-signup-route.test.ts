@@ -6,11 +6,11 @@ import { buildEventData } from "../../../test/factories";
 import { prisma } from "~/db.server";
 import {
   HONEYPOT_FIELD_NAME,
-  HONEYPOT_RETRY_MESSAGE,
   HONEYPOT_VALID_FROM_FIELD_NAME,
 } from "~/features/forms/honeypot";
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
 import { sendTemplate } from "~/features/mail/mail.server";
+import { defaultText } from "~/features/site-text/text";
 import { createEvent } from "~/models/event.server";
 import { getCurrentFormVersion } from "~/models/form.server";
 import { action } from "~/routes/events_.$eventId";
@@ -233,7 +233,7 @@ describe("event signup action", () => {
       [HONEYPOT_VALID_FROM_FIELD_NAME]: `${Date.now()}.stale-signature`,
     });
 
-    expect(readFormErrors(result)).toEqual([HONEYPOT_RETRY_MESSAGE]);
+    expect(readFormErrors(result)).toEqual([defaultText("site.forms.retry")]);
     expect(await storedFor(versionId)).toHaveLength(0);
   });
 });

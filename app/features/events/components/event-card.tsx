@@ -15,6 +15,7 @@ import { SecondaryCTA } from "~/components/section";
 import { Badge } from "~/components/ui/badge";
 import { buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { useText } from "~/features/site-text/site-text-context";
 
 export function FeaturedEventCard({
   event,
@@ -26,6 +27,8 @@ export function FeaturedEventCard({
   isNext?: boolean;
   showFacts?: boolean;
 }) {
+  const t = useText();
+
   return (
     // No panel: the photograph and the type sit straight on the paper, and
     // the column gap does the separating a card fill used to do.
@@ -39,7 +42,7 @@ export function FeaturedEventCard({
         />
         {isNext ? (
           <Badge pill className="absolute top-0 left-0">
-            next event
+            {t("events.card.nextBadge")}
           </Badge>
         ) : null}
       </div>
@@ -65,10 +68,10 @@ export function FeaturedEventCard({
 
         <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
           <Link to={`/events/${event.id}#sign-up`} className={buttonVariants()}>
-            reserve a seat
+            {t("events.card.reserve")}
           </Link>
           <SecondaryCTA to={`/events/${event.id}`} className="max-md:hidden">
-            read more →
+            {t("events.card.readMore")}
           </SecondaryCTA>
         </div>
       </div>
@@ -77,6 +80,7 @@ export function FeaturedEventCard({
 }
 
 export function CompactEventCard({ event }: { event: EventCardModel }) {
+  const t = useText();
   const eventDate = new Date(event.date);
   const hasGallery = event.galleryImageCount > 0;
 
@@ -102,8 +106,12 @@ export function CompactEventCard({ event }: { event: EventCardModel }) {
         {hasGallery ? <span aria-hidden="true">·</span> : null}
         {hasGallery ? (
           <span>
-            {event.galleryImageCount}{" "}
-            {event.galleryImageCount === 1 ? "photo" : "photos"}
+            {t(
+              event.galleryImageCount === 1
+                ? "site.photoCount.one"
+                : "site.photoCount.other",
+              { count: event.galleryImageCount },
+            )}
           </span>
         ) : null}
       </span>

@@ -29,11 +29,12 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import {
-  DEFAULT_SIGNUP_MAIL_COPY,
+  defaultSignupMailCopy,
   SIGNUP_MAIL_PLACEHOLDERS,
   type SignupMailCopy,
 } from "~/features/signup-form/confirmation-mail";
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import { VALID_IMAGE_TYPES } from "~/shared/image";
 
@@ -156,6 +157,10 @@ function SignupMailFields({
     | "waitlistMailMessage"
   >;
 }) {
+  // an event without its own copy falls back to the site-wide texts, which
+  // admins edit under /admin/texts
+  const defaults = defaultSignupMailCopy(useText());
+
   return (
     <>
       <SignupMailCopyFields
@@ -163,7 +168,7 @@ function SignupMailFields({
         description="Sent when a group gets its seats at signup, and when you confirm a group from the waiting list."
         subject={fields.confirmedMailSubject}
         message={fields.confirmedMailMessage}
-        defaults={DEFAULT_SIGNUP_MAIL_COPY.confirmed}
+        defaults={defaults.confirmed}
       />
 
       <SignupMailCopyFields
@@ -171,7 +176,7 @@ function SignupMailFields({
         description="Sent when there aren't enough seats left for the whole group."
         subject={fields.waitlistMailSubject}
         message={fields.waitlistMailMessage}
-        defaults={DEFAULT_SIGNUP_MAIL_COPY.waitlisted}
+        defaults={defaults.waitlisted}
       />
 
       <div className="flex flex-col gap-2 border-t pt-5 text-sm">

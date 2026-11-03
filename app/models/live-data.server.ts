@@ -34,6 +34,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    siteTexts,
   ] = await prisma.$transaction([
     prisma.address.count(),
     prisma.image.count(),
@@ -44,6 +45,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     prisma.eventResponse.count(),
     prisma.eventGalleryImage.count(),
     prisma.boardMember.count(),
+    prisma.siteText.count(),
   ]);
 
   return {
@@ -56,6 +58,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    siteTexts,
   };
 }
 
@@ -81,6 +84,7 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    siteTexts,
   ] = await prisma.$transaction([
     prisma.address.findMany({
       orderBy: byId,
@@ -195,6 +199,10 @@ export async function readLiveDataTables({
         ...TIMESTAMPS,
       },
     }),
+    prisma.siteText.findMany({
+      orderBy: { key: "asc" },
+      select: { key: true, value: true, defaultAtEdit: true, ...TIMESTAMPS },
+    }),
   ]);
 
   return {
@@ -218,6 +226,7 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    siteTexts,
   };
 }
 
@@ -268,7 +277,8 @@ async function insertAll<T>(
 /**
  * Swap every content table for the given rows in one transaction: either the
  * whole copy lands or this database is left exactly as it was. Users,
- * sessions, accounts, invites and roles are not touched.
+ * sessions, accounts, invites and roles are not touched. Edited site texts
+ * count as content: the target ends up worded like the live site.
  *
  * Returns the storageKeys of the images that were here before, for the
  * caller's post-commit provider cleanup.
@@ -305,6 +315,7 @@ export async function replaceLiveDataTables(
       await tx.formVersion.deleteMany();
       await tx.form.deleteMany();
       await tx.boardMember.deleteMany();
+      await tx.siteText.deleteMany();
       await tx.image.deleteMany();
       await tx.address.deleteMany();
 
@@ -347,6 +358,9 @@ export async function replaceLiveDataTables(
       );
       await insertAll(tables.boardMembers, (data) =>
         tx.boardMember.createMany({ data }),
+      );
+      await insertAll(tables.siteTexts, (data) =>
+        tx.siteText.createMany({ data }),
       );
 
       return {

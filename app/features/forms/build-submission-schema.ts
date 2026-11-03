@@ -2,7 +2,12 @@ import z from "zod";
 
 import { zodForField, type FieldDescriptor } from "./fields";
 
-export function buildSubmissionSchema(descriptors: Array<FieldDescriptor>) {
+import type { Text } from "~/features/site-text/text";
+
+export function buildSubmissionSchema(
+  descriptors: Array<FieldDescriptor>,
+  t: Text,
+) {
   const shape: Record<string, z.ZodType> = {};
 
   for (const descriptor of descriptors) {
@@ -10,18 +15,25 @@ export function buildSubmissionSchema(descriptors: Array<FieldDescriptor>) {
       const itemShape = Object.fromEntries(
         descriptor.data.itemFields.map((itemField) => [
           itemField.data.name,
-          zodForField(itemField),
+          zodForField(itemField, t),
         ]),
       );
       const { label, maxCount } = descriptor.data;
       const listSchema = z.array(z.object(itemShape)).max(maxCount, {
-        error: `${label} can have at most ${maxCount} ${maxCount === 1 ? "entry" : "entries"}`,
+        error: t(
+          maxCount === 1
+            ? "signup.validation.listMax.one"
+            : "signup.validation.listMax.other",
+          { label, count: maxCount },
+        ),
       });
       shape[descriptor.data.name] = descriptor.data.required
-        ? listSchema.min(1, { error: `${label} is required` })
+        ? listSchema.min(1, {
+            error: t("signup.validation.required", { label }),
+          })
         : listSchema;
     } else {
-      shape[descriptor.data.name] = zodForField(descriptor);
+      shape[descriptor.data.name] = zodForField(descriptor, t);
     }
   }
 

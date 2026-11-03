@@ -11,6 +11,7 @@ import {
 } from "~/components/ui/carousel";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { formatEventMonthYear } from "~/features/events/date-format";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import { getImageUrl, RESPONSIVE_IMAGE_WIDTHS } from "~/shared/image";
 import { useImageConfig } from "~/shared/root-data";
@@ -94,10 +95,14 @@ export function GalleryLightbox({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useText();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto">
-        <DialogTitle className="sr-only">gallery</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t("gallery.lightbox.title")}
+        </DialogTitle>
         <Carousel opts={{ startIndex, loop: true }}>
           <CarouselContent>
             {images.map((image) => (

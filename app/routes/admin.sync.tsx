@@ -438,8 +438,8 @@ function WhatMovesCard() {
           <p className="font-semibold">Replaced</p>
           <p className="text-muted-foreground mt-1">
             Events, locations, signup forms, gallery photos, board members and
-            the images they show, plus guests&apos; signups unless you leave
-            them out.
+            the images they show, edited site texts, plus guests&apos; signups
+            unless you leave them out.
           </p>
         </div>
         <div>

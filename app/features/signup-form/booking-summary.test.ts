@@ -4,6 +4,7 @@ import { formatChf, summarizeBooking } from "./booking-summary";
 import { DEFAULT_FORM } from "./default-form";
 
 import type { FieldDescriptor } from "~/features/forms/fields";
+import { defaultText } from "~/features/site-text/text";
 
 const signer = {
   name: "Ada Signer",
@@ -26,6 +27,7 @@ describe("summarizeBooking", () => {
         ],
       },
       { price: 45, studentPrice: null },
+      defaultText,
     );
 
     expect(summary.guests).toEqual([
@@ -53,10 +55,15 @@ describe("summarizeBooking", () => {
   });
 
   it("keeps the signup-wide answers apart from the guests", () => {
-    const summary = summarizeBooking(DEFAULT_FORM, signer, {
-      price: 45,
-      studentPrice: null,
-    });
+    const summary = summarizeBooking(
+      DEFAULT_FORM,
+      signer,
+      {
+        price: 45,
+        studentPrice: null,
+      },
+      defaultText,
+    );
 
     expect(summary.contact).toEqual([
       ["Email", "ada@example.com"],
@@ -77,6 +84,7 @@ describe("summarizeBooking", () => {
         ],
       },
       { price: 45, studentPrice: 30 },
+      defaultText,
     );
 
     expect(summary.guests.map((guest) => guest.price)).toEqual([30, 45, 30]);
@@ -88,6 +96,7 @@ describe("summarizeBooking", () => {
       DEFAULT_FORM,
       { ...signer, student: true, friends: [{ name: "Grace", student: true }] },
       { price: 45, studentPrice: null },
+      defaultText,
     );
 
     expect(summary.total).toBe(90);
@@ -112,6 +121,7 @@ describe("summarizeBooking", () => {
       fields,
       { ...signer, heardFrom: "Instagram" },
       { price: 45, studentPrice: null },
+      defaultText,
     );
 
     expect(summary.contact).toContainEqual([
@@ -125,6 +135,7 @@ describe("summarizeBooking", () => {
       DEFAULT_FORM,
       { ...signer, friends: [{ name: "  " }, "not an object"] },
       { price: 10, studentPrice: null },
+      defaultText,
     );
 
     expect(summary.guests.map((guest) => guest.name)).toEqual([
@@ -137,7 +148,7 @@ describe("summarizeBooking", () => {
 
 describe("formatChf", () => {
   it("reads 0 as free", () => {
-    expect(formatChf(0)).toBe("free");
-    expect(formatChf(45)).toBe("45 CHF");
+    expect(formatChf(0, defaultText)).toBe("free");
+    expect(formatChf(45, defaultText)).toBe("45 CHF");
   });
 });
