@@ -161,7 +161,7 @@ function EventCard({ event }: { event: Event }) {
           <p
             className={cn(
               "text-xs font-semibold tracking-wide",
-              event.past ? "text-foreground/50" : "text-accent-light",
+              event.past ? "text-muted-foreground" : "text-accent-light",
             )}
           >
             <time dateTime={date.toISOString()} suppressHydrationWarning>
@@ -174,12 +174,12 @@ function EventCard({ event }: { event: Event }) {
                 the action row sits above it via `relative` */}
             <Link
               to={event.id}
-              className="focus-visible:after:ring-ring after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-hidden focus-visible:after:ring-2"
+              className="focus-visible:after:ring-ring after:absolute after:inset-0 focus-visible:after:ring-2 after:focus-visible:outline-hidden"
             >
               {event.title}
             </Link>
           </h2>
-          <p className="text-foreground/65 mt-1 text-sm">{event.location}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{event.location}</p>
         </div>
         <div className="max-w-xs">
           <div className="mb-2 flex justify-between text-xs">
@@ -187,7 +187,7 @@ function EventCard({ event }: { event: Event }) {
               {event.confirmed} confirmed
               {event.waitlisted > 0 ? ` · ${event.waitlisted} waiting` : ""}
             </span>
-            <span className="text-foreground/50">
+            <span className="text-muted-foreground">
               {event.confirmed} / {event.slots}
             </span>
           </div>

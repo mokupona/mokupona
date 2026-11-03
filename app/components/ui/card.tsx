@@ -15,7 +15,7 @@ const Card = ({
   <Component
     ref={ref}
     className={cn(
-      "bg-card text-card-foreground rounded-2xl border",
+      "bg-card text-card-foreground border",
       interactive && "hover:border-primary/35 transition-colors",
       className,
     )}
@@ -63,7 +63,7 @@ const CardDescription = ({
 }: React.ComponentProps<"div">) => (
   <div
     ref={ref}
-    className={cn("text-foreground/50 text-sm", className)}
+    className={cn("text-muted-foreground text-sm", className)}
     {...props}
   />
 );

@@ -273,7 +273,7 @@ export default function InvitePage({
         {upgrades ? (
           <div className="flex items-center gap-3" aria-hidden>
             <RolePill>{currentRole}</RolePill>
-            <ArrowRightIcon className="text-foreground/50 size-4" />
+            <ArrowRightIcon className="text-muted-foreground size-4" />
             <RolePill accent>
               <LockIcon className="size-3" />
               {roleName}
@@ -412,14 +412,14 @@ function InviteSignup({
               type="email"
               value={email}
               disabled
-              className="text-foreground/65 pr-10"
+              className="text-muted-foreground pr-10"
             />
             <LockIcon
               aria-hidden
-              className="text-foreground/50 absolute top-1/2 right-3 size-4 -translate-y-1/2"
+              className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2"
             />
           </div>
-          <p className="text-foreground/50 text-sm">
+          <p className="text-muted-foreground text-sm">
             this invite is tied to this address.
           </p>
         </div>
@@ -449,7 +449,7 @@ function InviteSignup({
           <GoogleSignInButton callbackURL={`/invite/${token}`} />
         ) : null}
 
-        <p className="text-foreground/50 text-center text-xs">
+        <p className="text-muted-foreground text-center text-xs">
           {googleEnabled ? (
             <>
               google must return{" "}

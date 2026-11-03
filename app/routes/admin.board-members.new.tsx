@@ -13,11 +13,12 @@ export async function action({ request }: Route.ActionArgs) {
     fieldName: "image",
     schema: MemberSchema,
     async onSuccess({ value }) {
-      const { name, position, image } = value;
+      const { name, position, bio, image } = value;
 
       await createBoardMember({
         name,
         position,
+        bio,
         ...(image && {
           image: {
             contentType: image.type,

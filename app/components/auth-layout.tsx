@@ -35,7 +35,7 @@ export function AuthShell({
 }: AuthShellProps) {
   return (
     <div className="flex grow flex-col md:flex-row">
-      <div className="bg-card relative hidden flex-col justify-center overflow-hidden border-r p-12 md:flex md:w-1/2">
+      <div className="relative hidden flex-col justify-center overflow-hidden border-r p-12 md:flex md:w-1/2">
         <Glow className="-top-30 -right-24 size-80" />
         <div className="relative flex flex-col gap-4">
           <Eyebrow variant="kicker" tone="light">
@@ -45,14 +45,14 @@ export function AuthShell({
             {brand.heading}
           </h2>
           {brand.body ? (
-            <p className="text-foreground/80 max-w-md font-light">
+            <p className="text-muted-foreground max-w-md font-light">
               {brand.body}
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="bg-card relative flex flex-col overflow-hidden border-b px-6 pt-6 pb-7 md:hidden">
+      <div className="relative flex flex-col overflow-hidden border-b px-6 pt-6 pb-7 md:hidden">
         <Glow className="-top-24 -right-16 size-56" />
         <div className="relative flex flex-col gap-2">
           <Eyebrow variant="kicker" tone="light" className="text-xs">

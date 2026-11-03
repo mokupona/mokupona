@@ -6,6 +6,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useMatches,
 } from "react-router";
 
 import type { Route } from "./+types/root";
@@ -13,6 +14,7 @@ import { Footer } from "./components/footer";
 import { RouteErrorContent } from "./components/route-error-content";
 import { SiteNav } from "./components/site-nav";
 import { Toaster } from "./components/ui/sonner";
+import { SitelenBackdrop } from "./features/sitelen/sitelen-backdrop";
 import { useToast } from "./hooks/useToast";
 import { getDomainUrl } from "./shared/http.server";
 import { getToast } from "./utils/toast.server";
@@ -107,16 +109,31 @@ function Document({
 }) {
   useToast(toast);
 
+  const glyphBackdrop = useMatches().some(
+    (match) => (match.handle as RouteHandle | undefined)?.glyphBackdrop,
+  );
+
   return (
-    <div className="flex min-h-full flex-col">
-      <SiteNav />
-      <div className="flex grow flex-col">
+    // The paper background lives here as well as on body. A route can ask for the glyph
+    // backdrop via `handle.glyphBackdrop`: it's a fixed layer rendered first,
+    // and nav, content and footer are `relative` so they paint over it — no
+    // negative z-index, which iOS Safari renders unreliably.
+    <div className="bg-background isolate flex min-h-full flex-col">
+      {glyphBackdrop ? <SitelenBackdrop /> : null}
+      <SiteNav hideAtTop={glyphBackdrop} />
+      <div className="relative flex grow flex-col">
         <Outlet />
       </div>
       <Footer />
     </div>
   );
 }
+
+/** What a route module may put in its `handle` export for the root layout. */
+export type RouteHandle = {
+  /** paint the sitelen glyph wallpaper behind the page */
+  glyphBackdrop?: boolean;
+};
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return <RouteErrorContent error={error} />;

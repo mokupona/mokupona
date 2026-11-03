@@ -47,13 +47,13 @@ export function AdminTabs({
                 "-mb-px inline-flex items-center gap-2 border-b-2 py-4 text-base font-semibold transition-colors",
                 isActive
                   ? "border-primary text-foreground"
-                  : "text-foreground/65 hover:text-foreground border-transparent",
+                  : "text-muted-foreground hover:text-foreground border-transparent",
               )
             }
           >
             {tab.label}
             {count !== null ? (
-              <span className="text-foreground/50 bg-foreground/5 rounded-full px-2 py-px text-xs font-semibold">
+              <span className="text-muted-foreground bg-foreground/5 px-2 py-px text-xs font-semibold">
                 {count}
               </span>
             ) : null}

@@ -287,7 +287,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                 className="mb-3 text-lg font-semibold"
               >
                 {title}{" "}
-                <span className="text-foreground/50 text-sm font-normal">
+                <span className="text-muted-foreground text-sm font-normal">
                   {rows.length} {rows.length === 1 ? "group" : "groups"}
                 </span>
               </h2>
@@ -351,7 +351,7 @@ function PartyTable({
                   <span className="font-semibold">{party.name}</span>
                 </div>
               </TableCell>
-              <TableCell className="text-foreground/65">
+              <TableCell className="text-muted-foreground">
                 {party.email}
               </TableCell>
               <TableCell className="text-center">{party.size}</TableCell>
@@ -359,7 +359,7 @@ function PartyTable({
                 <time
                   dateTime={new Date(party.createdAt).toISOString()}
                   suppressHydrationWarning
-                  className="text-foreground/50 text-sm whitespace-nowrap"
+                  className="text-muted-foreground text-sm whitespace-nowrap"
                 >
                   {formatAdminTimestamp(new Date(party.createdAt))}
                 </time>
@@ -375,7 +375,7 @@ function PartyTable({
             <TableRow className="hover:bg-transparent">
               <TableCell
                 colSpan={5}
-                className="text-foreground/50 py-8 text-center text-sm"
+                className="text-muted-foreground py-8 text-center text-sm"
               >
                 {emptyText}
               </TableCell>

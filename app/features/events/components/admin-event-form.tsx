@@ -102,7 +102,7 @@ function SignupMailCopyFields({
     <fieldset className="flex flex-col gap-4 border-t pt-5 first:border-t-0 first:pt-0">
       <legend className="float-left mb-1 w-full">
         <span className="font-semibold">{legend}</span>
-        <span className="text-foreground/65 mt-1 block text-sm">
+        <span className="text-muted-foreground mt-1 block text-sm">
           {description}
         </span>
       </legend>
@@ -175,7 +175,7 @@ function SignupMailFields({
       />
 
       <div className="flex flex-col gap-2 border-t pt-5 text-sm">
-        <p className="text-foreground/65">
+        <p className="text-muted-foreground">
           A blank line starts a new paragraph. The guest list, everyone&apos;s
           answers and the prices are added below the message automatically.
           These placeholders work in subjects and messages:
@@ -184,7 +184,7 @@ function SignupMailFields({
           {Object.entries(SIGNUP_MAIL_PLACEHOLDERS).map(([name, meaning]) => (
             <li key={name}>
               <code className="bg-muted rounded px-1">{`{${name}}`}</code>{" "}
-              <span className="text-foreground/65">{meaning}</span>
+              <span className="text-muted-foreground">{meaning}</span>
             </li>
           ))}
         </ul>
@@ -203,11 +203,11 @@ function SaveBar({
   const form = useFormMetadata();
 
   return (
-    <div className="bg-background/90 sticky bottom-0 z-10 -mx-2 border-t px-4 py-3 backdrop-blur md:bottom-2 md:mx-0 md:rounded-2xl md:border">
+    <div className="bg-background/90 sticky bottom-0 z-10 -mx-2 border-t px-4 py-3 backdrop-blur md:bottom-2 md:mx-0 md:border">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p
           className={cn(
-            "text-foreground/50 order-last text-center text-sm sm:order-first sm:text-left",
+            "text-muted-foreground order-last text-center text-sm sm:order-first sm:text-left",
             !form.dirty && "invisible",
           )}
         >
@@ -363,7 +363,7 @@ export function AdminEventForm({
               errors={fields.cover.errors}
             />
             <noscript>
-              <p className="text-foreground/65 text-sm">
+              <p className="text-muted-foreground text-sm">
                 Without JavaScript, the form&apos;s buttons reload the page and
                 a chosen cover file does not survive the reload — pick the cover
                 image last, right before saving.

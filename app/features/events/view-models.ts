@@ -16,9 +16,14 @@ export interface EventSummaryModel {
 
 export interface EventCardModel extends EventSummaryModel {
   addressLine: string;
+  /** 0 means no gallery yet, so past-dinner cards fall back to the detail page. */
+  galleryImageCount: number;
 }
 
 type EventWithAddress = EventWithImage & { address: Address };
+type EventWithAddressAndGalleryCount = EventWithAddress & {
+  galleryImageCount: number;
+};
 
 function toEventSummaryModel(event: EventWithImage): EventSummaryModel {
   return {
@@ -32,10 +37,13 @@ function toEventSummaryModel(event: EventWithImage): EventSummaryModel {
   };
 }
 
-export function toEventCardModel(event: EventWithAddress): EventCardModel {
+export function toEventCardModel(
+  event: EventWithAddressAndGalleryCount,
+): EventCardModel {
   return {
     ...toEventSummaryModel(event),
     addressLine: `${event.address.zip} ${event.address.city}`.toLowerCase(),
+    galleryImageCount: event.galleryImageCount,
   };
 }
 

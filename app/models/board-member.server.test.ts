@@ -157,3 +157,22 @@ describe("board member image lifecycle", () => {
     expect(result.replacedImageKey).toBeNull();
   });
 });
+
+describe("board member bio", () => {
+  it("saves a bio and clears it when updated with an empty one", async () => {
+    const member = await createBoardMember({
+      name: "With Bio",
+      position: "Test Position",
+      bio: "Folds dumplings.",
+    });
+    expect(member.bio).toBe("Folds dumplings.");
+
+    const { boardMember } = await updateBoardMember(member.id, {
+      name: member.name,
+      position: member.position,
+      bio: "",
+    });
+
+    expect(boardMember.bio).toBeNull();
+  });
+});

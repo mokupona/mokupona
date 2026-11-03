@@ -1,17 +1,16 @@
 import type { Route } from "./+types/events._index";
 
+import { HandDrawnRule } from "~/components/hand-drawn";
 import {
   Eyebrow,
-  Glow,
   PageContainer,
   pageTitleClassName,
   SectionDivider,
 } from "~/components/section";
 import { buttonVariants } from "~/components/ui/button";
-import { Card } from "~/components/ui/card";
 import {
   FeaturedEventCard,
-  PastEventCard,
+  CompactEventCard,
 } from "~/features/events/components/event-card";
 import {
   orderEventsByStatus,
@@ -36,9 +35,14 @@ export default function EventsIndexPage({ loaderData }: Route.ComponentProps) {
   const { upcoming: upcomingEvents, past } = partitionEvents(events, now);
   const pastEvents = orderEventsByStatus(past, now);
 
+  // One dinner gets the big card. Any others still appear below rather than
+  // being dropped — a scheduled dinner nobody can find is a dinner nobody can
+  // book — but they stay compact so the next one keeps the page.
+  const [nextDinner, ...laterDinners] = upcomingEvents;
+
   return (
-    <PageContainer className="grow pt-7 pb-20">
-      <div className="mb-9 flex flex-col gap-3 md:mb-12">
+    <PageContainer className="grow pt-14 pb-32 md:pt-20">
+      <div className="mb-14 flex flex-col gap-4 md:mb-20">
         <Eyebrow>gatherings</Eyebrow>
         <h1 className={pageTitleClassName}>events</h1>
         <p className="text-foreground/80 max-w-2xl text-base font-light md:text-lg">
@@ -48,18 +52,25 @@ export default function EventsIndexPage({ loaderData }: Route.ComponentProps) {
         </p>
       </div>
 
-      {upcomingEvents.length > 0 ? (
+      {nextDinner ? (
         <>
-          <SectionDivider className="mb-5">the next event</SectionDivider>
-          <div className="mb-14 flex flex-col gap-8 md:mb-20">
-            {upcomingEvents.map((event, index) => (
-              <FeaturedEventCard
-                key={event.id}
-                event={event}
-                isNext={index === 0}
-              />
-            ))}
+          <SectionDivider className="mb-5" handwritten="nextDinner">
+            the next event
+          </SectionDivider>
+          <div className="mb-14 md:mb-20">
+            <FeaturedEventCard event={nextDinner} />
           </div>
+
+          {laterDinners.length > 0 ? (
+            <>
+              <SectionDivider className="mb-5">also coming up</SectionDivider>
+              <div className="mb-14 grid grid-cols-2 gap-3 md:mb-20 md:grid-cols-3 md:gap-5 lg:grid-cols-4">
+                {laterDinners.map((event) => (
+                  <CompactEventCard key={event.id} event={event} />
+                ))}
+              </div>
+            </>
+          ) : null}
         </>
       ) : (
         <EmptyState />
@@ -67,10 +78,12 @@ export default function EventsIndexPage({ loaderData }: Route.ComponentProps) {
 
       {pastEvents.length > 0 ? (
         <>
-          <SectionDivider className="mb-5">past events</SectionDivider>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
+          <SectionDivider className="mb-5" handwritten="pastDinners">
+            past events
+          </SectionDivider>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5 lg:grid-cols-4">
             {pastEvents.map((event) => (
-              <PastEventCard key={event.id} event={event} />
+              <CompactEventCard key={event.id} event={event} />
             ))}
           </div>
         </>
@@ -81,15 +94,15 @@ export default function EventsIndexPage({ loaderData }: Route.ComponentProps) {
 
 function EmptyState() {
   return (
-    <Card className="relative mb-14 flex flex-col items-center gap-4 overflow-hidden px-6 py-9 text-center md:mb-20 md:gap-5 md:px-14 md:py-20">
-      <Glow className="-top-36 left-1/2 h-80 w-md -translate-x-1/2" />
-      <span className="text-primary relative text-sm font-semibold">
+    <div className="mb-14 flex flex-col gap-5 py-10 md:mb-20 md:gap-6 md:py-16">
+      <HandDrawnRule className="text-crayon/45 w-32" />
+      <span className="text-muted-foreground text-sm font-semibold">
         nothing on the calendar right now
       </span>
-      <h2 className={cn("relative max-w-md", pageTitleClassName)}>
+      <h2 className={cn("max-w-md", pageTitleClassName)}>
         the table is being set
       </h2>
-      <p className="text-foreground/80 relative max-w-md text-sm font-light md:text-lg">
+      <p className="text-muted-foreground max-w-md text-sm font-light md:text-lg">
         we&apos;re planning the next gathering. check back soon to see
         what&apos;s next, or follow along on instagram for the announcement.
       </p>
@@ -99,11 +112,11 @@ function EmptyState() {
         rel="noopener noreferrer"
         className={cn(
           buttonVariants({ variant: "outline", size: "lg" }),
-          "relative mt-1",
+          "mt-1 w-fit",
         )}
       >
         follow on instagram
       </a>
-    </Card>
+    </div>
   );
 }

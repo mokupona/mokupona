@@ -2,6 +2,8 @@ import type React from "react";
 
 import type { TextSectionBlockType } from "./model";
 
+import { HandDrawnRule } from "~/components/hand-drawn";
+import { HandwrittenHeading } from "~/components/handwritten-heading";
 import { Eyebrow, PageContainer } from "~/components/section";
 
 type TextSectionBlockViewProps = React.ComponentPropsWithoutRef<"div"> & {
@@ -13,42 +15,44 @@ export function TextSectionBlockView({
   ...rest
 }: TextSectionBlockViewProps) {
   const { data } = blockData;
-  const { eyebrow, headline, body, variant } = data;
+  const { eyebrow, eyebrowHandwritten, headline, body, variant } = data;
 
-  if (variant === "slanted") {
+  const eyebrowNode = eyebrowHandwritten ? (
+    <HandwrittenHeading name={eyebrowHandwritten} />
+  ) : eyebrow ? (
+    <Eyebrow>{eyebrow}</Eyebrow>
+  ) : null;
+
+  // The feature variant used to be a skewed purple slab. It now earns its
+  // emphasis from space and type size instead of a filled block, so the page
+  // stays ink on paper the whole way down.
+  if (variant === "feature") {
     return (
-      <div className="relative mx-auto w-full max-w-5xl px-5" {...rest}>
-        <div
-          aria-hidden
-          className="bg-primary absolute inset-x-0 -inset-y-2 -skew-y-3 rounded-xs"
-        />
-        <section className="relative my-9 md:mt-20 md:mb-24 md:px-5">
-          <div className="text-primary-foreground relative flex flex-col gap-3 py-8 md:gap-4 md:py-16">
-            {eyebrow ? (
-              <Eyebrow variant="tracked" tone="onPrimary">
-                {eyebrow}
-              </Eyebrow>
-            ) : null}
-            <h2 className="text-2xl leading-tight font-light tracking-tight md:text-3xl">
-              {headline}
-            </h2>
-            <p className="text-base font-light md:text-lg">{body}</p>
-          </div>
+      <PageContainer as="div" {...rest}>
+        <section className="flex max-w-3xl flex-col gap-5 py-16 md:gap-6 md:py-28">
+          <HandDrawnRule className="text-crayon/45 w-32" />
+          {eyebrowNode}
+          <h2 className="text-3xl leading-tight font-light tracking-tight text-balance md:text-4xl">
+            {headline}
+          </h2>
+          <p className="text-muted-foreground text-lg font-light md:text-xl">
+            {body}
+          </p>
         </section>
-      </div>
+      </PageContainer>
     );
   }
 
   return (
     <PageContainer as="div" {...rest}>
-      <section className="grid items-start gap-3 py-9 md:grid-cols-[1fr_1.2fr] md:gap-12 md:py-14">
+      <section className="grid items-start gap-3 py-14 md:grid-cols-[1fr_1.2fr] md:gap-12 md:py-24">
         <div className="flex flex-col gap-3 md:gap-4">
-          {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+          {eyebrowNode}
           <h2 className="text-2xl leading-tight font-light tracking-tight md:text-3xl">
             {headline}
           </h2>
         </div>
-        <p className="text-foreground/80 text-base font-light md:text-lg">
+        <p className="text-muted-foreground text-base font-light md:text-lg">
           {body}
         </p>
       </section>

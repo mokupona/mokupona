@@ -13,6 +13,7 @@ export type { BoardMember };
 export interface BoardMemberData {
   name: string;
   position: string;
+  bio?: string;
   image?: ImageCreateData;
 }
 
@@ -25,17 +26,22 @@ export async function listBoardMembers(): Promise<
     id: string;
     name: string;
     position: string;
+    bio: string | null;
     image: ImageMetadata | null;
   }[]
 > {
   const boardMembers = await prisma.boardMember.findMany({
+    // the public hall of fame renders this list as-is, so the order has to be
+    // deterministic rather than whatever the engine happens to return
+    orderBy: [{ createdAt: "asc" }, { name: "asc" }],
     include: { image: { select: IMAGE_METADATA_SELECT } },
   });
 
-  return boardMembers.map(({ id, name, position, image }) => ({
+  return boardMembers.map(({ id, name, position, bio, image }) => ({
     id,
     name,
     position,
+    bio,
     image,
   }));
 }
@@ -49,12 +55,13 @@ export async function getBoardMemberById(
 export async function createBoardMember(
   data: BoardMemberData,
 ): Promise<BoardMember> {
-  const { name, position, image } = data;
+  const { name, position, bio, image } = data;
 
   return prisma.boardMember.create({
     data: {
       name,
       position,
+      bio: bio || null,
       ...(image && { image: { create: image } }),
     },
   });
@@ -84,7 +91,7 @@ export async function updateBoardMember(
   id: string,
   data: BoardMemberData,
 ): Promise<{ boardMember: BoardMember; replacedImageKey: string | null }> {
-  const { name, position, image } = data;
+  const { name, position, bio, image } = data;
 
   return prisma.$transaction(async (tx) => {
     let previousImageId: string | null = null;
@@ -102,6 +109,7 @@ export async function updateBoardMember(
       data: {
         name,
         position,
+        bio: bio || null,
         ...(image && { image: { create: image } }),
       },
     });

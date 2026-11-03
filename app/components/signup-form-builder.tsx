@@ -628,7 +628,7 @@ function RowHeader({
           {meta ? (
             <span
               className={cn(
-                "text-foreground/65 text-xs text-pretty",
+                "text-muted-foreground text-xs text-pretty",
                 metaClassName,
               )}
             >
@@ -641,7 +641,7 @@ function RowHeader({
       <Button
         variant="ghost"
         size="icon"
-        className="text-foreground/65 shrink-0"
+        className="text-muted-foreground shrink-0"
         aria-label="Move up"
         disabled={index === 0}
         {...form.reorder.getButtonProps({
@@ -655,7 +655,7 @@ function RowHeader({
       <Button
         variant="ghost"
         size="icon"
-        className="text-foreground/65 shrink-0"
+        className="text-muted-foreground shrink-0"
         aria-label="Move down"
         disabled={index === count - 1}
         {...form.reorder.getButtonProps({
@@ -670,7 +670,7 @@ function RowHeader({
         aria-label="Toggle details"
         className={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "text-foreground/65 shrink-0 [&[data-panel-open]>svg]:rotate-180",
+          "text-muted-foreground shrink-0 [&[data-panel-open]>svg]:rotate-180",
         )}
       >
         <ChevronDownIcon className="size-4 transition-transform duration-300" />
@@ -795,7 +795,7 @@ function BuilderDialog({
       id={id}
       aria-labelledby={labelId}
       onClose={onClose}
-      className="bg-card text-foreground backdrop:bg-background/70 m-auto w-[calc(100%-2rem)] max-w-md flex-col gap-4 rounded-2xl border p-5 shadow-lg open:flex"
+      className="bg-card text-foreground backdrop:bg-background/70 m-auto w-[calc(100%-2rem)] max-w-md flex-col gap-4 border p-5 shadow-lg open:flex"
     >
       {children}
     </dialog>
@@ -841,7 +841,7 @@ function LinkDialog({ signerRow }: { signerRow: RowMetadata }) {
       <h3 id={headingId} className="text-xl font-light tracking-tight">
         Also ask each friend this question?
       </h3>
-      <p className="text-foreground/65 text-sm">
+      <p className="text-muted-foreground text-sm">
         “{signer.label || key}” stays editable on the signer's row. The friend's
         copy follows it and shares the field key <strong>{key}</strong>, so both
         answers export in one column.
@@ -872,7 +872,7 @@ function LinkDialog({ signerRow }: { signerRow: RowMetadata }) {
       </div>
       <noscript>
         <style>{`#${dialogId} [data-candidate]{display:none}`}</style>
-        <p className="text-foreground/50 text-sm">
+        <p className="text-muted-foreground text-sm">
           Without JavaScript, confirming applies the default option.
         </p>
       </noscript>
@@ -950,7 +950,7 @@ function LinkChoiceOption({
       />
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="text-sm font-semibold">{title}</span>
-        <span className="text-foreground/65 text-sm">{explanation}</span>
+        <span className="text-muted-foreground text-sm">{explanation}</span>
       </span>
     </label>
   );
@@ -989,7 +989,7 @@ function UnlinkDialog({
       <h3 id={headingId} className="text-xl font-light tracking-tight">
         Unlink from the signer's question?
       </h3>
-      <p className="text-foreground/65 text-sm">
+      <p className="text-muted-foreground text-sm">
         The friend's copy becomes its own question, keeping the wording it has
         now. The signer's “{signer.label || sharedKey}” is unchanged. Editing
         one will no longer change the other.
@@ -1006,12 +1006,12 @@ function UnlinkDialog({
           defaultValue={defaultKey}
           aria-describedby={hintId}
         />
-        <p id={hintId} className="text-foreground/50 text-sm">
+        <p id={hintId} className="text-muted-foreground text-sm">
           Becomes a second CSV column beside <strong>{sharedKey}</strong>.
           Lowercase letters, numbers and underscores.
         </p>
         <noscript>
-          <p className="text-foreground/50 text-sm">
+          <p className="text-muted-foreground text-sm">
             Without JavaScript, the prefilled key applies.
           </p>
         </noscript>
@@ -1079,7 +1079,7 @@ function PinnedIdentityRowView({ row }: { row: RowMetadata }) {
         errors={rowFields.label.errors}
       />
       <DescriptionField field={rowFields.description} />
-      <p className="text-foreground/65 text-sm">
+      <p className="text-muted-foreground text-sm">
         These fields are always required. You can still change the label that
         users see.
       </p>
@@ -1141,7 +1141,7 @@ function EditableRowView({
         />
       </div>
       {keyLocked ? (
-        <p className="text-foreground/50 text-sm">
+        <p className="text-muted-foreground text-sm">
           Field keys are locked because this form already has signups.
         </p>
       ) : null}
@@ -1176,10 +1176,12 @@ function EditableRowView({
 }
 
 const mirrorControlClassName =
-  "border-dashed text-foreground/65 disabled:cursor-not-allowed disabled:opacity-100";
+  "border-dashed text-muted-foreground disabled:cursor-not-allowed disabled:opacity-100";
 
 function MirrorFieldLabel({ children }: { children: ReactNode }) {
-  return <span className="text-foreground/65 font-semibold">{children}</span>;
+  return (
+    <span className="text-muted-foreground font-semibold">{children}</span>
+  );
 }
 
 function MirrorInput({
@@ -1250,7 +1252,7 @@ function MirrorSelect({ label, value }: { label: ReactNode; value: string }) {
         </select>
         <ChevronDownIcon
           aria-hidden
-          className="text-foreground/50 pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
+          className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
         />
       </div>
     </div>
@@ -1287,7 +1289,7 @@ function MirrorRowView({
     >
       <p
         id={sentenceId}
-        className="text-foreground/65 max-w-md text-sm leading-snug text-pretty"
+        className="text-muted-foreground max-w-md text-sm leading-snug text-pretty"
       >
         Mirrors the signer's “{signer.label || "this question"}”. Type, label,
         help text and Required are edited on that row, and the field key is

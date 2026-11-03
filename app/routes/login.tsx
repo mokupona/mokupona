@@ -150,7 +150,7 @@ export default function LoginPage({
               </strong>
               . open it, then come back and log in.
             </p>
-            <p className="text-foreground/50 mt-1 text-xs">
+            <p className="text-muted-foreground mt-1 text-xs">
               didn&apos;t get it? give it a minute, then check your spam folder.
             </p>
           </AuthNotice>
@@ -207,14 +207,14 @@ export default function LoginPage({
           <GoogleSignInButton callbackURL={redirectTo} />
         ) : null}
 
-        <p className="text-foreground/50 text-center text-xs">
+        <p className="text-muted-foreground text-center text-xs">
           by continuing you accept the{" "}
           <Link to="/privacy" className="text-primary hover:underline">
             privacy policy
           </Link>
         </p>
 
-        <p className="text-foreground/65 text-center text-sm">
+        <p className="text-muted-foreground text-center text-sm">
           don&apos;t have an account?{" "}
           <Link
             to={{

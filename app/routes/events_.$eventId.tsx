@@ -14,7 +14,6 @@ import { CheckboxField, ErrorList } from "~/components/forms";
 import { RouteErrorContent } from "~/components/route-error-content";
 import { BackLink, PageContainer } from "~/components/section";
 import { Button } from "~/components/ui/button";
-import { Card } from "~/components/ui/card";
 import { requestLoggerContext } from "~/features/auth/middleware.server";
 import {
   EventFactList,
@@ -312,10 +311,11 @@ export default function EventPage({
         <EventStory event={event} />
 
         {signupFields ? (
-          <Card
-            as="aside"
+          // no fill — a single rule separates the sidebar from the story,
+          // stacking above it on mobile and beside it from lg up
+          <aside
             id="sign-up"
-            className="flex flex-col gap-4 p-5 lg:sticky lg:top-6 lg:p-7"
+            className="flex flex-col gap-4 border-t pt-8 lg:sticky lg:top-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"
           >
             <EventFactList event={event} seatsLeft={seatsLeft} />
 
@@ -332,7 +332,7 @@ export default function EventPage({
                 lastResult={actionData}
               />
             </>
-          </Card>
+          </aside>
         ) : null}
       </div>
 
@@ -425,7 +425,7 @@ function SignupForm({
           {willWait ? "join the waiting list" : "join this event"}
         </Button>
 
-        <p className="text-foreground/50 text-center text-xs leading-normal">
+        <p className="text-muted-foreground text-center text-xs leading-normal">
           {seatsLeft === 0
             ? "this event is fully booked. we'll email you as soon as a seat is yours."
             : "we'll email you right away whether you have a seat."}

@@ -1,6 +1,7 @@
 import {
   getFormProps,
   getInputProps,
+  getTextareaProps,
   useForm,
   type DefaultValue,
   type SubmissionResult,
@@ -11,7 +12,7 @@ import type { z } from "zod";
 
 import { MemberSchema } from "./schema";
 
-import { Field, fileFieldClassName } from "~/components/forms";
+import { Field, fileFieldClassName, TextareaField } from "~/components/forms";
 import { Button } from "~/components/ui/button";
 import { VALID_IMAGE_TYPES } from "~/shared/image";
 
@@ -66,6 +67,13 @@ export function AdminBoardMemberForm({
           labelProps={{ children: "Position" }}
           inputProps={{ ...getInputProps(fields.position, { type: "text" }) }}
           errors={fields.position.errors}
+        />
+
+        <TextareaField
+          labelProps={{ children: "Bio" }}
+          description="A few lines shown under their portrait on the about page. Optional."
+          textareaProps={{ ...getTextareaProps(fields.bio), rows: 4 }}
+          errors={fields.bio.errors}
         />
 
         <Field

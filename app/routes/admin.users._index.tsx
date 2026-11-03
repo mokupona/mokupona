@@ -357,7 +357,7 @@ function PendingInviteRow({ invite }: { invite: InviteRow }) {
     <Card className="flex items-center gap-3 border-dashed p-4">
       <span
         aria-hidden
-        className="bg-foreground/10 text-foreground/65 flex size-10 shrink-0 items-center justify-center rounded-full"
+        className="bg-foreground/10 text-muted-foreground flex size-10 shrink-0 items-center justify-center"
       >
         <MailIcon className="size-4" />
       </span>
@@ -366,7 +366,7 @@ function PendingInviteRow({ invite }: { invite: InviteRow }) {
         <p
           className={cn(
             "mt-1 text-sm",
-            expired ? "text-destructive-light" : "text-foreground/65",
+            expired ? "text-destructive-light" : "text-muted-foreground",
           )}
         >
           {text}
@@ -401,14 +401,14 @@ type User = Awaited<ReturnType<typeof loader>>["users"][number];
 
 const ROLE_CLASS_NAMES: Record<string, string> = {
   admin: "text-accent-light",
-  moderator: "text-foreground/65",
-  user: "text-foreground/50",
+  moderator: "text-muted-foreground",
+  user: "text-muted-foreground",
 };
 
 function UserCard({ user, seed }: { user: User; seed: number }) {
   const { id, email, role } = user;
   const isAdmin = isAdminRole(role.name);
-  const roleClassName = ROLE_CLASS_NAMES[role.name] ?? "text-foreground/50";
+  const roleClassName = ROLE_CLASS_NAMES[role.name] ?? "text-muted-foreground";
 
   return (
     <Card interactive className="flex items-center gap-3 p-4">

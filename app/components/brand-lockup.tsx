@@ -9,6 +9,12 @@ export interface BrandLockupProps {
   className?: string;
   logoClassName?: string;
   wordmarkClassName?: string;
+  /**
+   * The nav shows the drawn mark alone; the footer still spells the name out.
+   * When the wordmark is hidden the name stays in the accessibility tree, so
+   * the home link keeps a label instead of becoming an unnamed link.
+   */
+  showWordmark?: boolean;
 }
 
 export function BrandLockup({
@@ -16,11 +22,18 @@ export function BrandLockup({
   className,
   logoClassName,
   wordmarkClassName,
+  showWordmark = true,
 }: BrandLockupProps) {
   const content = (
     <>
       <Logo className={cn("size-5", logoClassName)} />
-      <span className={cn("font-semibold", wordmarkClassName)}>moku pona</span>
+      {showWordmark ? (
+        <span className={cn("font-semibold", wordmarkClassName)}>
+          moku pona
+        </span>
+      ) : (
+        <span className="sr-only">moku pona</span>
+      )}
     </>
   );
 

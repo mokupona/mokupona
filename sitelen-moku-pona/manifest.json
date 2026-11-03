@@ -1,0 +1,813 @@
+{
+  "a": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.3
+  },
+  "akesi": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 5.8
+  },
+  "ala": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.6
+  },
+  "alasa": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 0.3
+  },
+  "ale": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.4
+  },
+  "anpa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.4
+  },
+  "ante": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.5
+  },
+  "anu": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.0
+  },
+  "awen": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.4
+  },
+  "e": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.8
+  },
+  "en": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.7
+  },
+  "esun": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.2
+  },
+  "ijo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.9
+  },
+  "ike": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.7
+  },
+  "ilo": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 2.5
+  },
+  "insa": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 0.8
+  },
+  "jaki": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -4.1
+  },
+  "jan": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.9
+  },
+  "jelo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.3
+  },
+  "jo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.4
+  },
+  "kala": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.0
+  },
+  "kalama": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.9
+  },
+  "kama": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.9
+  },
+  "kasi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.3
+  },
+  "ken": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.8
+  },
+  "kepeken": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 4.2
+  },
+  "kijetesantakalu": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 6.8
+  },
+  "kili": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.3
+  },
+  "kin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.6
+  },
+  "kipisi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.9
+  },
+  "kiwen": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.4
+  },
+  "ko": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.7
+  },
+  "kon": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.5
+  },
+  "ku": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 5.5
+  },
+  "kule": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 3.1
+  },
+  "kulupu": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.0
+  },
+  "kute": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.7
+  },
+  "la": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -0.1
+  },
+  "lape": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.5
+  },
+  "laso": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.1
+  },
+  "lawa": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 3.8
+  },
+  "leko": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -3.2
+  },
+  "len": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.1
+  },
+  "lete": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.2
+  },
+  "li": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.5
+  },
+  "lili": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.4
+  },
+  "linja": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -0.9
+  },
+  "lipu": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.6
+  },
+  "loje": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.9
+  },
+  "lon": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.7
+  },
+  "luka": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.8
+  },
+  "lukin": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -3.7
+  },
+  "lupa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.8
+  },
+  "ma": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -3.8
+  },
+  "mama": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.0
+  },
+  "mani": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.3
+  },
+  "meli": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -2.3
+  },
+  "mi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.9
+  },
+  "mije": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.1
+  },
+  "misikeke": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 0.4
+  },
+  "moku": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 6.8
+  },
+  "moli": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 1.9
+  },
+  "monsi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 6.5
+  },
+  "monsuta": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 6.8
+  },
+  "mu": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -1.5
+  },
+  "mun": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.3
+  },
+  "musi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.0
+  },
+  "mute": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.9
+  },
+  "n": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -3.4
+  },
+  "namako": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.4
+  },
+  "nanpa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -0.6
+  },
+  "nasa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.5
+  },
+  "nasin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.3
+  },
+  "nena": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.2
+  },
+  "ni": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.3
+  },
+  "nimi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.1
+  },
+  "noka": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.1
+  },
+  "o": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.5
+  },
+  "olin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.9
+  },
+  "ona": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.1
+  },
+  "open": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -0.9
+  },
+  "pakala": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 5.1
+  },
+  "pali": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.1
+  },
+  "palisa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.1
+  },
+  "pan": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.3
+  },
+  "pana": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.6
+  },
+  "pi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.7
+  },
+  "pilin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.2
+  },
+  "pimeja": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 0.0
+  },
+  "pini": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.7
+  },
+  "pipi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.6
+  },
+  "poka": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.2
+  },
+  "poki": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.5
+  },
+  "pona": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.2
+  },
+  "pu": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 1.4
+  },
+  "sama": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.5
+  },
+  "seli": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.7
+  },
+  "selo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.2
+  },
+  "seme": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.3
+  },
+  "sewi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 3.0
+  },
+  "sijelo": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -2.4
+  },
+  "sike": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -4.5
+  },
+  "sin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.9
+  },
+  "sina": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.6
+  },
+  "sinpin": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 5.9
+  },
+  "sitelen": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -3.1
+  },
+  "soko": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.8
+  },
+  "sona": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.6
+  },
+  "soweli": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": -2.2
+  },
+  "suli": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 6.8
+  },
+  "suno": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.9
+  },
+  "supa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.2
+  },
+  "suwi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.6
+  },
+  "tan": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 6.1
+  },
+  "taso": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.2
+  },
+  "tawa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.1
+  },
+  "telo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.1
+  },
+  "tenpo": {
+    "layers": [
+      "light",
+      "dark"
+    ],
+    "tilt": 4.2
+  },
+  "toki": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.4
+  },
+  "tomo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -5.3
+  },
+  "tonsi": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 0.5
+  },
+  "tu": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -6.7
+  },
+  "unpa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.7
+  },
+  "uta": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -1.6
+  },
+  "utala": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.2
+  },
+  "walo": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 1.8
+  },
+  "wan": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -0.6
+  },
+  "waso": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 4.6
+  },
+  "wawa": {
+    "layers": [
+      "light"
+    ],
+    "tilt": 2.6
+  },
+  "weka": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -4.5
+  },
+  "wile": {
+    "layers": [
+      "light"
+    ],
+    "tilt": -2.9
+  }
+}

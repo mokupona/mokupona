@@ -49,7 +49,7 @@ export default function CheckYourInbox({ loaderData }: Route.ComponentProps) {
         >
           back to log in
         </Link>
-        <p className="text-foreground/50 text-sm">
+        <p className="text-muted-foreground text-sm">
           no link yet? give it a minute, then check your spam folder.
         </p>
       </AuthStatus>

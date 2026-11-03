@@ -141,7 +141,7 @@ export default function ResetPassword({
           choose a new password
         </h1>
         {loaderData.email ? (
-          <p className="text-foreground/65 text-sm">
+          <p className="text-muted-foreground text-sm">
             resetting for{" "}
             <strong className="text-foreground font-semibold">
               {loaderData.email}
@@ -166,7 +166,9 @@ export default function ResetPassword({
             errors={fields.password.errors}
           />
           {fields.password.errors?.length ? null : (
-            <p className="text-foreground/50 text-sm">at least 8 characters.</p>
+            <p className="text-muted-foreground text-sm">
+              at least 8 characters.
+            </p>
           )}
         </div>
 

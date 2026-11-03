@@ -75,7 +75,7 @@ function EventLabel({
   return (
     <Link
       to={`/events/${event.id}`}
-      className="text-foreground/50 hover:text-foreground focus-visible:ring-ring pointer-events-auto w-fit transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring pointer-events-auto w-fit transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
     >
       {event.title} ·{" "}
       <time dateTime={date.toISOString()} suppressHydrationWarning>
@@ -105,7 +105,7 @@ function MosaicTile({
       <button
         type="button"
         onClick={() => onOpen(image.id)}
-        className="focus-visible:ring-ring block w-full rounded-2xl focus-visible:ring-2 focus-visible:outline-hidden"
+        className="focus-visible:ring-ring block w-full focus-visible:ring-2 focus-visible:outline-hidden"
       >
         <OptimizedImage
           image={image.image}
@@ -114,7 +114,7 @@ function MosaicTile({
           height={height}
           sizes={sizes}
           loading="lazy"
-          className="w-full rounded-2xl"
+          className="w-full"
         />
       </button>
       {hasCaption ? (
@@ -127,7 +127,7 @@ function MosaicTile({
           tabIndex={event ? undefined : 0}
           className={cn(
             "text-foreground/80 flex flex-col gap-1 pt-2 text-xs",
-            "md:from-background md:pointer-events-none md:absolute md:inset-0 md:justify-end md:rounded-2xl md:bg-linear-to-t md:to-transparent md:to-60% md:px-4 md:pt-12 md:pb-4 md:text-sm",
+            "md:from-background md:pointer-events-none md:absolute md:inset-0 md:justify-end md:bg-linear-to-t md:to-transparent md:to-60% md:px-4 md:pt-12 md:pb-4 md:text-sm",
             "md:opacity-0 md:transition-opacity md:duration-200 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
             event
               ? null
@@ -216,11 +216,11 @@ export function MosaicGallery({
     if (isSection) return null;
 
     return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed px-6 py-12 text-center md:py-16">
+      <div className="flex flex-col items-center gap-3 px-6 py-16 text-center md:py-24">
         <Eyebrow variant="tracked" tone="label">
           no photos yet
         </Eyebrow>
-        <p className="text-foreground/65 max-w-xs text-sm font-light">
+        <p className="text-muted-foreground max-w-xs text-sm font-light">
           nothing on the wall yet. the next event will hang the first ones.
         </p>
       </div>

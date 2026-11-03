@@ -190,6 +190,7 @@ export async function readLiveDataTables({
         id: true,
         name: true,
         position: true,
+        bio: true,
         imageId: true,
         ...TIMESTAMPS,
       },

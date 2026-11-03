@@ -22,10 +22,10 @@ export function AuthStatus({
       <div
         aria-hidden
         className={cn(
-          "flex size-16 items-center justify-center rounded-full",
+          "flex size-16 items-center justify-center",
           tone === "positive"
             ? "bg-primary/10 text-primary"
-            : "bg-foreground/5 text-foreground/65",
+            : "bg-foreground/5 text-muted-foreground",
         )}
       >
         {icon}

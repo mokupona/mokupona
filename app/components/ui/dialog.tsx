@@ -20,7 +20,7 @@ const DialogOverlay = ({
   <DialogPrimitive.Backdrop
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[rgb(10_8_6/0.7)] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+      "fixed inset-0 z-50 bg-[rgb(46_42_64/0.6)] transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
       className,
     )}
     {...props}
@@ -44,14 +44,14 @@ const DialogContent = ({
     <DialogPrimitive.Popup
       ref={ref}
       className={cn(
-        "bg-card fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-5 rounded-2xl border p-7 shadow-lg outline-hidden transition-[opacity,scale] duration-200 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0",
+        "bg-card fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-5 border p-7 shadow-lg outline-hidden transition-[opacity,scale] duration-200 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0",
         className,
       )}
       {...props}
     >
       {children}
       {showClose ? (
-        <DialogPrimitive.Close className="text-foreground/50 hover:text-foreground focus-visible:ring-ring absolute top-5 right-5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-hidden">
+        <DialogPrimitive.Close className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-5 right-5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-hidden">
           <XIcon className="size-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -81,7 +81,7 @@ const DialogDescription = ({
 }: DialogPrimitive.Description.Props) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-foreground/65 text-sm", className)}
+    className={cn("text-muted-foreground text-sm", className)}
     {...props}
   />
 );

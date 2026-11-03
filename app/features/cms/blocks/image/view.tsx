@@ -15,9 +15,7 @@ export function ImageBlockView({ blockData, className }: ImageBlockViewProps) {
   const { src, alt, width, height, blurDataUrl } = image;
 
   const imageClasses =
-    variant === "full-width"
-      ? "h-64 w-full rounded-2xl md:h-96"
-      : "h-auto w-full";
+    variant === "full-width" ? "h-64 w-full md:h-96" : "h-auto w-full";
 
   return (
     <PageContainer as="div">

@@ -213,7 +213,7 @@ function SectionCard({
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">{title}</h2>
           {subtitle ? (
-            <p className="text-foreground/50 text-sm">{subtitle}</p>
+            <p className="text-muted-foreground text-sm">{subtitle}</p>
           ) : null}
         </div>
       ) : null}
@@ -280,7 +280,7 @@ function ProfileCard({
         <div
           className={cn(
             fieldShellClassName,
-            "text-foreground/65 flex items-center justify-between text-sm",
+            "text-muted-foreground flex items-center justify-between text-sm",
           )}
         >
           <span className="truncate">{user.email}</span>
@@ -290,7 +290,7 @@ function ProfileCard({
             </Badge>
           ) : null}
         </div>
-        <p className="text-foreground/50 text-sm">
+        <p className="text-muted-foreground text-sm">
           your email is your login and can&apos;t be changed here.
         </p>
       </div>
@@ -400,7 +400,7 @@ function ConnectedAccountsCard({
         <GoogleMark className="size-5 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-base font-semibold">google</p>
-          <p className="text-foreground/50 truncate text-sm">
+          <p className="text-muted-foreground truncate text-sm">
             {googleLinked ? `linked as ${email}` : "not linked"}
           </p>
         </div>
@@ -433,7 +433,7 @@ function ConnectedAccountsCard({
         ) : null}
       </div>
       {unlinkBlocked ? (
-        <p className="text-foreground/50 text-sm">
+        <p className="text-muted-foreground text-sm">
           google is your only way to sign in right now. set a password first,
           then you can unlink.
         </p>
@@ -450,7 +450,7 @@ function SessionsCard({ sessionCount }: { sessionCount: number }) {
 
   return (
     <SectionCard title="sessions">
-      <p className="text-foreground/65 text-sm">
+      <p className="text-muted-foreground text-sm">
         you&apos;re signed in on{" "}
         <strong className="text-foreground font-semibold">
           {sessionCount === 1 ? "1 device" : `${sessionCount} devices`}

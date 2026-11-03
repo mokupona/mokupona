@@ -131,6 +131,7 @@ export function liveDataFixture(
         id: id("board"),
         name: "Lin",
         position: "Chef",
+        bio: null,
         imageId: id("portrait"),
         ...stamps,
       },

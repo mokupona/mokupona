@@ -4,28 +4,70 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Palette — "blush paper, plum ink".
+ *
+ * Only the ink carries text. Teal and sage fail contrast as text on the paper
+ * (2.34:1 and 1.69:1), so they are fills, bands and decoration only, never
+ * a text colour on the page ground. Ratios noted per token are against the
+ * surface the token actually sits on; keep them if you retune.
+ */
 :root {
-  --background: rgb(21 17 14); /* surface #15110E */
-  --foreground: rgb(245 241 236); /* text primary #F5F1EC */
-  --card: rgb(27 21 17); /* raised surface #1B1511 */
-  --card-foreground: rgb(245 241 236);
-  --popover: rgb(27 21 17);
-  --popover-foreground: rgb(245 241 236);
-  --primary: rgb(237 130 94); /* accent #ED825E */
-  --primary-foreground: rgb(21 17 14); /* on-accent */
-  --secondary: var(--card);
-  --secondary-foreground: var(--card-foreground);
-  --muted: rgb(245 241 236 / 0.05);
-  --muted-foreground: rgb(245 241 236 / 0.65);
-  --accent: rgb(237 130 94);
-  --accent-foreground: rgb(21 17 14);
+  /* The purples are the original blue-violet palette turned ~40° toward red,
+   * which read too cold. --art-hue-shift turns the raster artwork by the same
+   * angle (see the art-warm utility) so drawn marks keep matching the tokens.
+   * Change one, change the other. */
+  --art-hue-shift: 40deg;
+  /* A near-white with a faint blush cast, taken from the ink's hue so the
+   * page and the artwork read as one family. Replaced the cream #F7FAE7
+   * (itself lightened from the source #F1F7D4), which read beige.
+   * White cards sit only 1.07:1 off this ground, so they read by their
+   * border rather than their fill — lighten further and they stop reading
+   * as cards at all. */
+  --paper: rgb(250 246 248); /* #FAF6F8 */
+  --ink: rgb(97 68 102); /* #614466 — 7.76:1 on paper, 8.31:1 on white */
+  --ink-strong: rgb(61 42 64); /* #3D2A40 — label on teal, 5.22:1 */
+  /* sampled from the hand-drawn wordmark (after the hue shift) so drawn
+   * marks match the artwork rather than approximating it — 11.24:1 on paper.
+   * Pre-shift it was #380888. */
+  --crayon: rgb(104 5 86); /* #680556 */
+  --teal: rgb(110 173 188); /* #6EADBC — fill / large display only */
+  /* the teal darkened until it can carry small text on paper (5.96:1) —
+   * the plain teal manages only 2.34:1 */
+  --teal-deep: rgb(53 102 113); /* #356671 */
+  --sage: rgb(159 203 173); /* #9FCBAD — band fill, ink on top 4.60:1 */
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: rgb(255 255 255); /* crisp paper card, ink 9.09:1 */
+  --card-foreground: var(--ink);
+  --popover: rgb(255 255 255);
+  --popover-foreground: var(--ink);
+
+  /* the main CTA is solid ink — paper-coloured label reads 7.76:1 */
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+
+  --secondary: var(--sage);
+  --secondary-foreground: var(--ink);
+
+  --muted: rgb(97 68 102 / 0.07);
+  /* 0.8 is the floor for AA body text on paper (4.88:1); 0.65 fails at 3.39:1 */
+  --muted-foreground: rgb(97 68 102 / 0.8);
+
+  --accent: var(--teal);
+  --accent-foreground: var(--ink-strong);
+
   --destructive: rgb(167 29 49);
-  --destructive-foreground: rgb(245 241 236);
-  --destructive-light: oklch(80.8% 0.114 19.571);
-  --border: rgb(245 241 236 / 0.15);
-  --input: var(--border);
-  --ring: rgb(237 130 94);
-  --radius: 0.5rem;
+  --destructive-foreground: rgb(255 255 255);
+  --destructive-light: oklch(45% 0.17 20);
+
+  /* carries card edges now that fill alone barely separates them from paper */
+  --border: rgb(97 68 102 / 0.28);
+  --input: rgb(97 68 102 / 0.55); /* form outlines need the weight */
+  --ring: var(--teal);
+  /* square by design — corners are cut, not rounded, across the whole site */
+  --radius: 0rem;
 }
 
 @theme {
@@ -57,11 +99,23 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
-  --color-accent-light: rgb(241 180 140); /* #F1B48C */
+  /* raw palette, for fills and decoration that aren't semantic roles */
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-crayon: var(--crayon);
+  --color-teal: var(--teal);
+  --color-teal-deep: var(--teal-deep);
+  --color-sage: var(--sage);
 
+  /* every accent-light call site is text, so it points at the readable teal */
+  --color-accent-light: var(--teal-deep);
+
+  /* all three collapse to the same square; the calc() steps the shadcn scale
+   * normally uses would go negative once --radius is 0 */
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-sm: var(--radius);
 
   --font-sans:
     "Open Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
@@ -79,10 +133,12 @@
   }
 }
 
+/* On a light ground a glow reads as a wash of colour rather than light, so
+ * these are teal tints rather than the old accent-coloured bloom. */
 @utility glow-primary {
   background-image: radial-gradient(
     circle,
-    rgb(237 130 94 / 0.15),
+    rgb(110 173 188 / 0.28),
     transparent 70%
   );
 }
@@ -90,9 +146,50 @@
 @utility glow-primary-strong {
   background-image: radial-gradient(
     circle,
-    rgb(237 130 94 / 0.2),
+    rgb(110 173 188 / 0.42),
     transparent 70%
   );
+}
+
+/* The drawn artwork (wordmark, logo, handwritten headings, sitelen glyphs) is
+ * raster art in the original blue-violet. Rather than redraw it, it is turned
+ * toward red by the same angle the palette was, so drawn marks keep matching
+ * --crayon. Retune both together. */
+@utility art-warm {
+  filter: hue-rotate(var(--art-hue-shift));
+}
+
+/* A soft patch of frosted paper behind text that sits over decoration (the
+ * landing page's glyph backdrop). Feathered on every side so it reads as the
+ * glyphs fading out around the words, not as a panel. */
+@utility text-halo {
+  position: relative;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1rem -1.75rem;
+    z-index: -1;
+    pointer-events: none;
+    background: color-mix(in oklab, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+    mask-image:
+      linear-gradient(
+        to right,
+        transparent,
+        #000 1.75rem,
+        #000 calc(100% - 1.75rem),
+        transparent
+      ),
+      linear-gradient(
+        to bottom,
+        transparent,
+        #000 1rem,
+        #000 calc(100% - 1rem),
+        transparent
+      );
+    mask-composite: intersect;
+  }
 }
 
 @utility animate-page-in {
@@ -103,6 +200,61 @@
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* /musi arcade: a glyph pops onto the page with a little wiggle, and pops
+ * off with a twist. Used by the countdown clock and the score. */
+@utility animate-glyph-in {
+  animation: glyph-in 520ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@utility animate-glyph-out {
+  animation: glyph-out 240ms ease-in both;
+}
+
+@utility animate-glyph-burst {
+  animation: glyph-burst 380ms ease-out both;
+}
+
+@keyframes glyph-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-24deg);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.18) rotate(9deg);
+  }
+  65% {
+    transform: scale(0.94) rotate(-6deg);
+  }
+  82% {
+    transform: scale(1.03) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes glyph-out {
+  to {
+    opacity: 0;
+    transform: scale(0.1) rotate(28deg) translateY(-30%);
+  }
+}
+
+@keyframes glyph-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5) rotate(40deg);
   }
 }
 

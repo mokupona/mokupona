@@ -29,7 +29,7 @@ export function GoogleSignInButton({ callbackURL }: { callbackURL: string }) {
     <>
       <div className="flex items-center gap-3" aria-hidden>
         <span className="bg-border h-px flex-1" />
-        <span className="text-foreground/50 text-xs">or</span>
+        <span className="text-muted-foreground text-xs">or</span>
         <span className="bg-border h-px flex-1" />
       </div>
       <GoogleButton

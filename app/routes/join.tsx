@@ -218,7 +218,7 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
 
           <HoneypotField />
 
-          <p className="text-foreground/50 text-center text-xs">
+          <p className="text-muted-foreground text-center text-xs">
             by creating an account you accept the{" "}
             <Link to="/privacy" className="text-primary hover:underline">
               privacy policy
@@ -234,7 +234,7 @@ export default function Join({ loaderData, actionData }: Route.ComponentProps) {
           <GoogleSignInButton callbackURL={redirectTo ?? "/"} />
         ) : null}
 
-        <p className="text-foreground/65 text-center text-sm">
+        <p className="text-muted-foreground text-center text-sm">
           already have an account?{" "}
           <Link
             to={{

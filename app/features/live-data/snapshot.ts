@@ -140,6 +140,9 @@ const boardMemberRow = z.object({
   id,
   name: text,
   position: text,
+  // added after format version 1 shipped: a live site on older code leaves
+  // it out, which reads as "no bio"
+  bio: nullableText.default(null),
   imageId: id.nullable(),
   createdAt: dateTime,
   updatedAt: dateTime,

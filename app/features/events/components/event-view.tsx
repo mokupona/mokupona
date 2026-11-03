@@ -36,7 +36,7 @@ export function EventStory({ event }: EventViewProps) {
         image={event.image}
         alt=""
         sizes="(min-width: 1024px) 520px, 100vw"
-        className="w-full rounded-2xl"
+        className="w-full"
       />
 
       <div className="flex flex-col gap-3">
@@ -88,7 +88,7 @@ export function EventFactList({
   return (
     <div className="text-foreground/80 flex flex-col gap-3 text-sm">
       <span className="flex items-center gap-2">
-        <CalendarIcon className="text-foreground/50 size-4" />
+        <CalendarIcon className="text-muted-foreground size-4" />
         <time dateTime={eventDate.toISOString()} suppressHydrationWarning>
           {formatEventDateLine(eventDate, "short")}
         </time>

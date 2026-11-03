@@ -1,9 +1,11 @@
 import { ChevronRightIcon, XIcon } from "lucide-react";
 import {
   useEffect,
+  useRef,
   useState,
   type ComponentProps,
   type ElementType,
+  type RefObject,
 } from "react";
 import { Form, Link, useLocation } from "react-router";
 
@@ -40,13 +42,24 @@ function buildNavItems({
       kind: "link",
       label: "events",
       to: "/events",
-      isActive: (pathname) => pathname.startsWith("/events"),
+      // an event's album belongs to the gallery tab, not this one
+      isActive: (pathname) =>
+        pathname.startsWith("/events") && !pathname.endsWith("/gallery"),
     },
     {
       kind: "link",
       label: "gallery",
       to: "/gallery",
-      isActive: (pathname) => pathname.startsWith("/gallery"),
+      // per-event albums live under /events/:id/gallery, so also light up
+      // this tab when the reader is inside one
+      isActive: (pathname) =>
+        pathname.startsWith("/gallery") || pathname.endsWith("/gallery"),
+    },
+    {
+      kind: "link",
+      label: "about",
+      to: "/about",
+      isActive: (pathname) => pathname.startsWith("/about"),
     },
     { kind: "instagram" },
   ];
@@ -76,8 +89,17 @@ function buildNavItems({
   return items;
 }
 
-export function SiteNav() {
+/**
+ * `hideAtTop`: the page opens without a header. It's fixed, on solid paper,
+ * and slides down with the scroll — one px per px from the very first one,
+ * fully in once the page has scrolled its height, and back up the same way.
+ * Keyboard focus inside it shows it outright. Decoration behind the page —
+ * the landing page's glyphs — passes under it.
+ */
+export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
   const optionalUser = useOptionalUser();
+  const navRef = useRef<HTMLElement>(null);
+  useScrollReveal(navRef, hideAtTop);
   const loggedIn = Boolean(optionalUser);
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -100,9 +122,21 @@ export function SiteNav() {
 
   return (
     <>
-      <nav className="border-b">
+      <nav
+        ref={navRef}
+        // the glyph backdrop ignores the pointer over anything marked this way
+        data-glyph-cover
+        // until hydration places it, a hideAtTop header starts out of sight
+        data-hidden={hideAtTop ? "" : undefined}
+        className={cn(
+          "relative border-b",
+          // --nav-offset is set from the scroll position by useScrollReveal
+          hideAtTop &&
+            "bg-background fixed inset-x-0 top-0 z-40 [translate:0_var(--nav-offset,-100%)] focus-within:[translate:0_0] data-hidden:pointer-events-none data-hidden:focus-within:pointer-events-auto",
+        )}
+      >
         <div className="flex h-16 items-center justify-between px-10 max-md:hidden">
-          <BrandLockup to="/" />
+          <BrandLockup to="/" showWordmark={false} logoClassName="size-11" />
 
           <div className="text-foreground/80 flex items-center gap-7 text-sm">
             {navItems.map((item) => {
@@ -147,7 +181,7 @@ export function SiteNav() {
         </div>
 
         <div className="flex h-14 items-center justify-between px-5 md:hidden">
-          <BrandLockup to="/" />
+          <BrandLockup to="/" showWordmark={false} logoClassName="size-10" />
           <button
             type="button"
             aria-label="Open menu"
@@ -168,6 +202,39 @@ export function SiteNav() {
   );
 }
 
+/**
+ * Slides a fixed header in with the scroll: its offset is -(its height) at
+ * the top of the page and reaches 0 once the page has scrolled that far.
+ * Written straight to the element each frame rather than through state, so
+ * scrolling doesn't re-render the nav.
+ */
+function useScrollReveal(ref: RefObject<HTMLElement | null>, enabled: boolean) {
+  useEffect(() => {
+    const nav = ref.current;
+    if (!enabled || !nav) return;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const height = nav.offsetHeight;
+      const offset = Math.min(0, window.scrollY - height);
+      nav.style.setProperty("--nav-offset", `${offset}px`);
+      nav.toggleAttribute("data-hidden", offset <= -height);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(place);
+    };
+    place();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) cancelAnimationFrame(frame);
+      nav.style.removeProperty("--nav-offset");
+    };
+  }, [ref, enabled]);
+}
+
 function MobileMenu({
   navItems,
   onClose: closeMenu,
@@ -181,7 +248,7 @@ function MobileMenu({
 
       <div className="relative border-b">
         <div className="flex h-14 items-center justify-between px-5">
-          <BrandLockup to="/" />
+          <BrandLockup to="/" showWordmark={false} logoClassName="size-10" />
           <button
             type="button"
             aria-label="Close menu"
@@ -223,8 +290,9 @@ function MobileMenu({
               instagram
             </a>
             <Link to="/privacy">privacy policy</Link>
+            <Link to="/impressum">impressum</Link>
           </div>
-          <span className="text-foreground/50 text-xs">
+          <span className="text-muted-foreground text-xs">
             made with love in zürich
           </span>
         </div>

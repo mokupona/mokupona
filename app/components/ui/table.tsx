@@ -78,7 +78,7 @@ const TableHead = ({
   <th
     ref={ref}
     className={cn(
-      "text-foreground/50 px-4 py-3 text-left align-middle text-xs font-semibold tracking-widest uppercase",
+      "text-muted-foreground px-4 py-3 text-left align-middle text-xs font-semibold tracking-widest uppercase",
       className,
     )}
     {...props}
