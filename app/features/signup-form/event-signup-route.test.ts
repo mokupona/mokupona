@@ -141,6 +141,40 @@ describe("event signup action", () => {
     });
   });
 
+  it("mails each friend who gave an address once, and never the signer", async () => {
+    const { eventId, versionId } = await createTestEvent({
+      title: "Winter table",
+    });
+
+    expectSuccessRedirect(
+      await submit(
+        eventId,
+        fromBrowser({
+          ...answers(versionId),
+          "friends[0].name": "Grace Friend",
+          "friends[0].friend_email": "grace@example.com",
+          "friends[1].name": "Alan Friend",
+          "friends[1].friend_email": "GRACE@example.com",
+          "friends[2].name": "Ada again",
+          "friends[2].friend_email": "ada@example.com",
+        }),
+      ),
+    );
+
+    expect(
+      sendTemplateMock.mock.calls.map(([template, to]) => [template, to]),
+    ).toEqual([
+      ["signupConfirmation", "ada@example.com"],
+      ["friendSignup", "grace@example.com"],
+    ]);
+    expect(sendTemplateMock.mock.calls[1][2]).toMatchObject({
+      status: "confirmed",
+      signer: "Ada Signer",
+      event: { title: "Winter table" },
+      guest: { name: "Grace Friend", email: "grace@example.com" },
+    });
+  });
+
   it("waitlists a party that doesn't fit and mails the waiting-list copy", async () => {
     const { eventId, versionId } = await createTestEvent({
       slots: 1,

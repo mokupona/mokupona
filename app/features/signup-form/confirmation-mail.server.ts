@@ -1,10 +1,11 @@
-import { summarizeBooking } from "./booking-summary";
+import { summarizeBooking, type BookingSummary } from "./booking-summary";
 import type { SignupMailKind } from "./confirmation-mail";
 
 import type { FieldDescriptor } from "~/features/forms/fields";
 import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.server";
 import { sendTemplate } from "~/features/mail/mail.server";
 import { getText } from "~/features/site-text/site-text.server";
+import { requestLogger } from "~/logger/request-context.server";
 import { getSignupForMail } from "~/models/event-signup.server";
 import type { Event } from "~/models/event.server";
 
@@ -63,6 +64,15 @@ export async function sendSignupConfirmation({
   /** This site's origin, for the link back to the event page. */
   origin: string;
 }): Promise<void> {
+  const t = await getText();
+  const url = new URL(`/events/${event.id}`, origin).href;
+  const booking = summarizeBooking(
+    formFields,
+    answers,
+    { price: event.price, studentPrice: event.studentPrice },
+    t,
+  );
+
   await sendTemplate(
     "signupConfirmation",
     to,
@@ -71,18 +81,71 @@ export async function sendSignupConfirmation({
       event: {
         title: event.title,
         date: event.date,
-        url: new URL(`/events/${event.id}`, origin).href,
+        url,
         ...mailCopyFor(event, status),
       },
-      booking: summarizeBooking(
-        formFields,
-        answers,
-        { price: event.price, studentPrice: event.studentPrice },
-        await getText(),
-      ),
+      booking,
     },
     { from: eventSignupMailFrom() },
   );
+
+  await sendFriendSignupMails({
+    eventId: event.id,
+    status,
+    event: { title: event.title, date: event.date, url },
+    booking,
+    signerEmail: to,
+  });
+}
+
+/**
+ * Tells each friend the signer gave an address for that they've been signed
+ * up. Each address gets one mail, never the signer's own, and a friend who
+ * can't be reached doesn't hold up the signup: failures are logged.
+ */
+async function sendFriendSignupMails({
+  eventId,
+  status,
+  event,
+  booking,
+  signerEmail,
+}: {
+  eventId: string;
+  status: SignupMailKind;
+  event: { title: string; date: Date; url: string };
+  booking: BookingSummary;
+  signerEmail: string;
+}): Promise<void> {
+  const [signer, ...friends] = booking.guests;
+  const reached = new Set([signerEmail.trim().toLowerCase()]);
+
+  const recipients = friends.flatMap((guest) => {
+    if (!guest.email) return [];
+    const key = guest.email.toLowerCase();
+    if (reached.has(key)) return [];
+    reached.add(key);
+    return [{ email: guest.email, guest }];
+  });
+
+  const results = await Promise.allSettled(
+    recipients.map(({ email, guest }) =>
+      sendTemplate(
+        "friendSignup",
+        email,
+        { status, signer: signer.name, event, guest },
+        { from: eventSignupMailFrom() },
+      ),
+    ),
+  );
+
+  for (const result of results) {
+    if (result.status === "rejected") {
+      requestLogger.error(
+        { event: eventId, error: result.reason },
+        "Failed to send a friend's signup mail",
+      );
+    }
+  }
 }
 
 /**

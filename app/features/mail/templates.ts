@@ -4,6 +4,7 @@ import { action, compose, details, note, paragraph } from "./compose";
 import { formatEventMailDate } from "~/features/events/date-format";
 import {
   formatChf,
+  type BookingGuest,
   type BookingSummary,
 } from "~/features/signup-form/booking-summary";
 import {
@@ -84,7 +85,10 @@ function signupConfirmation(
             number: index + 1,
             name: guest.name,
           }),
-          guest.rows,
+          // the signer sees where the friend's note went
+          guest.email
+            ? [...guest.rows, [t("emails.signup.guestEmail"), guest.email]]
+            : guest.rows,
         ),
       ),
       ...(booking.contact.length > 0
@@ -109,6 +113,66 @@ function signupConfirmation(
       ),
       action(t("emails.signup.button"), event.url),
       note(t("emails.signup.note")),
+    ],
+    options(t),
+  );
+}
+
+export interface FriendSignupProps {
+  status: SignupMailKind;
+  /** The person who signed the friend up, as they wrote their name. */
+  signer: string;
+  event: {
+    title: string;
+    date: Date;
+    /** Absolute link to the public event page. */
+    url: string;
+  };
+  /** The friend's own place in the booking: their price and answers. */
+  guest: BookingGuest;
+}
+
+/**
+ * Sent to a friend someone put down on a signup with an email address. It
+ * says what the signer did and what the friend owes, not the whole party.
+ */
+function friendSignup(
+  { status, signer, event, guest }: FriendSignupProps,
+  t: Text,
+) {
+  const waitlisted = status === "waitlisted";
+  const vars = {
+    signer,
+    event: event.title,
+    date: formatEventMailDate(event.date),
+  };
+  const subject = t(
+    waitlisted
+      ? "emails.friend.waitlistedSubject"
+      : "emails.friend.confirmedSubject",
+    vars,
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return compose(
+    subject,
+    [
+      paragraph(t("emails.friend.greeting", { name: guest.name })),
+      paragraph(
+        t(
+          waitlisted
+            ? "emails.friend.waitlistedBody"
+            : "emails.friend.confirmedBody",
+          vars,
+        ),
+      ),
+      paragraph(t("emails.friend.price", { price: formatChf(guest.price, t) })),
+      ...(guest.rows.length > 0
+        ? [details(t("emails.signup.details"), guest.rows)]
+        : []),
+      action(t("emails.signup.button"), event.url),
+      note(t("emails.friend.note")),
     ],
     options(t),
   );
@@ -163,6 +227,8 @@ export const mailTemplates = {
     ),
 
   signupConfirmation,
+
+  friendSignup,
 } satisfies Record<string, (props: never, t: Text) => MailBody>;
 
 type MailTemplates = typeof mailTemplates;

@@ -1,4 +1,5 @@
 import { DownloadIcon } from "lucide-react";
+import { Fragment, useState } from "react";
 import { Form } from "react-router";
 
 import type { Route } from "./+types/admin.events.$eventId_.signups";
@@ -20,15 +21,26 @@ import {
   userContext,
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
+import type {
+  BookingGuest,
+  SummaryRow,
+} from "~/features/signup-form/booking-summary";
+import {
+  getSignupBookingsForEvent,
+  type SignupBooking,
+} from "~/features/signup-form/bookings.server";
 import { sendSeatConfirmedMail } from "~/features/signup-form/confirmation-mail.server";
 import {
-  getAttendeesForEvent,
-  type Attendee,
-} from "~/features/signup-form/read.server";
+  formatCHF,
+  summarizeRevenue,
+  type RevenueSummary,
+} from "~/features/signup-form/revenue";
 import {
   seatsLeft,
   type SignupStatus,
 } from "~/features/signup-form/signup-status";
+import { getText } from "~/features/site-text/site-text.server";
+import { cn } from "~/lib/utils";
 import {
   DuplicateSignupError,
   getSeatCounts,
@@ -47,50 +59,61 @@ interface Party {
   name: string;
   email: string;
   size: number;
+  /** What the whole party pays, in CHF. */
+  total: number;
   createdAt: Date;
+  /** The signer first, then their friends, each with their price and answers. */
+  guests: BookingGuest[];
+  /** Answers that belong to the signup as a whole. */
+  contact: SummaryRow[];
 }
 
-function toParties(attendees: Attendee[]): Party[] {
-  const parties = new Map<string, Party>();
+function toParty(signup: SignupBooking): Party {
+  const { guests, contact, total } = signup.booking;
 
-  for (const attendee of attendees) {
-    const existing = parties.get(attendee.submissionId);
-    if (!existing) {
-      parties.set(attendee.submissionId, {
-        submissionId: attendee.submissionId,
-        status: attendee.status,
-        isLegacy: attendee.isSigner === null,
-        name: attendee.name,
-        email: attendee.email,
-        size: 1,
-        createdAt: attendee.createdAt,
-      });
-    } else {
-      existing.size += 1;
-      if (attendee.isSigner) {
-        existing.name = attendee.name;
-        existing.email = attendee.email;
-      }
-    }
-  }
-
-  return [...parties.values()];
+  return {
+    submissionId: signup.submissionId,
+    status: signup.status,
+    isLegacy: signup.isLegacy,
+    name: guests[0]?.name ?? "",
+    email: signup.signerEmail,
+    size: guests.length,
+    total,
+    createdAt: signup.createdAt,
+    guests,
+    contact,
+  };
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
 
-  const [event, attendees, seats] = await Promise.all([
-    getEventById(eventId).then(requireFound),
-    getAttendeesForEvent(eventId),
+  const event = await getEventById(eventId).then(requireFound);
+  const prices = { price: event.price, studentPrice: event.studentPrice };
+  const t = await getText();
+
+  const [bookings, seats] = await Promise.all([
+    getSignupBookingsForEvent(eventId, prices, t),
     getSeatCounts(eventId),
   ]);
 
+  // oldest first, so the waiting list reads in the order people joined
+  const parties = bookings.map(toParty);
+
   return {
-    event: { title: event.title, slots: event.slots },
+    event: {
+      title: event.title,
+      slots: event.slots,
+    },
     seats: { ...seats, left: seatsLeft(event.slots, seats.confirmed) },
-    // oldest first, so the waiting list reads in the order people joined
-    parties: toParties(attendees),
+    parties,
+    revenue: summarizeRevenue(
+      parties.map((party) => ({
+        status: party.status,
+        people: party.size,
+        total: party.total,
+      })),
+    ),
   };
 }
 
@@ -233,7 +256,7 @@ const SECTIONS: { status: SignupStatus; title: string; empty: string }[] = [
 ];
 
 export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
-  const { event, seats, parties } = loaderData;
+  const { event, seats, parties, revenue } = loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
   ).length;
@@ -262,6 +285,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         }
       />
 
+      <RevenueSummary revenue={revenue} />
+
       {overbookedBy > 0 ? (
         <Notice>
           This event is overbooked by {overbookedBy}{" "}
@@ -279,6 +304,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         {SECTIONS.map(({ status, title, empty }) => {
           const rows = parties.filter((party) => party.status === status);
           if (status === "cancelled" && rows.length === 0) return null;
+          const total = rows.reduce((sum, party) => sum + party.total, 0);
 
           return (
             <section key={status} aria-labelledby={`signups-${status}`}>
@@ -289,6 +315,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                 {title}{" "}
                 <span className="text-muted-foreground text-sm font-normal">
                   {rows.length} {rows.length === 1 ? "group" : "groups"}
+                  {status === "cancelled" ? null : ` · ${formatCHF(total)}`}
                 </span>
               </h2>
               <PartyTable
@@ -301,6 +328,75 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         })}
       </div>
     </main>
+  );
+}
+
+function RevenueSummary({ revenue }: { revenue: RevenueSummary }) {
+  return (
+    <section aria-labelledby="revenue-heading" className="mb-8">
+      <h2 id="revenue-heading" className="sr-only">
+        Expected revenue
+      </h2>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Stat
+          label="Expected revenue"
+          value={formatCHF(revenue.confirmedTotal)}
+          note={`From ${people(revenue.confirmedPeople)} with a confirmed seat`}
+          emphasis
+        />
+        <Stat
+          label="Waiting list"
+          value={formatCHF(revenue.waitlistTotal)}
+          note={
+            revenue.waitlistPeople === 0
+              ? "Nobody is waiting"
+              : `What ${people(revenue.waitlistPeople)} would pay if every group got a seat`
+          }
+        />
+        <Stat
+          label="Per person"
+          value={
+            revenue.averagePerPerson === null
+              ? "—"
+              : formatCHF(revenue.averagePerPerson)
+          }
+          note="Average over confirmed seats, students at the student price"
+        />
+      </div>
+    </section>
+  );
+}
+
+function people(count: number) {
+  return `${count} ${count === 1 ? "person" : "people"}`;
+}
+
+function Stat({
+  label,
+  value,
+  note,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <Card className="flex flex-col gap-1 p-4 md:p-5">
+      <span className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "text-2xl font-semibold tabular-nums",
+          emphasis && "text-primary",
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-muted-foreground text-sm">{note}</span>
+    </Card>
   );
 }
 
@@ -324,14 +420,16 @@ function PartyTable({
   seatsLeft: number;
   emptyText: string;
 }) {
+  // the table scrolls sideways on a phone rather than being cut off
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead>Guest</TableHead>
             <TableHead>Email</TableHead>
             <TableHead className="text-center">Party</TableHead>
+            <TableHead className="text-right">Price</TableHead>
             <TableHead className="text-right">Signed up</TableHead>
             <TableHead className="text-right">
               <span className="sr-only">Actions</span>
@@ -340,41 +438,17 @@ function PartyTable({
         </TableHeader>
         <TableBody>
           {parties.map((party, index) => (
-            <TableRow key={party.submissionId}>
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <InitialsAvatar
-                    name={party.name}
-                    seed={index}
-                    className="size-8 text-xs"
-                  />
-                  <span className="font-semibold">{party.name}</span>
-                </div>
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {party.email}
-              </TableCell>
-              <TableCell className="text-center">{party.size}</TableCell>
-              <TableCell className="text-right">
-                <time
-                  dateTime={new Date(party.createdAt).toISOString()}
-                  suppressHydrationWarning
-                  className="text-muted-foreground text-sm whitespace-nowrap"
-                >
-                  {formatAdminTimestamp(new Date(party.createdAt))}
-                </time>
-              </TableCell>
-              <TableCell className="text-right">
-                {party.isLegacy ? null : (
-                  <PartyActions party={party} seatsLeft={seatsLeft} />
-                )}
-              </TableCell>
-            </TableRow>
+            <PartyRow
+              key={party.submissionId}
+              party={party}
+              index={index}
+              seatsLeft={seatsLeft}
+            />
           ))}
           {parties.length === 0 ? (
             <TableRow className="hover:bg-transparent">
               <TableCell
-                colSpan={5}
+                colSpan={6}
                 className="text-muted-foreground py-8 text-center text-sm"
               >
                 {emptyText}
@@ -384,6 +458,150 @@ function PartyTable({
         </TableBody>
       </Table>
     </Card>
+  );
+}
+
+function PartyRow({
+  party,
+  index,
+  seatsLeft,
+}: {
+  party: Party;
+  index: number;
+  seatsLeft: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const detailsId = `party-${party.submissionId}`;
+
+  return (
+    <>
+      <TableRow>
+        <TableCell>
+          <div className="flex items-center gap-3">
+            <InitialsAvatar
+              name={party.name}
+              seed={index}
+              className="size-8 text-xs"
+            />
+            <div className="flex flex-col items-start gap-1">
+              <span className="font-semibold">{party.name}</span>
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={detailsId}
+                onClick={() => setOpen((current) => !current)}
+                className="text-primary text-xs hover:underline"
+              >
+                {open ? "Hide details" : "Show details"}
+              </button>
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className="text-muted-foreground">{party.email}</TableCell>
+        <TableCell className="text-center">{party.size}</TableCell>
+        <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums">
+          {formatCHF(party.total)}
+        </TableCell>
+        <TableCell className="text-right">
+          <time
+            dateTime={new Date(party.createdAt).toISOString()}
+            suppressHydrationWarning
+            className="text-muted-foreground text-sm whitespace-nowrap"
+          >
+            {formatAdminTimestamp(new Date(party.createdAt))}
+          </time>
+        </TableCell>
+        <TableCell className="text-right">
+          {party.isLegacy ? null : (
+            <PartyActions party={party} seatsLeft={seatsLeft} />
+          )}
+        </TableCell>
+      </TableRow>
+      {open ? (
+        <TableRow className="hover:bg-transparent">
+          <TableCell
+            id={detailsId}
+            colSpan={6}
+            className="bg-foreground/[0.02] whitespace-normal"
+          >
+            <PartyDetails party={party} />
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
+  );
+}
+
+function PartyDetails({ party }: { party: Party }) {
+  return (
+    <div className="flex flex-col gap-4 py-3">
+      {party.contact.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+            Signup
+          </p>
+          <AnswerList rows={party.contact} />
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {party.guests.map((guest, guestIndex) => (
+          <GuestCard key={guestIndex} guest={guest} signer={guestIndex === 0} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GuestCard({
+  guest,
+  signer,
+}: {
+  guest: BookingGuest;
+  signer: boolean;
+}) {
+  const rows: SummaryRow[] = guest.email
+    ? [["Their email", guest.email], ...guest.rows]
+    : guest.rows;
+
+  return (
+    <div className="bg-background border p-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="font-semibold">
+          {guest.name}
+          {signer ? (
+            <span className="text-muted-foreground ml-2 text-xs font-normal">
+              signed up
+            </span>
+          ) : null}
+        </p>
+        <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
+          {formatCHF(guest.price)}
+          {guest.isStudent ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              · student
+            </span>
+          ) : null}
+        </p>
+      </div>
+      <div className="mt-2">
+        <AnswerList rows={rows} />
+      </div>
+    </div>
+  );
+}
+
+function AnswerList({ rows }: { rows: readonly SummaryRow[] }) {
+  return (
+    <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+      {rows.map(([label, value], index) => (
+        <Fragment key={`${index}-${label}`}>
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="break-words">{value}</dd>
+        </Fragment>
+      ))}
+    </dl>
   );
 }
 

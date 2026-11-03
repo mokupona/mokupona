@@ -8,6 +8,11 @@ const FRIENDS_LIST_NAME = "friends";
 const NAME_FIELD = "name";
 // a guest who ticks this checkbox pays the event's student price, if it has one
 const STUDENT_FIELD = "student";
+/**
+ * Optional, inside the friends list: where to send the friend a note that the
+ * signer put them down. Read as the guest's `email`, not as a row.
+ */
+export const FRIEND_EMAIL_FIELD = "friend_email";
 
 const EMPTY_ANSWER = "—";
 
@@ -18,6 +23,8 @@ export interface BookingGuest {
   isStudent: boolean;
   /** What this guest pays, in CHF. */
   price: number;
+  /** Where they asked to hear about the signup; null when none was given. */
+  email: string | null;
   /** Their personal answers (diet, student, …), in form order. */
   rows: SummaryRow[];
 }
@@ -102,6 +109,8 @@ function toGuest(
   const name = answers[NAME_FIELD];
   const isStudent = answers[STUDENT_FIELD] === true;
 
+  const friendEmail = answers[FRIEND_EMAIL_FIELD];
+
   return {
     name: typeof name === "string" && name.trim() ? name.trim() : fallbackName,
     isStudent,
@@ -109,8 +118,16 @@ function toGuest(
       isStudent && prices.studentPrice !== null
         ? prices.studentPrice
         : prices.price,
+    email:
+      typeof friendEmail === "string" && friendEmail.trim()
+        ? friendEmail.trim()
+        : null,
     rows: fields
-      .filter((field) => field.data.name !== NAME_FIELD)
+      .filter(
+        (field) =>
+          field.data.name !== NAME_FIELD &&
+          field.data.name !== FRIEND_EMAIL_FIELD,
+      )
       .map((field) => toRow(field, answers, t)),
   };
 }

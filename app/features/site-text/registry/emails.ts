@@ -8,6 +8,12 @@ const SIGNUP_VARS = {
   total: "total price of the signup",
 };
 
+const FRIEND_VARS = {
+  signer: "the name of the person who signed them up",
+  event: "event title",
+  date: "date and time of the event",
+};
+
 const SIGNUP_HINT =
   "The default for every event; an event can still set its own on its edit page. A blank line starts a new paragraph. The guest list, answers and prices follow automatically.";
 
@@ -133,6 +139,11 @@ export const emailTexts = defineTexts("emails", {
     default: "Guest {number}",
     vars: { number: "the guest's position" },
   },
+  "signup.guestEmail": {
+    label: "Event signup: a friend's email, in the signer's copy",
+    default: "Their email",
+    hint: "Shown under a friend the signer gave an email address for.",
+  },
   "signup.details": {
     label: "Event signup: contact details heading",
     default: "Your details",
@@ -167,6 +178,47 @@ export const emailTexts = defineTexts("emails", {
   "signup.button": {
     label: "Event signup: button",
     default: "View the event",
+  },
+
+  "friend.confirmedSubject": {
+    label: "Signed up by a friend, seat confirmed: subject",
+    default: "{signer} signed you up for {event}",
+    vars: FRIEND_VARS,
+    hint: "Sent to a friend the signer gave an email address for.",
+  },
+  "friend.waitlistedSubject": {
+    label: "Signed up by a friend, waiting list: subject",
+    default: "{signer} signed you up for {event}: waiting list",
+    vars: FRIEND_VARS,
+  },
+  "friend.greeting": {
+    label: "Signed up by a friend: greeting",
+    default: "Hi {name},",
+    vars: { name: "the friend's first name, as they gave it" },
+  },
+  "friend.confirmedBody": {
+    label: "Signed up by a friend, seat confirmed: text",
+    default:
+      "{signer} signed you up for {event} on {date}. Your seat is confirmed.",
+    kind: "paragraph",
+    vars: FRIEND_VARS,
+  },
+  "friend.waitlistedBody": {
+    label: "Signed up by a friend, waiting list: text",
+    default:
+      "{signer} signed you up for {event} on {date}. There aren't enough seats left right now, so you're on the waiting list. We'll email you as soon as a seat is yours.",
+    kind: "paragraph",
+    vars: FRIEND_VARS,
+  },
+  "friend.price": {
+    label: "Signed up by a friend: your price",
+    default: "Your price: {price}.",
+    vars: { price: "what the friend pays" },
+  },
+  "friend.note": {
+    label: "Signed up by a friend: small print",
+    default:
+      "Didn't expect this? Write to mokuponadinnerclub@gmail.com and we'll sort it out.",
   },
   "signup.note": {
     label: "Event signup: small print",

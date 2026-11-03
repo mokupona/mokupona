@@ -156,12 +156,14 @@ describe("signupConfirmation", () => {
             name: "Ada",
             isStudent: false,
             price: 45,
+            email: null,
             rows: [["Vegan / Vegetarian", "yes"]],
           },
           {
             name: "Grace <3",
             isStudent: true,
             price: 30,
+            email: null,
             rows: [["Vegan / Vegetarian", "no"]],
           },
         ],
@@ -274,7 +276,9 @@ describe("mail copy from the site texts", () => {
           mailMessage: null,
         },
         booking: {
-          guests: [{ name: "Ada", isStudent: false, price: 45, rows: [] }],
+          guests: [
+            { name: "Ada", isStudent: false, price: 45, email: null, rows: [] },
+          ],
           contact: [],
           total: 45,
         },
@@ -283,5 +287,84 @@ describe("mail copy from the site texts", () => {
     );
 
     expect(subject).toBe("Platz für Ada bei Winter table");
+  });
+});
+
+describe("friendSignup", () => {
+  const event = {
+    title: "Winter table",
+    date: new Date("2026-11-14T18:00:00.000Z"),
+    url: "https://mokupona.ch/events/evt",
+  };
+  const grace = {
+    name: "Grace",
+    isStudent: true,
+    price: 30,
+    email: "grace@example.com",
+    rows: [["Vegan / Vegetarian", "no"] as const],
+  };
+
+  it("tells the friend who signed them up, and what they pay", () => {
+    const { subject, text } = mailTemplates.friendSignup(
+      { status: "confirmed", signer: "Ada", event, guest: grace },
+      defaultText,
+    );
+
+    expect(subject).toBe("Ada signed you up for Winter table");
+    expect(text).toContain("Hi Grace,");
+    expect(text).toContain(
+      "Ada signed you up for Winter table on Saturday 14 November, 19:00. Your seat is confirmed.",
+    );
+    expect(text).toContain("Your price: 30 CHF.");
+    expect(text).toContain("Your details\nVegan / Vegetarian: no");
+    expect(text).toContain(event.url);
+  });
+
+  it("says so when the friend is on the waiting list", () => {
+    const { subject, text } = mailTemplates.friendSignup(
+      { status: "waitlisted", signer: "Ada", event, guest: grace },
+      defaultText,
+    );
+
+    expect(subject).toBe("Ada signed you up for Winter table: waiting list");
+    expect(text).toContain("so you're on the waiting list.");
+  });
+
+  it("doesn't list the rest of the party or the signer's contact details", () => {
+    const { text } = mailTemplates.friendSignup(
+      { status: "confirmed", signer: "Ada", event, guest: grace },
+      defaultText,
+    );
+
+    expect(text).not.toContain("ada@example.com");
+    expect(text).not.toContain("Your details\nEmail");
+  });
+
+  it("shows the signer where the friend's note went", () => {
+    const { text } = mailTemplates.signupConfirmation(
+      {
+        status: "confirmed",
+        event: {
+          title: "Winter table",
+          date: event.date,
+          url: event.url,
+          mailSubject: null,
+          mailMessage: null,
+        },
+        booking: {
+          guests: [
+            { name: "Ada", isStudent: false, price: 45, email: null, rows: [] },
+            grace,
+          ],
+          contact: [],
+          total: 75,
+        },
+      },
+      defaultText,
+    );
+
+    expect(text).toContain(
+      "Guest 2: Grace\nVegan / Vegetarian: no\nTheir email: grace@example.com",
+    );
   });
 });

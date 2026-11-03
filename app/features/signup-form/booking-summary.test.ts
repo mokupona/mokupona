@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { formatChf, summarizeBooking } from "./booking-summary";
+import {
+  FRIEND_EMAIL_FIELD,
+  formatChf,
+  summarizeBooking,
+} from "./booking-summary";
 import { DEFAULT_FORM } from "./default-form";
 
 import type { FieldDescriptor } from "~/features/forms/fields";
@@ -35,6 +39,7 @@ describe("summarizeBooking", () => {
         name: "Ada Signer",
         isStudent: false,
         price: 45,
+        email: null,
         rows: [
           ["Vegan / Vegetarian", "yes"],
           ["Student", "no"],
@@ -45,6 +50,7 @@ describe("summarizeBooking", () => {
         name: "Grace",
         isStudent: true,
         price: 45,
+        email: null,
         rows: [
           ["Vegan / Vegetarian", "no"],
           ["Student", "yes"],
@@ -52,6 +58,39 @@ describe("summarizeBooking", () => {
         ],
       },
     ]);
+  });
+
+  it("reads a friend's email as their address, not as one of their answers", () => {
+    const summary = summarizeBooking(
+      DEFAULT_FORM,
+      {
+        ...signer,
+        friends: [
+          {
+            name: "Grace",
+            vegetarian: false,
+            student: false,
+            restrictions: "",
+            [FRIEND_EMAIL_FIELD]: "  grace@example.com ",
+          },
+          { name: "Alan", [FRIEND_EMAIL_FIELD]: "" },
+        ],
+      },
+      { price: 45, studentPrice: null },
+      defaultText,
+    );
+
+    expect(summary.guests.map((guest) => guest.email)).toEqual([
+      null,
+      "grace@example.com",
+      null,
+    ]);
+    expect(summary.guests[1].rows.map(([label]) => label)).not.toContain(
+      "Their email",
+    );
+    expect(summary.contact.map(([label]) => label)).not.toContain(
+      "Their email",
+    );
   });
 
   it("keeps the signup-wide answers apart from the guests", () => {
