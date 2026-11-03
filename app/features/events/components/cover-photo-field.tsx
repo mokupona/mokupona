@@ -15,7 +15,8 @@ import {
 } from "~/components/ui/dialog";
 import { Label } from "~/components/ui/label";
 import type { ImageDisplaySource } from "~/shared/image";
-import { VALID_IMAGE_TYPES } from "~/shared/image";
+import { getImageUrl, VALID_IMAGE_TYPES } from "~/shared/image";
+import { useImageConfig } from "~/shared/root-data";
 
 /**
  * Every place a cover appears (event page, next-event card, past-dinner
@@ -32,7 +33,8 @@ const MAX_ZOOM = 4;
 type Offset = { x: number; y: number };
 
 type Source = {
-  file: File;
+  /** Used to name the cropped upload. */
+  name: string;
   url: string;
   width: number;
   height: number;
@@ -45,6 +47,9 @@ const INITIAL_CROP: CropState = { zoom: 1, offset: { x: 0, y: 0 } };
 function loadImage(url: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
+    // The saved cover may come from Cloudinary; without CORS the canvas
+    // would be tainted and refuse to export.
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Could not decode image"));
     img.src = url;
@@ -124,7 +129,7 @@ async function renderCrop(source: Source, crop: CropState): Promise<File> {
     blob = await canvasToBlob(canvas, quality);
   }
 
-  const baseName = source.file.name.replace(/\.[^.]+$/, "") || "cover";
+  const baseName = source.name.replace(/\.[^.]+$/, "") || "cover";
   return new File([blob], `${baseName}.jpg`, {
     type: "image/jpeg",
     lastModified: Date.now(),
@@ -362,6 +367,8 @@ export function CoverPhotoField({
   title?: string;
 }) {
   const form = useFormMetadata();
+  const imageConfig = useImageConfig();
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<Source | null>(null);
   const [crop, setCrop] = useState<CropState>(INITIAL_CROP);
@@ -408,7 +415,7 @@ export function CoverPhotoField({
     try {
       const img = await loadImage(url);
       setSource({
-        file,
+        name: file.name,
         url,
         width: img.naturalWidth,
         height: img.naturalHeight,
@@ -460,6 +467,33 @@ export function CoverPhotoField({
     setDialogOpen(true);
   }
 
+  /**
+   * Re-crop the saved cover: load the stored original (no resize transform)
+   * into the cropper. Applying it uploads the crop as a replacement, exactly
+   * as if a new file had been chosen.
+   */
+  async function cropCurrent() {
+    if (!currentImage) return;
+    setCropError(null);
+    setLoadingCurrent(true);
+    try {
+      const url = getImageUrl(currentImage, imageConfig);
+      const img = await loadImage(url);
+      setSource({
+        name: "cover",
+        url,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+      setCrop(INITIAL_CROP);
+      setDialogOpen(true);
+    } catch {
+      setCropError("Could not load the current cover for cropping.");
+    } finally {
+      setLoadingCurrent(false);
+    }
+  }
+
   function removeNewPhoto() {
     const input = inputRef.current;
     if (input) setInputFile(input, null);
@@ -492,6 +526,22 @@ export function CoverPhotoField({
                 {currentImage ? "Keep current cover" : "Remove photo"}
               </Button>
             </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cropCurrent}
+                disabled={loadingCurrent}
+              >
+                {loadingCurrent ? "Loading…" : "Crop current cover"}
+              </Button>
+            </div>
+          )}
+          {cropError && !dialogOpen ? (
+            <p className="text-destructive-light text-sm" role="alert">
+              {cropError}
+            </p>
           ) : null}
         </div>
       ) : null}
