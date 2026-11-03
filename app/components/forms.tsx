@@ -2,7 +2,7 @@ import { ChevronDownIcon } from "lucide-react";
 import React, { useId } from "react";
 
 import { Checkbox } from "./ui/checkbox";
-import { fieldShellClassName, Input } from "./ui/input";
+import { fieldShellClassName, Input, type InputProps } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 
@@ -95,7 +95,7 @@ export function Field({
   errors,
   className,
 }: FieldProps & {
-  inputProps: React.InputHTMLAttributes<HTMLInputElement>;
+  inputProps: InputProps;
 }) {
   const { id, errorId, descriptionId, describedBy } = useFieldIds(
     inputProps.id,

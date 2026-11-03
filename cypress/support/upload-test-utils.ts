@@ -229,8 +229,22 @@ export function fillEventForm(values: ReturnType<typeof eventFormValues>) {
   selectFirstAddress();
 }
 
-export function uploadEventCover(file: string | Cypress.FileReferenceObject) {
+/**
+ * Picks a cover file. A decodable image opens the crop dialog, which is
+ * accepted as-is; pass `crop: false` for files that never reach the cropper
+ * (e.g. oversized garbage bytes meant to trip validation).
+ */
+export function uploadEventCover(
+  file: string | Cypress.FileReferenceObject,
+  { crop = true }: { crop?: boolean } = {},
+) {
   cy.findByLabelText(/^cover$/i).selectFile(file, { force: true });
+  if (crop) {
+    cy.findByRole("dialog", { name: /crop cover photo/i })
+      .findByRole("button", { name: /use photo/i })
+      .click();
+    cy.findByRole("dialog").should("not.exist");
+  }
 }
 
 export function createEventViaAdminForm(

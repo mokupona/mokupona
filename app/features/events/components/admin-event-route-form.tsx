@@ -15,6 +15,7 @@ import type { AddressOptionModel } from "../view-models";
 import { AdminEventForm } from "./admin-event-form";
 
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
+import type { ImageDisplaySource } from "~/shared/image";
 
 type AdminEventRouteFormProps = {
   schema: typeof EventSchema | typeof EventEditSchema;
@@ -26,6 +27,7 @@ type AdminEventRouteFormProps = {
   cancelHref: string;
   lockFieldKeys?: boolean;
   answerCounts?: AnswerCountsByFieldKey;
+  currentImage?: ImageDisplaySource | null;
 };
 
 export function AdminEventRouteForm({
@@ -38,6 +40,7 @@ export function AdminEventRouteForm({
   cancelHref,
   lockFieldKeys,
   answerCounts,
+  currentImage,
 }: AdminEventRouteFormProps) {
   const [form, fields] = useForm<
     z.input<typeof EventEditSchema>,
@@ -68,6 +71,7 @@ export function AdminEventRouteForm({
           cancelHref={cancelHref}
           lockFieldKeys={lockFieldKeys}
           answerCounts={answerCounts}
+          currentImage={currentImage}
         />
       </Form>
     </FormProvider>
