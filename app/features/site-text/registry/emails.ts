@@ -218,7 +218,7 @@ export const emailTexts = defineTexts("emails", {
   "friend.note": {
     label: "Signed up by a friend: small print",
     default:
-      "Didn't expect this? Write to mokuponadinnerclub@gmail.com and we'll sort it out.",
+      "Didn't expect this? Write to contact@mokupona.ch and we'll sort it out.",
   },
   "signup.note": {
     label: "Event signup: small print",

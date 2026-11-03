@@ -7,7 +7,7 @@ Regensbergstrasse 24
 8050 Zürich
 Switzerland
 
-Email: [mokuponadinnerclub@gmail.com](mailto:mokuponadinnerclub@gmail.com)
+Email: [contact@mokupona.ch](mailto:contact@mokupona.ch)
 Website: https://mokupona.ch
 
 ## Disclaimer
@@ -38,7 +38,7 @@ moku pona
 Regensbergstrasse 24
 8050 Zürich
 Switzerland
-Email: mokuponadinnerclub@gmail.com
+Email: contact@mokupona.ch
 Website: https://mokupona.ch
 
 ## General Information on Data Processing
