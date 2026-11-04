@@ -20,7 +20,7 @@ import {
   EventStory,
 } from "~/features/events/components/event-view";
 import { isPastEvent } from "~/features/events/event-status";
-import { toEventDetailModel } from "~/features/events/view-models";
+import { toEventDetailModel } from "~/features/events/view-models.server";
 import { getViewForField, type FieldDescriptor } from "~/features/forms/fields";
 import { HoneypotField } from "~/features/forms/honeypot-field";
 import { checkHoneypot } from "~/features/forms/honeypot.server";

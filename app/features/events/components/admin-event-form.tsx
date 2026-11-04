@@ -51,6 +51,10 @@ type AdminEventFormProps = {
   currentImage?: ImageDisplaySource | null;
 };
 
+// the event texts and signup messages are Markdown (app/shared/markdown.server.ts)
+const MARKDOWN_HINT =
+  "Markdown works here: [link text](https://…), **bold**, *italic*, and lines starting with - for a list.";
+
 const SECTIONS = [
   { id: "section-basics", label: "Basics" },
   { id: "section-photo", label: "Photo" },
@@ -119,6 +123,7 @@ function SignupMailCopyFields({
 
       <TextareaField
         labelProps={{ children: "Message" }}
+        description={MARKDOWN_HINT}
         textareaProps={{
           ...getTextareaProps(message),
           placeholder: defaults.message,
@@ -268,6 +273,7 @@ export function AdminEventForm({
 
             <TextareaField
               labelProps={{ children: "Description" }}
+              description={MARKDOWN_HINT}
               textareaProps={{
                 ...getTextareaProps(fields.description),
                 rows: 10,
@@ -295,6 +301,7 @@ export function AdminEventForm({
           >
             <TextareaField
               labelProps={{ children: "Menu" }}
+              description={MARKDOWN_HINT}
               textareaProps={{
                 ...getTextareaProps(fields.menuDescription),
                 rows: 10,
@@ -304,6 +311,7 @@ export function AdminEventForm({
 
             <TextareaField
               labelProps={{ children: "Donation" }}
+              description={MARKDOWN_HINT}
               textareaProps={{
                 ...getTextareaProps(fields.donationDescription),
                 rows: 10,
@@ -357,6 +365,7 @@ export function AdminEventForm({
 
             <TextareaField
               labelProps={{ children: "Discounts" }}
+              description={MARKDOWN_HINT}
               textareaProps={{
                 ...getTextareaProps(fields.discounts),
                 rows: 3,

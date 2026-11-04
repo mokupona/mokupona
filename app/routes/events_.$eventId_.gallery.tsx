@@ -17,6 +17,7 @@ import { textFromMatches } from "~/features/site-text/meta";
 import { useText } from "~/features/site-text/site-text-context";
 import { getEventById } from "~/models/event.server";
 import { requireFound } from "~/shared/http.server";
+import { markdownToText } from "~/shared/markdown.server";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
@@ -38,7 +39,7 @@ export async function loader({ params }: Route.LoaderArgs) {
     event: {
       id: event.id,
       title: event.title,
-      description: event.description,
+      description: markdownToText(event.description),
       date: event.date,
     },
     images,

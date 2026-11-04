@@ -1,5 +1,5 @@
 import type { MailBody } from "./compose";
-import { action, compose, details, note, paragraph } from "./compose";
+import { action, compose, details, markdown, note, paragraph } from "./compose";
 
 import { formatEventMailDate } from "~/features/events/date-format";
 import {
@@ -15,6 +15,7 @@ import {
 } from "~/features/signup-form/confirmation-mail";
 import type { Text } from "~/features/site-text/text";
 import type { InvitableRole } from "~/features/users/invite.shared";
+import { escapeMarkdown } from "~/shared/markdown.server";
 
 export interface SignupConfirmationProps {
   /** Whether the signup holds a seat or a waiting-list spot. */
@@ -59,12 +60,17 @@ function signupConfirmation(
     // a subject is one header line, whatever was typed
     .replace(/\s+/g, " ")
     .trim();
+  // the message is Markdown; what a guest typed (their name) is filled in as
+  // plain text, so it can't turn into a link or markup
   const message = fillSignupMailPlaceholders(
     event.mailMessage?.trim() || defaults.message,
-    values,
-  )
-    // browsers submit textarea line breaks as CRLF
-    .replace(/\r\n?/g, "\n");
+    Object.fromEntries(
+      Object.entries(values).map(([name, value]) => [
+        name,
+        escapeMarkdown(value),
+      ]),
+    ) as SignupMailValues,
+  );
 
   const total =
     booking.guests.length === 1
@@ -74,11 +80,7 @@ function signupConfirmation(
   return compose(
     subject,
     [
-      ...message
-        .split(/\n\s*\n/)
-        .map((text) => text.trim())
-        .filter(Boolean)
-        .map(paragraph),
+      markdown(message),
       ...booking.guests.map((guest, index) =>
         details(
           t(index === 0 ? "emails.signup.guestSelf" : "emails.signup.guest", {

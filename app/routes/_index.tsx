@@ -15,7 +15,7 @@ import {
   orderEventsByStatus,
   partitionEvents,
 } from "~/features/events/event-status";
-import { toEventCardModel } from "~/features/events/view-models";
+import { toEventCardModel } from "~/features/events/view-models.server";
 import { textFromMatches } from "~/features/site-text/meta";
 import { useText } from "~/features/site-text/site-text-context";
 import { getEventsWithAddress } from "~/models/event.server";
