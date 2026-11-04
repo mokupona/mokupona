@@ -19,8 +19,6 @@ import { useOptionalUser } from "~/hooks/useOptionalUser";
 import { cn } from "~/lib/utils";
 
 const INSTAGRAM_URL = "https://instagram.com/mokupona";
-/** the "join an event" button's throwing-star shape (see star-points) */
-const JOIN_STAR = "star-points bg-transparent hover:bg-transparent";
 
 type NavItem =
   | {
@@ -197,7 +195,7 @@ export function SiteNav({
 
             <Link
               to={joinHref}
-              className={cn(buttonVariants({ size: "sm" }), JOIN_STAR)}
+              className={buttonVariants({ variant: "paper", size: "sm" })}
             >
               join an event
             </Link>
@@ -316,7 +314,10 @@ function MobileMenu({
 
         <Link
           to={joinHref}
-          className={cn(buttonVariants({ size: "lg" }), JOIN_STAR, "mt-8")}
+          className={cn(
+            buttonVariants({ variant: "paper", size: "lg" }),
+            "mt-8",
+          )}
         >
           join an event
         </Link>

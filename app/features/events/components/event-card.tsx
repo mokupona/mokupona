@@ -64,7 +64,10 @@ export function FeaturedEventCard({
         ) : null}
 
         <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
-          <Link to={`/events/${event.id}#sign-up`} className={buttonVariants()}>
+          <Link
+            to={`/events/${event.id}#sign-up`}
+            className={buttonVariants({ variant: "paper" })}
+          >
             reserve a seat
           </Link>
           <SecondaryCTA to={`/events/${event.id}`} className="max-md:hidden">
