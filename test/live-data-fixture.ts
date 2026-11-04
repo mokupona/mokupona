@@ -5,7 +5,8 @@ const stamps = { createdAt: at, updatedAt: at };
 
 /**
  * A small but complete live-data copy: one past event with a cover, a form
- * with one signup in each signup table, a gallery photo and a board member.
+ * with one signup in each signup table, a gallery photo, a board member and
+ * a volunteer credited on the event.
  * Ids are prefixed so several fixtures can be told apart.
  */
 export function liveDataFixture(
@@ -139,6 +140,17 @@ export function liveDataFixture(
         ...stamps,
       },
     ],
+    volunteers: [
+      {
+        id: id("volunteer"),
+        name: "Noa",
+        role: "dishes",
+        bio: null,
+        imageId: null,
+        ...stamps,
+      },
+    ],
+    eventVolunteers: [{ eventId: id("event"), volunteerId: id("volunteer") }],
     siteTexts: [
       {
         key: "landing.vision.headline",
@@ -160,5 +172,7 @@ export const EMPTY_LIVE_DATA: LiveDataTables = {
   eventResponses: [],
   eventGalleryImages: [],
   boardMembers: [],
+  volunteers: [],
+  eventVolunteers: [],
   siteTexts: [],
 };

@@ -11,12 +11,9 @@ import type z from "zod";
 import type { EventEditSchema } from "../event-schema";
 import type { AddressOptionModel } from "../view-models";
 
-import {
-  Field,
-  fileFieldClassName,
-  SelectField,
-  TextareaField,
-} from "~/components/forms";
+import { CoverPhotoField } from "./cover-photo-field";
+
+import { Field, SelectField, TextareaField } from "~/components/forms";
 import { BackLink, pageTitleClassName } from "~/components/section";
 import { SectionNav } from "~/components/section-nav";
 import { SignupFormBuilder } from "~/components/signup-form-builder";
@@ -36,7 +33,7 @@ import {
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
 import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
-import { VALID_IMAGE_TYPES } from "~/shared/image";
+import type { ImageDisplaySource } from "~/shared/image";
 
 type FieldsetOf<Schema extends z.ZodType> = {
   [K in keyof z.input<Schema>]-?: FieldMetadata<z.input<Schema>[K]>;
@@ -50,13 +47,16 @@ type AdminEventFormProps = {
   cancelHref: string;
   lockFieldKeys?: boolean;
   answerCounts?: AnswerCountsByFieldKey;
+  /** The saved cover on edit; absent when creating. */
+  currentImage?: ImageDisplaySource | null;
 };
 
 const SECTIONS = [
   { id: "section-basics", label: "Basics" },
+  { id: "section-photo", label: "Photo" },
   { id: "section-menu-donation", label: "Menu & donation" },
   { id: "section-schedule-pricing", label: "Schedule & pricing" },
-  { id: "section-cover-location", label: "Cover & location" },
+  { id: "section-location", label: "Location" },
   { id: "section-signup-form", label: "Signup form" },
   { id: "section-signup-email", label: "Signup email" },
 ];
@@ -240,6 +240,7 @@ export function AdminEventForm({
   cancelHref,
   lockFieldKeys,
   answerCounts,
+  currentImage,
 }: AdminEventFormProps) {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -272,6 +273,18 @@ export function AdminEventForm({
                 rows: 10,
               }}
               errors={fields.description.errors}
+            />
+          </SectionCard>
+
+          <SectionCard
+            id="section-photo"
+            title="Photo"
+            description="The cover photo shown on the event page and cards."
+          >
+            <CoverPhotoField
+              field={fields.cover}
+              currentImage={currentImage}
+              title={fields.title.value}
             />
           </SectionCard>
 
@@ -353,28 +366,10 @@ export function AdminEventForm({
           </SectionCard>
 
           <SectionCard
-            id="section-cover-location"
-            title="Cover & location"
-            description="Cover image and the venue address."
+            id="section-location"
+            title="Location"
+            description="Where the dinner takes place."
           >
-            <Field
-              labelProps={{ children: "Cover" }}
-              inputProps={{
-                ...getInputProps(fields.cover, { type: "file" }),
-                tabIndex: 0,
-                accept: VALID_IMAGE_TYPES.join(","),
-                className: fileFieldClassName,
-              }}
-              errors={fields.cover.errors}
-            />
-            <noscript>
-              <p className="text-muted-foreground text-sm">
-                Without JavaScript, the form&apos;s buttons reload the page and
-                a chosen cover file does not survive the reload — pick the cover
-                image last, right before saving.
-              </p>
-            </noscript>
-
             <SelectField
               labelProps={{ children: "Address" }}
               selectProps={{

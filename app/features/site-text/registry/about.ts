@@ -41,4 +41,15 @@ export const aboutTexts = defineTexts("about", {
       "the hall is still being hung. check back once we've persuaded everyone to sit still for a photograph.",
     kind: "paragraph",
   },
+  "volunteers.heading": {
+    label: "Heading above the volunteers",
+    default: "our volunteers",
+    hint: "Shown only when there are volunteers. The people themselves are edited under Admin → Volunteers.",
+  },
+  "volunteers.body": {
+    label: "Text above the volunteers",
+    default:
+      "the hands in the kitchen, at the door and at the sink — every evening happens because of them.",
+    kind: "paragraph",
+  },
 });

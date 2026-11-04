@@ -123,7 +123,11 @@ export function SectionDivider({
           {children}
         </Eyebrow>
       )}
-      <span aria-hidden className="bg-border h-px flex-1" />
+      {/* the drawn headings stand on their own; a rule beside them fights
+          the hand-drawn look */}
+      {handwritten ? null : (
+        <span aria-hidden className="bg-border h-px flex-1" />
+      )}
     </div>
   );
 }

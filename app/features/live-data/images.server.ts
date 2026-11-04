@@ -51,7 +51,7 @@ export function sourceImageUrl(
 export function imageFolders(
   tables: Pick<
     LiveDataTables,
-    "events" | "boardMembers" | "eventGalleryImages"
+    "events" | "boardMembers" | "volunteers" | "eventGalleryImages"
   >,
 ): Map<string, ImageFolder> {
   const folders = new Map<string, ImageFolder>();
@@ -62,6 +62,9 @@ export function imageFolders(
   for (const event of tables.events) claim(event.imageId, "events");
   for (const member of tables.boardMembers) {
     claim(member.imageId, "board-members");
+  }
+  for (const volunteer of tables.volunteers) {
+    claim(volunteer.imageId, "volunteers");
   }
   for (const link of tables.eventGalleryImages) {
     claim(link.imageId, "event-gallery");
@@ -87,6 +90,9 @@ export function withoutImages(
     ),
     boardMembers: tables.boardMembers.map((member) =>
       dropped(member.imageId) ? { ...member, imageId: null } : member,
+    ),
+    volunteers: tables.volunteers.map((volunteer) =>
+      dropped(volunteer.imageId) ? { ...volunteer, imageId: null } : volunteer,
     ),
     eventGalleryImages: tables.eventGalleryImages.filter(
       (link) => !imageIds.has(link.imageId),

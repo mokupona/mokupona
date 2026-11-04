@@ -36,6 +36,7 @@ import { RichText } from "~/features/site-text/rich-text";
 import { useText } from "~/features/site-text/site-text-context";
 import { getText } from "~/features/site-text/site-text.server";
 import type { Text } from "~/features/site-text/text";
+import { EventVolunteersSection } from "~/features/volunteers/event-volunteers-section";
 import { cn } from "~/lib/utils";
 import {
   createEventSignup,
@@ -44,6 +45,7 @@ import {
 } from "~/models/event-signup.server";
 import { getEventWithCurrentFormVersion } from "~/models/event.server";
 import { FormVersionChangedError } from "~/models/form-submission.server";
+import { listVolunteersForEvent } from "~/models/volunteer.server";
 import {
   getClientIPAddress,
   getDomainUrl,
@@ -61,11 +63,13 @@ export async function loader({ params }: Route.LoaderArgs) {
     await getEventWithCurrentFormVersion(eventId),
   );
 
-  // the gallery belongs to evenings that already happened; upcoming events
-  // pay nothing for it, and only they need the seat count
+  // the gallery and the volunteer credits belong to evenings that already
+  // happened; upcoming events pay nothing for them, and only they need the
+  // seat count
   const isPast = isPastEvent(event.date, new Date());
-  const [gallery, seats] = await Promise.all([
+  const [gallery, volunteers, seats] = await Promise.all([
     isPast ? loadEventGallerySection(event.id) : null,
+    isPast ? listVolunteersForEvent(event.id) : [],
     isPast ? null : getSeatCounts(event.id),
   ]);
 
@@ -76,6 +80,10 @@ export async function loader({ params }: Route.LoaderArgs) {
     // a snapshot for the page; the action decides again under a lock
     seatsLeft: seats ? seatsLeft(event.slots, seats.confirmed) : null,
     gallery,
+    volunteers: volunteers.map(({ role, ...volunteer }) => ({
+      ...volunteer,
+      subtitle: role,
+    })),
   };
 }
 
@@ -291,7 +299,8 @@ export default function EventPage({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { event, formFields, formVersionId, seatsLeft, gallery } = loaderData;
+  const { event, formFields, formVersionId, seatsLeft, gallery, volunteers } =
+    loaderData;
   const t = useText();
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
@@ -337,6 +346,8 @@ export default function EventPage({
       </div>
 
       {gallery ? <EventGallerySection {...gallery} /> : null}
+
+      {eventIsPast ? <EventVolunteersSection people={volunteers} /> : null}
     </PageContainer>
   );
 }

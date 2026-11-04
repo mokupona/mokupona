@@ -171,6 +171,7 @@ export default function AdminEventEditPage({
       cancelHref={`/admin/events/${event.id}`}
       lockFieldKeys={formHasSubmissions}
       answerCounts={answerCounts}
+      currentImage={event.image}
     />
   );
 }

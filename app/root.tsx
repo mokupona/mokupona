@@ -119,18 +119,24 @@ function Document({
 }) {
   useToast(toast);
 
-  const glyphBackdrop = useMatches().some(
-    (match) => (match.handle as RouteHandle | undefined)?.glyphBackdrop,
+  const handles = useMatches().map(
+    (match) => (match.handle ?? {}) as RouteHandle,
   );
+  // the deepest route that says anything wins
+  const glyphs =
+    [...handles].reverse().find((handle) => handle.glyphs)?.glyphs ?? "faint";
+  const hideHeaderAtTop = handles.some((handle) => handle.hideHeaderAtTop);
 
   return (
-    // The paper background lives here as well as on body. A route can ask for the glyph
-    // backdrop via `handle.glyphBackdrop`: it's a fixed layer rendered first,
-    // and nav, content and footer are `relative` so they paint over it — no
-    // negative z-index, which iOS Safari renders unreliably.
+    // The paper background lives here as well as on body. The glyph wallpaper
+    // is a fixed layer rendered first, and nav, content and footer are
+    // `relative` so they paint over it — no negative z-index, which iOS
+    // Safari renders unreliably.
     <div className="bg-background isolate flex min-h-full flex-col">
-      {glyphBackdrop ? <SitelenBackdrop /> : null}
-      <SiteNav hideAtTop={glyphBackdrop} />
+      {glyphs === "none" ? null : (
+        <SitelenBackdrop faint={glyphs === "faint"} />
+      )}
+      <SiteNav hideAtTop={hideHeaderAtTop} />
       <div className="relative flex grow flex-col">
         <Outlet />
       </div>
@@ -141,8 +147,13 @@ function Document({
 
 /** What a route module may put in its `handle` export for the root layout. */
 export type RouteHandle = {
-  /** paint the sitelen glyph wallpaper behind the page */
-  glyphBackdrop?: boolean;
+  /**
+   * The sitelen glyph wallpaper behind the page: "faint" (the default, for
+   * pages full of content), "full" (the landing page) or "none".
+   */
+  glyphs?: "full" | "faint" | "none";
+  /** start with no header and slide it in on scroll (see SiteNav) */
+  hideHeaderAtTop?: boolean;
 };
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

@@ -144,6 +144,8 @@ model Event {
   formId String @unique
 
   galleryImages EventGalleryImage[]
+
+  volunteers Volunteer[]
 }
 
 model Form {
@@ -244,6 +246,7 @@ model Image {
 
   event        Event?
   boardMember  BoardMember?
+  volunteer    Volunteer?
   galleryLinks EventGalleryImage[]
 }
 
@@ -278,6 +281,24 @@ model BoardMember {
 
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   imageId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The people who cook, host and wash up. Separate from the board: a volunteer
+// has no office, and can be credited on the evenings they helped with.
+model Volunteer {
+  id   String  @id @default(cuid())
+  name String
+  // a short tagline — "kitchen", "host", "dishes" — optional
+  role String?
+  bio  String?
+
+  image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  imageId String? @unique
+
+  events Event[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

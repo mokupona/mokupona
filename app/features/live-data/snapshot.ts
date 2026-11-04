@@ -165,6 +165,22 @@ const boardMemberRow = z.object({
   updatedAt: dateTime,
 });
 
+const volunteerRow = z.object({
+  id,
+  name: text,
+  role: nullableText,
+  bio: nullableText,
+  imageId: id.nullable(),
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
+
+/** One row of the implicit Event ↔ Volunteer join: who helped at what. */
+const eventVolunteerRow = z.object({
+  eventId: id,
+  volunteerId: id,
+});
+
 // an admin's wording from /admin/texts; texts nobody edited have no row
 const siteTextRow = z.object({
   key: z.string().min(1),
@@ -184,21 +200,37 @@ export const liveDataTablesSchema = z.object({
   eventResponses: z.array(eventResponseRow),
   eventGalleryImages: z.array(eventGalleryImageRow),
   boardMembers: z.array(boardMemberRow),
-  // added after format version 1 shipped: a live site on older code has no
-  // edited texts, so the copy target shows the defaults just as it does
+  // added after format version 1 shipped, so absent from exports made by a
+  // live site on older code: no volunteers, and no edited texts, which shows
+  // the defaults just as the live site does
+  volunteers: z.array(volunteerRow).default([]),
+  eventVolunteers: z.array(eventVolunteerRow).default([]),
   siteTexts: z.array(siteTextRow).default([]),
 });
 
 export type LiveDataTables = z.output<typeof liveDataTablesSchema>;
 export type LiveDataImageRow = LiveDataTables["images"][number];
 
-const countsSchema = z.object({
-  ...(Object.fromEntries(
-    LIVE_DATA_TABLES.map((table) => [table, int.nonnegative()]),
-  ) as Record<keyof LiveDataCounts, z.ZodNumber>),
-  // see siteTexts above: an older live site doesn't count them
-  siteTexts: int.nonnegative().default(0),
-});
+// tables a live site running older code does not send at all
+const LATER_TABLES = new Set<string>([
+  "volunteers",
+  "eventVolunteers",
+  "siteTexts",
+]);
+
+const countsSchema = z.object(
+  Object.fromEntries(
+    LIVE_DATA_TABLES.map((table) => [
+      table,
+      LATER_TABLES.has(table)
+        ? int.nonnegative().default(0)
+        : int.nonnegative(),
+    ]),
+  ) as unknown as Record<
+    keyof LiveDataCounts,
+    z.ZodType<number, number | undefined>
+  >,
+);
 
 const sourceSchema = z.object({
   /** Latest migration applied on the live site, null on an empty history. */

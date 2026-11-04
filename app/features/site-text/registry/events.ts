@@ -41,7 +41,7 @@ export const eventsTexts = defineTexts("events", {
   },
   "empty.instagram": {
     label: "No upcoming event: Instagram button",
-    default: "follow on instagram",
+    default: "follow us on instagram",
   },
 
   "card.nextBadge": {
@@ -106,6 +106,11 @@ export const eventsTexts = defineTexts("events", {
   "detail.back": { label: "Back link on an event", default: "all events" },
   "detail.menu": { label: "Menu section", default: "menu" },
   "detail.donation": { label: "Donation section", default: "donation" },
+  "detail.volunteers": {
+    label: "Heading above a past event's volunteers",
+    default: "made possible by",
+    hint: "Under a past event, when volunteers are credited for it.",
+  },
   "detail.metaTitle": {
     label: "Browser tab title of an event",
     default: "Event - {title}",

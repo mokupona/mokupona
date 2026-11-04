@@ -40,6 +40,12 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
             View Signups
           </Link>
           <Link
+            to="volunteers"
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            Volunteers
+          </Link>
+          <Link
             to="gallery"
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >

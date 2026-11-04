@@ -134,10 +134,11 @@ export function SiteNav({ hideAtTop = false }: { hideAtTop?: boolean }) {
         // until hydration places it, a hideAtTop header starts out of sight
         data-hidden={hideAtTop ? "" : undefined}
         className={cn(
-          "relative border-b",
+          // solid paper: the glyph wallpaper passes behind the header
+          "bg-background relative border-b",
           // --nav-offset is set from the scroll position by useScrollReveal
           hideAtTop &&
-            "bg-background fixed inset-x-0 top-0 z-40 [translate:0_var(--nav-offset,-100%)] focus-within:[translate:0_0] data-hidden:pointer-events-none data-hidden:focus-within:pointer-events-auto",
+            "fixed inset-x-0 top-0 z-40 [translate:0_var(--nav-offset,-100%)] focus-within:[translate:0_0] data-hidden:pointer-events-none data-hidden:focus-within:pointer-events-auto",
         )}
       >
         <div className="flex h-16 items-center justify-between px-10 max-md:hidden">

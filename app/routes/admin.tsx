@@ -15,6 +15,7 @@ import { countAddresses } from "~/models/address.server";
 import { countBoardMembers } from "~/models/board-member.server";
 import { countEvents } from "~/models/event.server";
 import { countUsers } from "~/models/user.server";
+import { countVolunteers } from "~/models/volunteer.server";
 
 export const middleware: Route.MiddlewareFunction[] = [
   requireResolvedUserRoleMiddleware(ADMIN_ROLE_NAMES),
@@ -24,14 +25,15 @@ export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
   const isAdmin = isAdminRole(user.role.name);
 
-  const [events, locations, board, users] = await Promise.all([
+  const [events, locations, board, volunteers, users] = await Promise.all([
     countEvents(),
     countAddresses(),
     countBoardMembers(),
+    countVolunteers(),
     isAdmin ? countUsers() : Promise.resolve(null),
   ]);
 
-  return { counts: { events, locations, board, users }, isAdmin };
+  return { counts: { events, locations, board, volunteers, users }, isAdmin };
 }
 
 export const meta: Route.MetaFunction = () => {

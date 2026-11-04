@@ -129,17 +129,19 @@ export default [
       "app/features/live-data/**",
       "app/features/site-text/**",
       // copy that only the admin area shows: role pickers, the auth
-      // switches, and the validation of event, location, board-member and
-      // signup-form-builder forms
+      // switches, the event cover editor, and the validation of event,
+      // location, board-member, volunteer and signup-form-builder forms
       "app/features/auth/auth-settings.ts",
       "app/features/auth/roles.ts",
       "app/features/board-members/schema.ts",
+      "app/features/events/components/cover-photo-field.tsx",
       "app/features/events/event-schema.ts",
       "app/features/forms/fields/index.ts",
       "app/features/forms/fields/select/model.ts",
       "app/features/signup-form/builder.ts",
       "app/features/signup-form/schema.ts",
       "app/features/users/invite.shared.ts",
+      "app/features/volunteers/schema.ts",
       "app/shared/image.ts",
       "app/utils/address-validation.ts",
       // the starting questions of a new event's signup form, which admins

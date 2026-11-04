@@ -192,6 +192,37 @@
   }
 }
 
+/* Torn-paper surface for the public CTAs, cut from the same paper as the
+ * sitelen glyphs: ::before is the light rim plus its offset shadow, ::after
+ * the paper texture clipped to a slightly smaller torn edge. The shapes are
+ * stretched to the box, but the texture tiles at its own size so it never
+ * distorts. Both layers take the art hue shift so they match the glyphs; the
+ * paper is darkened a touch so the white label holds contrast. */
+@utility paper-torn {
+  position: relative;
+  isolation: isolate;
+  color: white;
+  text-shadow: 0 1px 1px rgb(43 18 56 / 0.35);
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -3px -5px;
+    z-index: -1;
+    pointer-events: none;
+    filter: hue-rotate(var(--art-hue-shift));
+  }
+  &::before {
+    background: url("/paper/torn-rim.svg") 0 0 / 100% 100% no-repeat;
+  }
+  &::after {
+    background: url("/sitelen/paper-light.jpg") 0 0 / 96px;
+    mask: url("/paper/torn-mask.svg") 0 0 / 100% 100% no-repeat;
+    filter: hue-rotate(var(--art-hue-shift)) brightness(0.72);
+  }
+}
+
 @utility animate-page-in {
   animation: page-in 300ms ease-out;
 }

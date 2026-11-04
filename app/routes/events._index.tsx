@@ -115,7 +115,7 @@ function EmptyState() {
         target="_blank"
         rel="noopener noreferrer"
         className={cn(
-          buttonVariants({ variant: "outline", size: "lg" }),
+          buttonVariants({ variant: "paper", size: "lg" }),
           "mt-1 w-fit",
         )}
       >
