@@ -1,6 +1,7 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
 import { CircleCheckIcon, Link2OffIcon } from "lucide-react";
+import { useMemo } from "react";
 import { data, Form, Link, redirect } from "react-router";
 import { z } from "zod";
 
@@ -14,13 +15,18 @@ import { auth } from "~/features/auth/auth.server";
 import { parseRequestForm } from "~/features/auth/form-schemas";
 import { requestLoggerContext } from "~/features/auth/middleware.server";
 import { withPasswordConfirmation } from "~/features/auth/password-schema";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { cn } from "~/lib/utils";
 import { getPasswordResetEmail } from "~/models/password-reset.server";
 import { getClientIPAddress } from "~/shared/http.server";
 
-const schema = withPasswordConfirmation({
-  token: z.string(),
-});
+function resetSchema(t: Text) {
+  return withPasswordConfirmation({ token: z.string() }, t);
+}
 
 export const loader = async ({ request }: Route.LoaderArgs) => {
   const url = new URL(request.url);
@@ -40,7 +46,10 @@ export const loader = async ({ request }: Route.LoaderArgs) => {
 
 export const action = async ({ request, context }: Route.ActionArgs) => {
   const logger = context.get(requestLoggerContext);
-  const submission = await parseRequestForm(request, schema);
+  const submission = await parseRequestForm(
+    request,
+    resetSchema(await getText()),
+  );
 
   if (submission.status !== "success") {
     return data({ result: submission.reply() });
@@ -76,12 +85,16 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   return redirect("/reset-password?done");
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Reset password" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("auth.reset.metaTitle") },
+];
 
 export default function ResetPassword({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
+  const t = useText();
+  const schema = useMemo(() => resetSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: actionData?.result,
     shouldValidate: "onBlur",
@@ -96,14 +109,14 @@ export default function ResetPassword({
       <AuthStatus
         standalone
         icon={<CircleCheckIcon className="size-7" />}
-        heading="password updated"
-        body="your new password is saved and your email is confirmed. log in to pick up where you left off."
+        heading={t("auth.reset.doneHeading")}
+        body={t("auth.reset.doneBody")}
       >
         <Link
           to="/login"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          continue to log in
+          {t("auth.continueToLogin")}
         </Link>
       </AuthStatus>
     );
@@ -115,14 +128,14 @@ export default function ResetPassword({
         standalone
         tone="neutral"
         icon={<Link2OffIcon className="size-7" />}
-        heading="this reset link has expired"
-        body="request a fresh one and we'll email it right over."
+        heading={t("auth.reset.invalidHeading")}
+        body={t("auth.reset.invalidBody")}
       >
         <Link
           to="/forgot-password"
           className={cn(buttonVariants({ size: "lg" }), "w-full")}
         >
-          request a new link
+          {t("auth.reset.invalidCta")}
         </Link>
       </AuthStatus>
     );
@@ -131,21 +144,27 @@ export default function ResetPassword({
   return (
     <AuthShell
       brand={{
-        eyebrow: "reset",
-        heading: "pick something new",
-        body: "pick a new password with at least 8 characters and you're back in.",
+        eyebrow: t("auth.reset.eyebrow"),
+        heading: t("auth.reset.panelHeading"),
+        body: t("auth.reset.panelBody"),
       }}
     >
       <div className="mt-1 flex flex-col gap-2">
         <h1 className="text-3xl leading-tight font-light tracking-tight">
-          choose a new password
+          {t("auth.reset.title")}
         </h1>
         {loaderData.email ? (
-          <p className="text-foreground/65 text-sm">
-            resetting for{" "}
-            <strong className="text-foreground font-semibold">
-              {loaderData.email}
-            </strong>
+          <p className="text-muted-foreground text-sm">
+            <RichText
+              text={t("auth.reset.resettingFor")}
+              vars={{
+                email: (
+                  <strong className="text-foreground font-semibold">
+                    {loaderData.email}
+                  </strong>
+                ),
+              }}
+            />
           </p>
         ) : null}
       </div>
@@ -159,19 +178,21 @@ export default function ResetPassword({
 
         <div className="flex flex-col gap-1">
           <Field
-            labelProps={{ children: "new password" }}
+            labelProps={{ children: t("auth.field.newPassword") }}
             inputProps={{
               ...getInputProps(fields.password, { type: "password" }),
             }}
             errors={fields.password.errors}
           />
           {fields.password.errors?.length ? null : (
-            <p className="text-foreground/50 text-sm">at least 8 characters.</p>
+            <p className="text-muted-foreground text-sm">
+              {t("auth.reset.passwordHint")}
+            </p>
           )}
         </div>
 
         <Field
-          labelProps={{ children: "confirm new password" }}
+          labelProps={{ children: t("auth.field.confirmNewPassword") }}
           inputProps={{
             ...getInputProps(fields.confirmPassword, { type: "password" }),
           }}
@@ -179,7 +200,7 @@ export default function ResetPassword({
         />
 
         <Button type="submit" size="lg" className="w-full">
-          save new password
+          {t("auth.reset.submit")}
         </Button>
       </Form>
     </AuthShell>

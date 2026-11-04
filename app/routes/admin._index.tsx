@@ -84,7 +84,7 @@ export default function AdminOverviewPage({
         ) : (
           <Card className="p-6 text-center">
             <p className="text-lg font-semibold">No upcoming event</p>
-            <p className="text-foreground/50 mt-1 text-sm">
+            <p className="text-muted-foreground mt-1 text-sm">
               Create the next event to see it here.
             </p>
           </Card>
@@ -97,7 +97,7 @@ export default function AdminOverviewPage({
               <Link
                 to={`events/${nextEvent.id}/signups`}
                 prefetch="intent"
-                className="text-foreground/50 hover:text-foreground text-sm transition-colors"
+                className="text-muted-foreground hover:text-foreground text-sm transition-colors"
               >
                 View all
               </Link>
@@ -116,14 +116,14 @@ export default function AdminOverviewPage({
                     <p className="truncate text-sm font-semibold">
                       {signup.name}
                     </p>
-                    <p className="text-foreground/65 truncate text-sm">
+                    <p className="text-muted-foreground truncate text-sm">
                       {signup.email}
                     </p>
                   </div>
                   <time
                     dateTime={new Date(signup.createdAt).toISOString()}
                     suppressHydrationWarning
-                    className="text-foreground/50 text-xs whitespace-nowrap"
+                    className="text-muted-foreground text-xs whitespace-nowrap"
                   >
                     {formatAdminTimestamp(new Date(signup.createdAt))}
                   </time>
@@ -131,7 +131,9 @@ export default function AdminOverviewPage({
               ))}
             </div>
           ) : (
-            <p className="text-foreground/50 py-2 text-sm">No signups yet.</p>
+            <p className="text-muted-foreground py-2 text-sm">
+              No signups yet.
+            </p>
           )}
         </Card>
       </div>
@@ -159,7 +161,7 @@ function NextEventCard({ event }: { event: NextEvent }) {
             Next event
           </Eyebrow>
           <h2 className="mt-1 truncate text-lg font-semibold">{event.title}</h2>
-          <p className="text-foreground/65 mt-1 text-sm">
+          <p className="text-muted-foreground mt-1 text-sm">
             <time dateTime={date.toISOString()} suppressHydrationWarning>
               {formatAdminDateLine(date)}
             </time>
@@ -169,7 +171,7 @@ function NextEventCard({ event }: { event: NextEvent }) {
         </div>
         <div className="flex max-w-md items-center gap-3">
           <SeatProgress taken={event.seatsTaken} total={event.slots} />
-          <span className="text-foreground/50 text-sm whitespace-nowrap">
+          <span className="text-muted-foreground text-sm whitespace-nowrap">
             {event.seatsTaken} / {event.slots} seats
           </span>
         </div>

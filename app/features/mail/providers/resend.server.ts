@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 import type { MailMessage, MailProvider } from "../types";
 
-const DEFAULT_FROM = "moku pona <no-reply@mail.mokupona.ch>";
+const DEFAULT_FROM = "moku pona <noreply@mokupona.ch>";
 
 export function createResendProvider(
   env: NodeJS.ProcessEnv = process.env,
@@ -16,7 +16,10 @@ export function createResendProvider(
   const from = env.MAIL_FROM ?? DEFAULT_FROM;
 
   const send = async (message: MailMessage) => {
-    const { error } = await resend.emails.send({ from, ...message });
+    const { error } = await resend.emails.send({
+      ...message,
+      from: message.from ?? from,
+    });
     if (error) {
       throw new Error(`Resend rejected the message: ${error.message}`);
     }

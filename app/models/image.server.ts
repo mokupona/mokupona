@@ -45,6 +45,7 @@ export async function getImageById(id: string): Promise<Image | null> {
 export const IMAGE_REFERENCE_SITES = {
   event: { event: null },
   boardMember: { boardMember: null },
+  volunteer: { volunteer: null },
   galleryLinks: { galleryLinks: { none: {} } },
 } as const satisfies Record<string, Prisma.ImageWhereInput>;
 
@@ -54,11 +55,16 @@ export const UNREFERENCED_IMAGE_WHERE: Prisma.ImageWhereInput = {
   AND: Object.values(IMAGE_REFERENCE_SITES),
 };
 
-// Matches images no slot claims — not an event cover, not a board portrait.
+// Matches images no slot claims — not an event cover, not a board or
+// volunteer portrait.
 // Gallery membership does not count: the reuse pool and the seed treat
 // slot-owned images as off limits whether or not a gallery shows them.
 export const UNOWNED_IMAGE_WHERE: Prisma.ImageWhereInput = {
-  AND: [IMAGE_REFERENCE_SITES.event, IMAGE_REFERENCE_SITES.boardMember],
+  AND: [
+    IMAGE_REFERENCE_SITES.event,
+    IMAGE_REFERENCE_SITES.boardMember,
+    IMAGE_REFERENCE_SITES.volunteer,
+  ],
 };
 
 /**

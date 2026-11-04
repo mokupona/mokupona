@@ -1,5 +1,7 @@
 import globals from "globals";
 
+import siteText from "./eslint-rules/no-hardcoded-text.js";
+
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   {
@@ -108,5 +110,52 @@ export default [
         },
       ],
     },
+  },
+  {
+    // Everything a visitor can read comes from the site-text registry, so
+    // admins can edit it at /admin/texts (CLAUDE.md, "Public-facing text").
+    // The admin area and code that never reaches a visitor are left out.
+    files: ["app/**/*.{ts,tsx}"],
+    ignores: [
+      "**/*.test.{ts,tsx}",
+      "app/routes/admin*",
+      "app/routes/api.*",
+      "app/routes/file.*",
+      "app/routes/healthcheck.tsx",
+      "app/components/admin-*",
+      "app/components/section-nav.tsx",
+      "app/components/signup-form-builder.tsx",
+      "app/features/**/admin-*",
+      "app/features/live-data/**",
+      "app/features/site-text/**",
+      // copy that only the admin area shows: role pickers, the auth
+      // switches, the event cover editor, and the validation of event,
+      // location, board-member, volunteer and signup-form-builder forms
+      "app/features/auth/auth-settings.ts",
+      "app/features/auth/roles.ts",
+      "app/features/board-members/schema.ts",
+      "app/features/events/components/cover-photo-field.tsx",
+      "app/features/events/event-schema.ts",
+      "app/features/forms/fields/index.ts",
+      "app/features/forms/fields/select/model.ts",
+      "app/features/signup-form/builder.ts",
+      "app/features/signup-form/schema.ts",
+      "app/features/users/invite.shared.ts",
+      "app/features/volunteers/schema.ts",
+      "app/shared/image.ts",
+      "app/utils/address-validation.ts",
+      // the starting questions of a new event's signup form, which admins
+      // then word per event in the form builder
+      "app/features/signup-form/default-form.ts",
+      // the spam trap: hidden from people, its labels are bait for bots
+      "app/features/forms/honeypot-field.tsx",
+      // the pre-form-builder signup schema, kept only for a parity test
+      "app/utils/event-signup-validation.ts",
+      "app/logger/**",
+      "app/logger.server.ts",
+      "app/models/**",
+    ],
+    plugins: { "site-text": siteText },
+    rules: { "site-text/no-hardcoded-text": "error" },
   },
 ];

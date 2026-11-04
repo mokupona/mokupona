@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 
+import { readLatestMailTo } from "../support/mail";
 import {
   acceptPrivacyAndJoin,
   fillSignupContact,
@@ -43,6 +44,29 @@ describe("event signup", () => {
     acceptPrivacyAndJoin();
   });
 
+  it("emails the signer a summary of their signup", () => {
+    const suffix = `${Date.now()}`;
+    const email = `confirm-${suffix}@example.com`;
+    const signerName = `Cypress Signer ${suffix}`;
+    const friendName = `Cypress Friend ${suffix}`;
+
+    visitFirstEvent();
+    fillSignupContact({ name: signerName, email });
+    addFriend(friendName);
+    acceptPrivacyAndJoin();
+
+    readLatestMailTo(email).then((mail) => {
+      expect(mail.from).to.equal("moku pona <noreply@mokupona.ch>");
+      expect(mail.subject).to.match(
+        /^(Your seat for .+ is confirmed|You're on the waiting list for .+)$/,
+      );
+      expect(mail.text).to.include(`Guest 1: ${signerName} (you)`);
+      expect(mail.text).to.include(`Guest 2: ${friendName}`);
+      expect(mail.text).to.include(`Email: ${email}`);
+      expect(mail.text).to.match(/Total for 2 people: (\d+ CHF|free)/);
+    });
+  });
+
   it("shows a new signup in the admin table and CSV export", () => {
     const suffix = `${Date.now()}`;
     const signerName = `Cypress Signer ${suffix}`;
@@ -71,6 +95,7 @@ describe("event signup", () => {
           });
 
         cy.request(`/admin/events/${eventId}/signups.csv`).then((response) => {
+          expect(response.body).to.match(/^\uFEFF?"?Status"?,/);
           expect(response.body).to.include(signerName);
           expect(response.body).to.include(friendName);
         });

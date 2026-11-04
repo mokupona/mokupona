@@ -6,6 +6,7 @@ export interface AdminTabCounts {
   events: number;
   locations: number;
   board: number;
+  volunteers: number;
   users: number | null;
 }
 
@@ -14,6 +15,8 @@ const TABS = [
   { to: "/admin/events", label: "events", countKey: "events" },
   { to: "/admin/locations", label: "locations", countKey: "locations" },
   { to: "/admin/board-members", label: "board", countKey: "board" },
+  { to: "/admin/texts", label: "texts" },
+  { to: "/admin/volunteers", label: "volunteers", countKey: "volunteers" },
   { to: "/admin/users", label: "users", countKey: "users", adminOnly: true },
   { to: "/admin/settings", label: "settings", adminOnly: true },
   { to: "/admin/sync", label: "sync", adminOnly: true },
@@ -47,13 +50,13 @@ export function AdminTabs({
                 "-mb-px inline-flex items-center gap-2 border-b-2 py-4 text-base font-semibold transition-colors",
                 isActive
                   ? "border-primary text-foreground"
-                  : "text-foreground/65 hover:text-foreground border-transparent",
+                  : "text-muted-foreground hover:text-foreground border-transparent",
               )
             }
           >
             {tab.label}
             {count !== null ? (
-              <span className="text-foreground/50 bg-foreground/5 rounded-full px-2 py-px text-xs font-semibold">
+              <span className="text-muted-foreground bg-foreground/5 px-2 py-px text-xs font-semibold">
                 {count}
               </span>
             ) : null}

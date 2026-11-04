@@ -43,6 +43,7 @@ export const googleGate = createAuthMiddleware(async (ctx) => {
 
   throw new APIError("FORBIDDEN", {
     code: "GOOGLE_DISABLED",
+    // eslint-disable-next-line site-text/no-hardcoded-text -- API error body; visitors see auth.login.googleOffBody
     message: "Google sign-in is currently disabled",
   });
 });

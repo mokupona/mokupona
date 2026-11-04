@@ -3,33 +3,46 @@ import { Link } from "react-router";
 import { BrandLockup } from "./brand-lockup";
 import { Eyebrow } from "./section";
 
+import { useText } from "~/features/site-text/site-text-context";
+
 const linkClasses = "text-sm text-foreground/80 hover:text-foreground";
 
 export function Footer() {
+  const t = useText();
+
   return (
-    <footer className="border-t">
+    <footer className="relative border-t">
       <div className="flex items-start justify-between gap-8 px-10 py-11 max-md:hidden">
         <div className="flex flex-col gap-3">
           <BrandLockup logoClassName="size-5" />
-          <span className="text-foreground/50 text-xs">
-            made with love in zürich
+          <span className="text-muted-foreground text-xs">
+            {t("site.footer.tagline")}
           </span>
         </div>
         <div className="flex gap-14">
           <div className="flex flex-col gap-2">
             <Eyebrow variant="tracked" tone="label">
-              explore
+              {t("site.footer.explore")}
             </Eyebrow>
             <Link to="/events" className={linkClasses}>
-              events
+              {t("site.nav.events")}
+            </Link>
+            <Link to="/gallery" className={linkClasses}>
+              {t("site.nav.gallery")}
+            </Link>
+            <Link to="/about" className={linkClasses}>
+              {t("site.nav.about")}
             </Link>
             <Link to="/privacy" className={linkClasses}>
-              privacy policy
+              {t("site.footer.privacy")}
+            </Link>
+            <Link to="/impressum" className={linkClasses}>
+              {t("site.footer.impressum")}
             </Link>
           </div>
           <div className="flex flex-col gap-2">
             <Eyebrow variant="tracked" tone="label">
-              follow
+              {t("site.footer.follow")}
             </Eyebrow>
             <a
               href="https://instagram.com/mokupona"
@@ -37,7 +50,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className={linkClasses}
             >
-              instagram
+              {t("site.nav.instagram")}
             </a>
           </div>
         </div>
@@ -45,12 +58,21 @@ export function Footer() {
 
       <div className="flex flex-col gap-4 px-5 pt-7 pb-10 md:hidden">
         <BrandLockup logoClassName="size-4" wordmarkClassName="text-base" />
-        <div className="flex gap-5">
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
           <Link to="/events" className={linkClasses}>
-            events
+            {t("site.nav.events")}
+          </Link>
+          <Link to="/gallery" className={linkClasses}>
+            {t("site.nav.gallery")}
+          </Link>
+          <Link to="/about" className={linkClasses}>
+            {t("site.nav.about")}
           </Link>
           <Link to="/privacy" className={linkClasses}>
-            privacy policy
+            {t("site.footer.privacy")}
+          </Link>
+          <Link to="/impressum" className={linkClasses}>
+            {t("site.footer.impressum")}
           </Link>
           <a
             href="https://instagram.com/mokupona"
@@ -58,11 +80,11 @@ export function Footer() {
             rel="noopener noreferrer"
             className={linkClasses}
           >
-            instagram
+            {t("site.nav.instagram")}
           </a>
         </div>
-        <span className="text-foreground/50 text-xs">
-          made with love in zürich
+        <span className="text-muted-foreground text-xs">
+          {t("site.footer.tagline")}
         </span>
       </div>
     </footer>

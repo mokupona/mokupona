@@ -1,10 +1,35 @@
-import type { GalleryImageModel } from "./view-models";
+import type { GalleryAlbumModel, GalleryImageModel } from "./view-models";
 
 import {
+  getGalleryAlbums,
   getGalleryEntries,
   getGalleryEntriesForEvent,
+  type GalleryAlbum,
   type GalleryEntry,
 } from "~/models/gallery.server";
+
+function toGalleryAlbumModel(album: GalleryAlbum): GalleryAlbumModel {
+  // altText lives on the image row but is an album-level concern here, so it
+  // is lifted off the metadata rather than passed down to the <img>.
+  let cover: GalleryAlbumModel["cover"] = null;
+  let coverAlt = album.title;
+
+  if (album.cover) {
+    const { altText, ...image } = album.cover;
+    cover = image;
+    coverAlt = altText?.trim() || album.title;
+  }
+
+  return {
+    id: album.id,
+    title: album.title,
+    description: album.description,
+    date: album.date,
+    imageCount: album.imageCount,
+    cover,
+    coverAlt,
+  };
+}
 
 function toGalleryImageModel(entry: GalleryEntry): GalleryImageModel {
   return {
@@ -33,4 +58,13 @@ export async function listGalleryImagesForEvent(
   eventId: string,
 ): Promise<GalleryImageModel[]> {
   return (await getGalleryEntriesForEvent(eventId)).map(toGalleryImageModel);
+}
+
+/**
+ * The gallery index: one album per past dinner that has photos, newest first.
+ */
+export async function listGalleryAlbums(
+  now: Date = new Date(),
+): Promise<GalleryAlbumModel[]> {
+  return (await getGalleryAlbums(now)).map(toGalleryAlbumModel);
 }

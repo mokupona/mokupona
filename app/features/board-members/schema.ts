@@ -11,5 +11,7 @@ export const MemberSchema = z.object({
       error: "You must enter a position for the board member",
     })
     .trim(),
+  // optional, so an empty textarea clears the bio rather than failing
+  bio: z.string().trim().max(600).optional(),
   image: imageFileSchema().optional(),
 });

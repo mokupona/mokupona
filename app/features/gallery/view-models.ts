@@ -12,6 +12,19 @@ export interface GalleryEventRef {
   date: SerializableDate;
 }
 
+/** A dinner's gallery as the index lists it — no photos, just the way in. */
+export interface GalleryAlbumModel {
+  id: string;
+  title: string;
+  /** the dinner's own description, shown as the album's opening paragraph */
+  description: string;
+  date: SerializableDate;
+  imageCount: number;
+  cover: ImageMetadata | null;
+  /** never empty — falls back to the dinner title */
+  coverAlt: string;
+}
+
 export interface GalleryImageModel {
   /**
    * Entry identity — what the admin UI removes. Deliberately NOT the image

@@ -1,5 +1,6 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
+import { useMemo } from "react";
 import { data, Form, Link, redirect, useSearchParams } from "react-router";
 import { z } from "zod";
 
@@ -11,31 +12,41 @@ import { CheckboxField, ErrorList, Field } from "~/components/forms";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import {
-  GOOGLE_DISABLED_ERROR,
-  GOOGLE_DISABLED_MESSAGE,
-} from "~/features/auth/auth-settings";
+import { GOOGLE_DISABLED_ERROR } from "~/features/auth/auth-settings";
 import { auth } from "~/features/auth/auth.server";
 import { GoogleSignInButton } from "~/features/auth/components/google-button";
-import { emailSchema, parseRequestForm } from "~/features/auth/form-schemas";
+import {
+  createEmailSchema,
+  parseRequestForm,
+} from "~/features/auth/form-schemas";
 import {
   anonymousAuthPageLoader,
   requestLoggerContext,
 } from "~/features/auth/middleware.server";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { getClientIPAddress, safeRedirect } from "~/shared/http.server";
 
-const schema = z.object({
-  email: emailSchema,
-  password: z.string({ error: "Password is required" }),
-  redirectTo: z.string().optional(),
-  remember: z.boolean().optional().default(false),
-});
+function loginSchema(t: Text) {
+  return z.object({
+    email: createEmailSchema(t),
+    password: z.string({ error: t("auth.validation.passwordRequired") }),
+    redirectTo: z.string().optional(),
+    remember: z.boolean().optional().default(false),
+  });
+}
 
 export const loader = anonymousAuthPageLoader;
 
 export const action = async ({ request, context }: Route.ActionArgs) => {
   const logger = context.get(requestLoggerContext);
-  const submission = await parseRequestForm(request, schema);
+  const submission = await parseRequestForm(
+    request,
+    loginSchema(await getText()),
+  );
 
   if (submission.status !== "success") {
     return data({ result: submission.reply(), authError: null });
@@ -94,7 +105,9 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   }
 };
 
-export const meta: Route.MetaFunction = () => [{ title: "Login" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("auth.login.metaTitle") },
+];
 
 export default function LoginPage({
   loaderData,
@@ -103,6 +116,8 @@ export default function LoginPage({
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/events";
   const authError = actionData?.authError ?? null;
+  const t = useText();
+  const schema = useMemo(() => loginSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: actionData?.result,
     shouldValidate: "onBlur",
@@ -119,7 +134,7 @@ export default function LoginPage({
   return (
     <AuthShell mode="login" search={searchParams.toString()}>
       <h1 className="mt-1 text-3xl leading-tight font-light tracking-tight">
-        log in
+        {t("auth.login.title")}
       </h1>
 
       <Form
@@ -129,35 +144,39 @@ export default function LoginPage({
       >
         {credentialsRejected ? (
           <AuthNotice variant="destructive">
-            we couldn&apos;t sign you in. check your email and password, then
-            try again.
+            {t("auth.login.rejected")}
           </AuthNotice>
         ) : null}
         {googleRefused ? (
           <AuthNotice
             variant="destructive"
-            title="google sign-in is turned off"
+            title={t("auth.login.googleOffTitle")}
           >
-            {GOOGLE_DISABLED_MESSAGE}
+            {t("auth.login.googleOffBody")}
           </AuthNotice>
         ) : null}
         {authError?.kind === "unverified" ? (
-          <AuthNotice variant="accent" title="your email isn't verified yet">
+          <AuthNotice variant="accent" title={t("auth.login.unverifiedTitle")}>
             <p>
-              we just sent a fresh verification link to{" "}
-              <strong className="text-foreground font-semibold">
-                {authError.email}
-              </strong>
-              . open it, then come back and log in.
+              <RichText
+                text={t("auth.login.unverifiedBody")}
+                vars={{
+                  email: (
+                    <strong className="text-foreground font-semibold">
+                      {authError.email}
+                    </strong>
+                  ),
+                }}
+              />
             </p>
-            <p className="text-foreground/50 mt-1 text-xs">
-              didn&apos;t get it? give it a minute, then check your spam folder.
+            <p className="text-muted-foreground mt-1 text-xs">
+              {t("auth.login.unverifiedHint")}
             </p>
           </AuthNotice>
         ) : null}
 
         <Field
-          labelProps={{ children: "email address" }}
+          labelProps={{ children: t("auth.field.email") }}
           inputProps={{
             ...getInputProps(fields.email, { type: "email" }),
             "aria-invalid":
@@ -170,12 +189,14 @@ export default function LoginPage({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor={fields.password.id}>password</Label>
+            <Label htmlFor={fields.password.id}>
+              {t("auth.field.password")}
+            </Label>
             <Link
               to="/forgot-password"
               className="text-primary font-semibold hover:underline"
             >
-              forgot password?
+              {t("auth.login.forgot")}
             </Link>
           </div>
           <Input
@@ -196,35 +217,47 @@ export default function LoginPage({
 
         <CheckboxField
           buttonProps={{ id: "remember", name: "remember" }}
-          labelProps={{ children: "remember me" }}
+          labelProps={{ children: t("auth.login.remember") }}
         />
 
         <Button type="submit" size="lg" className="w-full">
-          log in
+          {t("auth.login.submit")}
         </Button>
 
         {loaderData.googleEnabled ? (
           <GoogleSignInButton callbackURL={redirectTo} />
         ) : null}
 
-        <p className="text-foreground/50 text-center text-xs">
-          by continuing you accept the{" "}
-          <Link to="/privacy" className="text-primary hover:underline">
-            privacy policy
-          </Link>
+        <p className="text-muted-foreground text-center text-xs">
+          <RichText
+            text={t("auth.login.privacy")}
+            tags={{
+              link: (children) => (
+                <Link to="/privacy" className="text-primary hover:underline">
+                  {children}
+                </Link>
+              ),
+            }}
+          />
         </p>
 
-        <p className="text-foreground/65 text-center text-sm">
-          don&apos;t have an account?{" "}
-          <Link
-            to={{
-              pathname: "/join",
-              search: searchParams.toString(),
+        <p className="text-muted-foreground text-center text-sm">
+          <RichText
+            text={t("auth.login.noAccount")}
+            tags={{
+              link: (children) => (
+                <Link
+                  to={{
+                    pathname: "/join",
+                    search: searchParams.toString(),
+                  }}
+                  className="text-primary font-semibold hover:underline"
+                >
+                  {children}
+                </Link>
+              ),
             }}
-            className="text-primary font-semibold hover:underline"
-          >
-            sign up
-          </Link>
+          />
         </p>
       </Form>
     </AuthShell>

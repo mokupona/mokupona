@@ -28,9 +28,40 @@ pages with signup, gallery, auth (better-auth) and an admin area.
 - `app/models`: server-side data access
 - `app/components`: shared UI; `app/components/ui` holds the primitives
 - `app/shared`: cross-cutting helpers (HTTP, root loader data, images)
+- `app/features/site-text`: every public-facing text, editable at
+  `/admin/texts` (see "Public-facing text" below)
 - `cypress/e2e`: end-to-end tests; unit tests sit next to the code as `*.test.ts(x)`
 - `docs/<topic>/`: design notes, plans and investigations. These are historical
   records, so don't rewrite them to match today's code.
+
+## Public-facing text
+
+Every word a visitor can read (pages, nav, footer, buttons, alt text and
+screen-reader labels, page titles, validation messages, toasts and emails)
+comes from the site-text registry, so admins can edit it at `/admin/texts`.
+Keep it that way with every change:
+
+- New copy goes into `app/features/site-text/registry/<category>.ts`: a key,
+  an admin-facing `label`, the `default`, and where needed `vars` for
+  `{placeholders}`, `tags` for `<link>…</link>` spans, `kind: "paragraph"` or
+  `"document"` for long text and a `hint` saying where it shows. The editor
+  picks it up from there; a new category also goes into
+  `SITE_TEXT_CATEGORIES`.
+- Read it with `const t = useText(); t("key", { vars })` in components,
+  `textFromMatches(matches)` in `meta`, and `await getText()` in loaders,
+  actions and mails. `<RichText>` renders texts whose placeholders or tags
+  stand for markup. Zod schemas with visitor-facing messages are built from
+  `t` (see `app/features/auth/form-schemas.ts`).
+- Keep keys literal (`t("signup.submit")`, not a key built from a variable):
+  a test fails on registry keys that no code uses, so remove an entry when
+  its last use goes.
+- Rewording a default in code leaves texts an admin already edited alone;
+  the editor flags those for review.
+- `npm run lint` fails on hardcoded text in public files
+  (`eslint-rules/no-hardcoded-text.js`). Admin-only modules are listed in the
+  rule's `ignores` in `eslint.config.js`; a string that really isn't copy
+  takes an `eslint-disable-next-line` comment with the reason.
+- The admin area's own wording is not part of the registry.
 
 ## Checks to run before pushing
 

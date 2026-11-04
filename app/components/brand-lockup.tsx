@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import { Logo } from "./logo";
 
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 
 export interface BrandLockupProps {
@@ -9,6 +10,12 @@ export interface BrandLockupProps {
   className?: string;
   logoClassName?: string;
   wordmarkClassName?: string;
+  /**
+   * The nav shows the drawn mark alone; the footer still spells the name out.
+   * When the wordmark is hidden the name stays in the accessibility tree, so
+   * the home link keeps a label instead of becoming an unnamed link.
+   */
+  showWordmark?: boolean;
 }
 
 export function BrandLockup({
@@ -16,11 +23,19 @@ export function BrandLockup({
   className,
   logoClassName,
   wordmarkClassName,
+  showWordmark = true,
 }: BrandLockupProps) {
+  const t = useText();
   const content = (
     <>
       <Logo className={cn("size-5", logoClassName)} />
-      <span className={cn("font-semibold", wordmarkClassName)}>moku pona</span>
+      {showWordmark ? (
+        <span className={cn("font-semibold", wordmarkClassName)}>
+          {t("site.brand.name")}
+        </span>
+      ) : (
+        <span className="sr-only">{t("site.brand.name")}</span>
+      )}
     </>
   );
 

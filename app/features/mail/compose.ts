@@ -1,9 +1,12 @@
 import type { MailMessage } from "./types";
 
+export type DetailRow = readonly [label: string, value: string];
+
 type Block =
   | { kind: "paragraph"; text: string }
   | { kind: "action"; label: string; url: string }
-  | { kind: "note"; text: string };
+  | { kind: "note"; text: string }
+  | { kind: "details"; title: string; rows: DetailRow[] };
 
 export function paragraph(text: string): Block {
   return { kind: "paragraph", text };
@@ -17,9 +20,23 @@ export function note(text: string): Block {
   return { kind: "note", text };
 }
 
+/** A titled list of label/value rows, e.g. one guest of a booking. */
+export function details(title: string, rows: DetailRow[]): Block {
+  return { kind: "details", title, rows };
+}
+
 export type MailBody = Omit<MailMessage, "to">;
 
-export function compose(subject: string, blocks: Block[]): MailBody {
+export interface ComposeOptions {
+  /** Shown under each button in html, above the bare link. */
+  linkFallback: string;
+}
+
+export function compose(
+  subject: string,
+  blocks: Block[],
+  options: ComposeOptions,
+): MailBody {
   for (const block of blocks) {
     if (block.kind === "action") assertWebUrl(block.url);
   }
@@ -27,23 +44,41 @@ export function compose(subject: string, blocks: Block[]): MailBody {
   return {
     subject,
     text: renderText(blocks),
-    html: renderHtml(subject, blocks),
+    html: renderHtml(subject, blocks, options),
   };
 }
 
 function renderText(blocks: Block[]): string {
-  const lines = blocks.map((block) =>
-    block.kind === "action" ? block.url : block.text,
-  );
+  const lines = blocks.map((block) => {
+    switch (block.kind) {
+      case "action":
+        return block.url;
+      case "details":
+        return [
+          block.title,
+          ...block.rows.map(([label, value]) => `${label}: ${value}`),
+        ].join("\n");
+      default:
+        return block.text;
+    }
+  });
   return lines.join("\n\n");
 }
 
 const NOTE_STYLE = "color: #666; font-size: 13px;";
+const DETAIL_CELL_STYLE = "padding: 2px 0; vertical-align: top;";
+const DETAIL_LABEL_STYLE = `${DETAIL_CELL_STYLE} padding-right: 16px; color: #666;`;
 
-function renderHtml(subject: string, blocks: Block[]): string {
+function renderHtml(
+  subject: string,
+  blocks: Block[],
+  options: ComposeOptions,
+): string {
   const preheader =
     blocks.find((block) => block.kind === "paragraph")?.text ?? subject;
-  const body = blocks.map(renderBlock).join("\n      ");
+  const body = blocks
+    .map((block) => renderBlock(block, options))
+    .join("\n      ");
 
   return `<!doctype html>
 <html lang="en">
@@ -61,18 +96,43 @@ function renderHtml(subject: string, blocks: Block[]): string {
 </html>`;
 }
 
-function renderBlock(block: Block): string {
+function renderBlock(block: Block, { linkFallback }: ComposeOptions): string {
   switch (block.kind) {
     case "paragraph":
-      return `<p>${escapeHtml(block.text)}</p>`;
+      return `<p>${escapeMultiline(block.text)}</p>`;
     case "note":
-      return `<p style="${NOTE_STYLE}">${escapeHtml(block.text)}</p>`;
+      return `<p style="${NOTE_STYLE}">${escapeMultiline(block.text)}</p>`;
+    case "details":
+      return renderDetails(block.title, block.rows);
     case "action":
       return [
         `<p><a href="${escapeHtml(block.url)}">${escapeHtml(block.label)}</a></p>`,
-        `<p style="${NOTE_STYLE}">If the link doesn't work, copy and paste this address into your browser:<br>${escapeHtml(block.url)}</p>`,
+        `<p style="${NOTE_STYLE}">${escapeHtml(linkFallback)}<br>${escapeHtml(block.url)}</p>`,
       ].join("\n      ");
   }
+}
+
+function renderDetails(title: string, rows: DetailRow[]): string {
+  const heading = `<p style="margin-bottom: 4px;"><strong>${escapeHtml(title)}</strong></p>`;
+  if (rows.length === 0) return heading;
+
+  const body = rows
+    .map(
+      ([label, value]) =>
+        `<tr><td style="${DETAIL_LABEL_STYLE}">${escapeHtml(label)}</td><td style="${DETAIL_CELL_STYLE}">${escapeMultiline(value)}</td></tr>`,
+    )
+    .join("");
+
+  return [
+    heading,
+    `<table role="presentation" style="border-collapse: collapse; margin: 0 0 16px;">${body}</table>`,
+  ].join("\n      ");
+}
+
+// line breaks typed into a message survive in html, where they'd otherwise
+// collapse into spaces
+function escapeMultiline(value: string): string {
+  return escapeHtml(value).replace(/\r?\n/g, "<br>");
 }
 
 function escapeHtml(value: string): string {

@@ -25,7 +25,7 @@ export function AdminPageHeader({
         </Eyebrow>
         <h1 className={pageTitleClassName}>{title}</h1>
         {subtitle ? (
-          <p className="text-foreground/65 mt-2 text-base">{subtitle}</p>
+          <p className="text-muted-foreground mt-2 text-base">{subtitle}</p>
         ) : null}
       </div>
       {actions ? (
@@ -51,13 +51,13 @@ export function AdminSearchField({
         "flex items-center gap-2 max-md:w-full md:w-72",
       )}
     >
-      <SearchIcon className="text-foreground/50 size-4 shrink-0" />
+      <SearchIcon className="text-muted-foreground size-4 shrink-0" />
       <input
         type="search"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="placeholder:text-foreground/50 min-w-0 flex-1 bg-transparent text-sm outline-none"
+        className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
       />
     </div>
   );
@@ -97,10 +97,10 @@ export function SeatProgress({
     total > 0 ? Math.min(100, Math.round((taken / total) * 100)) : 0;
 
   return (
-    <div className="bg-foreground/10 h-2 flex-1 overflow-hidden rounded-full">
+    <div className="bg-foreground/10 h-2 flex-1 overflow-hidden">
       <div
         className={cn(
-          "h-full rounded-full transition-[width] duration-500",
+          "h-full transition-[width] duration-500",
           muted ? "bg-foreground/40" : "bg-primary",
         )}
         style={{ width: `${percent}%` }}
@@ -134,7 +134,7 @@ export function InitialsAvatar({
     <span
       aria-hidden
       className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+        "flex size-10 shrink-0 items-center justify-center text-sm font-semibold",
         AVATAR_TINTS[seed % AVATAR_TINTS.length],
         className,
       )}
@@ -157,11 +157,11 @@ export function AdminEmptyState({
 }) {
   return (
     <Card className="flex flex-col items-center gap-3 border-dashed px-6 py-14 text-center">
-      <div className="bg-primary/10 text-primary mb-1 flex size-14 items-center justify-center rounded-full">
+      <div className="bg-primary/10 text-primary mb-1 flex size-14 items-center justify-center">
         {icon}
       </div>
       <p className="text-lg font-semibold">{title}</p>
-      <p className="text-foreground/50 max-w-xs text-sm">{description}</p>
+      <p className="text-muted-foreground max-w-xs text-sm">{description}</p>
       {action ? <div className="mt-1">{action}</div> : null}
     </Card>
   );

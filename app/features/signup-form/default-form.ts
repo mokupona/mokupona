@@ -1,3 +1,5 @@
+import { FRIEND_EMAIL_FIELD } from "./booking-summary";
+
 import type { FieldDescriptor } from "~/features/forms/fields";
 
 export const DEFAULT_FORM: Array<FieldDescriptor> = [
@@ -72,6 +74,17 @@ export const DEFAULT_FORM: Array<FieldDescriptor> = [
             name: "restrictions",
             label: "Dietary restrictions",
             required: false,
+          },
+        },
+        {
+          type: "email",
+          version: 1,
+          data: {
+            name: FRIEND_EMAIL_FIELD,
+            label: "Their email",
+            required: false,
+            description:
+              "Optional. If you add it, they get an email that you signed them up.",
           },
         },
       ],

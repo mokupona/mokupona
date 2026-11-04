@@ -4,7 +4,6 @@
 // human alike.
 export const HONEYPOT_FIELD_NAME = "contact_ref";
 export const HONEYPOT_VALID_FROM_FIELD_NAME = "contact_ref_from";
-export const HONEYPOT_RETRY_MESSAGE =
-  "Something went wrong. Please try submitting the form again.";
+// the "please send it again" message is the site text site.forms.retry
 
 export type HoneypotInputProps = { validFrom: string };

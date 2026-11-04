@@ -73,7 +73,7 @@ export default function AdminSettingsPage({
 
       <Card className="p-4 md:p-5">
         <h2 className="text-base font-semibold">Self-service</h2>
-        <p className="text-foreground/50 mt-1 text-sm">
+        <p className="text-muted-foreground mt-1 text-sm">
           These switches reset to enabled whenever the server restarts.
         </p>
 
@@ -111,7 +111,7 @@ function AuthToggleRow({
             {enabled ? "open" : "closed"}
           </Badge>
         </div>
-        <p className="text-foreground/65 mt-1 text-sm">
+        <p className="text-muted-foreground mt-1 text-sm">
           {AUTH_TOGGLE_COPY[toggle].description}
         </p>
       </div>

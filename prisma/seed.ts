@@ -37,6 +37,10 @@ async function seed() {
 
   await prisma.eventResponse.deleteMany().catch(() => {});
 
+  // the public hall of fame reads these, so they reseed like everything else
+  await prisma.boardMember.deleteMany().catch(() => {});
+  await prisma.volunteer.deleteMany().catch(() => {});
+
   // Gallery links cascade with their event, but pool images belong to
   // nothing and would survive every reseed.
   await prisma.eventGalleryImage.deleteMany().catch(() => {
@@ -130,6 +134,15 @@ async function seed() {
   // The gallery only shows on events that already happened, so it needs one.
   const pastEvent = await seedEvent(faker.date.recent({ days: 45 }));
 
+  // A back catalogue, so the past-dinners grid is developed against a realistic
+  // number of rows rather than the single dinner the gallery needs. Spread over
+  // past months so the newest-first ordering is visible.
+  for (const monthsAgo of [3, 5, 8, 11, 14, 18, 23]) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - monthsAgo);
+    await seedEvent(date);
+  }
+
   const galleryVariants = [
     { width: 1200, height: 800 },
     { width: 800, height: 1200 },
@@ -188,6 +201,113 @@ async function seed() {
     pastEvent.id,
     await storeGalleryImages(7, "hands and glasses, frame"),
   );
+
+  // Volunteers for the public hall of fame. Portraits are flat SVG squares —
+  // enough to exercise the grid without shipping photographs of real people.
+  const portraitSvg = (initials: string, hue: number) =>
+    [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">`,
+      `<rect width="640" height="640" fill="hsl(${hue} 35% 78%)"/>`,
+      `<circle cx="320" cy="250" r="110" fill="hsl(${hue} 30% 88%)"/>`,
+      `<rect x="140" y="400" width="360" height="300" rx="180" fill="hsl(${hue} 30% 88%)"/>`,
+      `<text x="50%" y="52%" fill="hsl(${hue} 40% 30%)" font-family="sans-serif" font-size="120" text-anchor="middle" dominant-baseline="central">${initials}</text>`,
+      `</svg>`,
+    ].join("");
+
+  const volunteers = [
+    { name: "Aina Bergström", position: "head chef" },
+    { name: "Tomás Oliveira", position: "sous chef" },
+    { name: "Mira Haddad", position: "front of house" },
+    { name: "Jonas Frei", position: "wine & drinks" },
+    { name: "Lena Vogt", position: "photography" },
+    { name: "Ravi Chandran", position: "treasurer" },
+  ];
+
+  // sequential, not Promise.all: the hall of fame orders by createdAt, and
+  // parallel writes would land in the same millisecond in arbitrary order
+  for (const [index, volunteer] of volunteers.entries()) {
+    const initials = volunteer.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("");
+    const svg = portraitSvg(initials, (index * 61) % 360);
+
+    await prisma.boardMember.create({
+      data: {
+        name: volunteer.name,
+        position: volunteer.position,
+        image: {
+          create: {
+            contentType: "image/svg+xml",
+            ...(await storeImage(
+              new File([svg], `board-member-${index + 1}.svg`, {
+                type: "image/svg+xml",
+              }),
+              "board-members",
+            )),
+            width: 640,
+            height: 640,
+            altText: volunteer.name,
+          },
+        },
+      },
+    });
+  }
+
+  // Volunteers: some with portraits, some without, so both the photo and the
+  // initials placeholder get exercised. The first few are credited on the
+  // most recent past event so its page shows the thank-you section.
+  const volunteerSeeds = [
+    { name: "Noa Keller", role: "kitchen", portrait: true },
+    { name: "Elif Demir", role: "host", portrait: true },
+    { name: "Sam Brunner", role: "dishes", portrait: false },
+    { name: "Yuki Tanaka", role: "desserts", portrait: true },
+    { name: "Marco Rossi", role: "kitchen", portrait: false },
+    { name: "Ines Moreau", role: null, portrait: false },
+  ];
+
+  const volunteerIds: string[] = [];
+  for (const [index, volunteer] of volunteerSeeds.entries()) {
+    const initials = volunteer.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("");
+
+    const created = await prisma.volunteer.create({
+      data: {
+        name: volunteer.name,
+        role: volunteer.role,
+        ...(volunteer.portrait && {
+          image: {
+            create: {
+              contentType: "image/svg+xml",
+              ...(await storeImage(
+                new File(
+                  [portraitSvg(initials, (index * 47 + 20) % 360)],
+                  `volunteer-${index + 1}.svg`,
+                  { type: "image/svg+xml" },
+                ),
+                "volunteers",
+              )),
+              width: 640,
+              height: 640,
+              altText: volunteer.name,
+            },
+          },
+        }),
+      },
+    });
+    volunteerIds.push(created.id);
+  }
+
+  await prisma.event.update({
+    where: { id: pastEvent.id },
+    data: {
+      volunteers: {
+        connect: volunteerIds.slice(0, 4).map((id) => ({ id })),
+      },
+    },
+  });
 
   console.log(`Database has been seeded. 🌱`);
 }

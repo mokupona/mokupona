@@ -161,6 +161,7 @@ describe("getAttendeeRosterForEvent columns", () => {
       { name: "vegetarian", label: "Vegan / Vegetarian" },
       { name: "student", label: "Student" },
       { name: "restrictions", label: "Dietary restrictions" },
+      { name: "friend_email", label: "Their email" },
       { name: "comment", label: "Comment" },
     ]);
   });
@@ -217,6 +218,7 @@ describe("getAttendeeRosterForEvent columns", () => {
       "vegetarian",
       "student",
       "restrictions",
+      "friend_email",
       "comment",
     ]);
     expect(columns.find((c) => c.name === "restrictions")?.label).toBe(

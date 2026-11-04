@@ -2,7 +2,7 @@ import { ChevronDownIcon } from "lucide-react";
 import React, { useId } from "react";
 
 import { Checkbox } from "./ui/checkbox";
-import { fieldShellClassName, Input } from "./ui/input";
+import { fieldShellClassName, Input, type InputProps } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 
@@ -59,7 +59,7 @@ export function FieldDescription({
     <p
       id={id}
       className={cn(
-        "text-foreground/65 text-sm whitespace-pre-line",
+        "text-muted-foreground text-sm whitespace-pre-line",
         className,
       )}
     >
@@ -95,7 +95,7 @@ export function Field({
   errors,
   className,
 }: FieldProps & {
-  inputProps: React.InputHTMLAttributes<HTMLInputElement>;
+  inputProps: InputProps;
 }) {
   const { id, errorId, descriptionId, describedBy } = useFieldIds(
     inputProps.id,
@@ -199,7 +199,7 @@ export function SelectField({
         </select>
         <ChevronDownIcon
           aria-hidden
-          className="text-foreground/50 pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
+          className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2"
         />
       </div>
       {errorId ? <ErrorList id={errorId} errors={errors} /> : null}

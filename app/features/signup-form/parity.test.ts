@@ -5,6 +5,7 @@ import { z } from "zod";
 import { buildSignupSchema } from "./build-schema";
 import { DEFAULT_FORM } from "./default-form";
 
+import { defaultText } from "~/features/site-text/text";
 import {
   PersonSchema,
   SignupPersonSchema,
@@ -32,7 +33,7 @@ const legacySchema = z
     },
   );
 
-const signupSchema = buildSignupSchema(DEFAULT_FORM);
+const signupSchema = buildSignupSchema(DEFAULT_FORM, defaultText);
 
 interface Person {
   name?: string;

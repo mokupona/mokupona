@@ -1,14 +1,26 @@
 import { isRouteErrorResponse } from "react-router";
 
+import { useText } from "~/features/site-text/site-text-context";
+
 export function RouteErrorContent({ error }: { error: unknown }) {
-  let heading = "Unknown Error";
+  const t = useText();
+  let heading = t("site.error.unknownHeading");
   let message: string | null = null;
 
-  if (isRouteErrorResponse(error)) {
-    heading = `${error.status} ${error.statusText}`;
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    heading = t("site.error.notFoundHeading");
+    message = t("site.error.notFoundMessage") || null;
+  } else if (isRouteErrorResponse(error) && error.status === 403) {
+    heading = t("site.error.forbiddenHeading");
+    message = t("site.error.forbiddenMessage") || null;
+  } else if (isRouteErrorResponse(error)) {
+    heading = t("site.error.statusHeading", {
+      status: error.status,
+      statusText: error.statusText,
+    });
     message = error.data;
   } else if (error instanceof Error) {
-    heading = "Error";
+    heading = t("site.error.heading");
     message = error.message;
   }
 

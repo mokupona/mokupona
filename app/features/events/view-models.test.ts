@@ -11,7 +11,12 @@ const event = {
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
   price: 30,
+  studentPrice: 20,
   discounts: "Student discount",
+  confirmedMailSubject: null,
+  confirmedMailMessage: null,
+  waitlistMailSubject: null,
+  waitlistMailMessage: null,
   image: {
     id: "image-id",
     storageKey: "abc123",
@@ -24,6 +29,7 @@ const event = {
   addressId: "address-id",
   createdById: "user-id",
   formId: "form-id",
+  galleryImageCount: 4,
   address: {
     id: "address-id",
     streetName: "Example Street",
@@ -47,13 +53,19 @@ describe("event view-model mapping", () => {
       price: event.price,
       slots: event.slots,
       addressLine: "8003 zürich",
+      galleryImageCount: 4,
     });
+
+    // the gallery count is a card-only concern — the detail view never shows it
+    const { galleryImageCount, ...sharedSummary } = card;
     expect(detail).toMatchObject({
-      ...card,
+      ...sharedSummary,
       addressLine: "8003 Zürich",
       menuDescription: event.menuDescription,
       donationDescription: event.donationDescription,
       discounts: event.discounts,
+      studentPrice: event.studentPrice,
     });
+    expect(detail).not.toHaveProperty("galleryImageCount");
   });
 });

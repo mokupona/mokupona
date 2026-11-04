@@ -11,6 +11,7 @@ import {
 } from "~/components/ui/carousel";
 import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { formatEventMonthYear } from "~/features/events/date-format";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import { getImageUrl, RESPONSIVE_IMAGE_WIDTHS } from "~/shared/image";
 import { useImageConfig } from "~/shared/root-data";
@@ -57,7 +58,7 @@ function GallerySlide({ image }: { image: GalleryImageModel }) {
             width={SLIDE_WIDTH}
             height={slideHeight}
             alt={image.alt}
-            className="h-auto max-h-full w-auto max-w-full rounded-2xl object-contain"
+            className="h-auto max-h-full w-auto max-w-full object-contain"
           />
         ) : null}
       </div>
@@ -69,7 +70,7 @@ function GallerySlide({ image }: { image: GalleryImageModel }) {
           {event && date ? (
             <Link
               to={`/events/${event.id}`}
-              className="text-foreground/50 hover:text-foreground focus-visible:ring-ring w-fit transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring w-fit transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
             >
               {event.title} ·{" "}
               <time dateTime={date.toISOString()} suppressHydrationWarning>
@@ -94,10 +95,14 @@ export function GalleryLightbox({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useText();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl overflow-y-auto">
-        <DialogTitle className="sr-only">gallery</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t("gallery.lightbox.title")}
+        </DialogTitle>
         <Carousel opts={{ startIndex, loop: true }}>
           <CarouselContent>
             {images.map((image) => (

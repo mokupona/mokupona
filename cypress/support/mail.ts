@@ -2,6 +2,7 @@ import { latestMailPath } from "~/features/mail/capture.shared";
 
 interface CapturedMail {
   to: string;
+  from?: string;
   subject: string;
   text: string;
   html?: string;

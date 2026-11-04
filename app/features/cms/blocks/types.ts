@@ -1,4 +1,4 @@
-export type BlockType = "hero" | "text-section" | "image";
+export type BlockType = "hero" | "text-section" | "image" | "title-card";
 export type BlockVersion = number;
 
 export type BlockBaseType<T extends BlockType, V extends BlockVersion, D> = {

@@ -39,6 +39,17 @@ export interface GalleryEntryWithReuse extends GalleryEntry {
   sharedWith: GalleryEventLabel[];
 }
 
+/** One dinner's gallery as the index lists it — cover, count, no photos. */
+export interface GalleryAlbum {
+  id: string;
+  title: string;
+  /** the dinner's own description, used as the album's opening paragraph */
+  description: string;
+  date: Date;
+  imageCount: number;
+  cover: (ImageMetadata & { altText: string | null }) | null;
+}
+
 /** Image scalars plus the metadata the entry itself does not carry. */
 export type GalleryImageCreateData = ImageCreateData & {
   altText?: string | null;
@@ -141,6 +152,50 @@ export async function getGalleryEntries(now: Date): Promise<GalleryEntry[]> {
   });
 
   return entries.map(toGalleryEntry);
+}
+
+/**
+ * The dinners the gallery index lists: past ones that actually hold photos,
+ * newest first. A dinner with an empty gallery is omitted rather than shown
+ * as an empty room.
+ */
+export async function getGalleryAlbums(now: Date): Promise<GalleryAlbum[]> {
+  const events = await prisma.event.findMany({
+    where: {
+      date: { lt: now },
+      galleryImages: { some: {} },
+    },
+    orderBy: { date: "desc" },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      date: true,
+      _count: { select: { galleryImages: true } },
+      // the first photo in display order stands in as the album cover, so the
+      // index reflects what the admin actually ordered
+      galleryImages: {
+        orderBy: { position: "asc" },
+        take: 1,
+        select: {
+          image: { select: { ...IMAGE_METADATA_SELECT, altText: true } },
+        },
+      },
+    },
+  });
+
+  return events.map((event) => {
+    const cover = event.galleryImages.at(0)?.image ?? null;
+
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      imageCount: event._count.galleryImages,
+      cover: cover ? { ...cover, altText: cover.altText } : null,
+    };
+  });
 }
 
 /** One event's memberships in display order — the public page's read. */

@@ -238,7 +238,7 @@ export default function AdminEventGalleryPage({
         <section className="flex flex-col gap-4">
           <div>
             <h2 className="text-xl font-semibold">Add photos</h2>
-            <p className="text-foreground/65 mt-1 text-sm">
+            <p className="text-muted-foreground mt-1 text-sm">
               Uploads land in this event&apos;s gallery, in the order you choose
               them.
             </p>
@@ -288,7 +288,7 @@ export default function AdminEventGalleryPage({
         <section className="flex flex-col gap-4">
           <h2 className="text-xl font-semibold">
             In this gallery{" "}
-            <span className="text-foreground/50 font-normal">
+            <span className="text-muted-foreground font-normal">
               ({entries.length})
             </span>
           </h2>
@@ -313,7 +313,9 @@ export default function AdminEventGalleryPage({
                     <div className="flex items-center gap-3 p-4">
                       <p className="min-w-0 flex-1 truncate text-sm">
                         {entry.caption ?? (
-                          <span className="text-foreground/50">No caption</span>
+                          <span className="text-muted-foreground">
+                            No caption
+                          </span>
                         )}
                       </p>
 

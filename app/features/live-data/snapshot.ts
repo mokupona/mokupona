@@ -2,6 +2,12 @@ import { z } from "zod";
 
 import { LIVE_DATA_TABLES, type LiveDataCounts } from "./tables";
 
+import {
+  normalizeSignupEmail,
+  partySize,
+  toSignupStatus,
+} from "~/features/signup-form/signup-status";
+
 /**
  * Wire format of a live-data copy. The live site serialises its content
  * tables to this shape; the copy target validates against it before touching
@@ -54,12 +60,49 @@ const formVersionRow = z.object({
   updatedAt: dateTime,
 });
 
-const formSubmissionRow = z.object({
-  id,
-  formVersionId: id,
-  answers: jsonDocument,
-  createdAt: dateTime,
-});
+const formSubmissionRow = z
+  .object({
+    id,
+    formVersionId: id,
+    answers: jsonDocument,
+    // added after format version 1 shipped: a live site on older code leaves
+    // them out. Its signups were all accepted, and seats and email can be
+    // read off the answers the same way the migration backfilled them.
+    status: z.string().optional(),
+    seats: int.positive().optional(),
+    email: z.string().optional(),
+    // the admin's payment ticks and note; a live site on older code has none
+    firstHalfPaid: z.boolean().optional(),
+    secondHalfPaid: z.boolean().optional(),
+    adminNote: z.string().optional(),
+    createdAt: dateTime,
+  })
+  .transform(
+    ({
+      status,
+      seats,
+      email,
+      firstHalfPaid,
+      secondHalfPaid,
+      adminNote,
+      ...row
+    }) => {
+      const answers = Array.isArray(row.answers) ? {} : row.answers;
+      return {
+        ...row,
+        status: toSignupStatus(status),
+        seats: seats ?? partySize(answers),
+        email:
+          email ??
+          normalizeSignupEmail(
+            typeof answers.email === "string" ? answers.email : "",
+          ),
+        firstHalfPaid: firstHalfPaid ?? false,
+        secondHalfPaid: secondHalfPaid ?? false,
+        adminNote: adminNote ?? "",
+      };
+    },
+  );
 
 const eventRow = z.object({
   id,
@@ -70,7 +113,14 @@ const eventRow = z.object({
   date: dateTime,
   slots: int,
   price: int,
+  // added after format version 1 shipped: a live site on older code leaves
+  // them out, which reads as "not set"
+  studentPrice: int.nullable().default(null),
   discounts: nullableText,
+  confirmedMailSubject: nullableText.default(null),
+  confirmedMailMessage: nullableText.default(null),
+  waitlistMailSubject: nullableText.default(null),
+  waitlistMailMessage: nullableText.default(null),
   imageId: id.nullable(),
   addressId: id,
   formId: id,
@@ -107,7 +157,35 @@ const boardMemberRow = z.object({
   id,
   name: text,
   position: text,
+  // added after format version 1 shipped: a live site on older code leaves
+  // it out, which reads as "no bio"
+  bio: nullableText.default(null),
   imageId: id.nullable(),
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
+
+const volunteerRow = z.object({
+  id,
+  name: text,
+  role: nullableText,
+  bio: nullableText,
+  imageId: id.nullable(),
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
+
+/** One row of the implicit Event ↔ Volunteer join: who helped at what. */
+const eventVolunteerRow = z.object({
+  eventId: id,
+  volunteerId: id,
+});
+
+// an admin's wording from /admin/texts; texts nobody edited have no row
+const siteTextRow = z.object({
+  key: z.string().min(1),
+  value: text,
+  defaultAtEdit: text,
   createdAt: dateTime,
   updatedAt: dateTime,
 });
@@ -122,15 +200,36 @@ export const liveDataTablesSchema = z.object({
   eventResponses: z.array(eventResponseRow),
   eventGalleryImages: z.array(eventGalleryImageRow),
   boardMembers: z.array(boardMemberRow),
+  // added after format version 1 shipped, so absent from exports made by a
+  // live site on older code: no volunteers, and no edited texts, which shows
+  // the defaults just as the live site does
+  volunteers: z.array(volunteerRow).default([]),
+  eventVolunteers: z.array(eventVolunteerRow).default([]),
+  siteTexts: z.array(siteTextRow).default([]),
 });
 
 export type LiveDataTables = z.output<typeof liveDataTablesSchema>;
 export type LiveDataImageRow = LiveDataTables["images"][number];
 
+// tables a live site running older code does not send at all
+const LATER_TABLES = new Set<string>([
+  "volunteers",
+  "eventVolunteers",
+  "siteTexts",
+]);
+
 const countsSchema = z.object(
   Object.fromEntries(
-    LIVE_DATA_TABLES.map((table) => [table, int.nonnegative()]),
-  ) as Record<keyof LiveDataCounts, z.ZodNumber>,
+    LIVE_DATA_TABLES.map((table) => [
+      table,
+      LATER_TABLES.has(table)
+        ? int.nonnegative().default(0)
+        : int.nonnegative(),
+    ]),
+  ) as unknown as Record<
+    keyof LiveDataCounts,
+    z.ZodType<number, number | undefined>
+  >,
 );
 
 const sourceSchema = z.object({

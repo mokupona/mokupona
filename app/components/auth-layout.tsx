@@ -8,17 +8,13 @@ import {
   segmentVariants,
 } from "./section";
 
+import { useText } from "~/features/site-text/site-text-context";
+
 interface AuthShellBrandCopy {
   eyebrow: string;
   heading: ReactNode;
   body?: ReactNode;
 }
-
-const DEFAULT_BRAND: AuthShellBrandCopy = {
-  eyebrow: "members",
-  heading: "welcome back to the table",
-  body: "sign in to manage your reservations, or create an account to start joining our events.",
-};
 
 interface AuthShellProps {
   mode?: "login" | "join";
@@ -30,12 +26,19 @@ interface AuthShellProps {
 export function AuthShell({
   mode,
   search,
-  brand = DEFAULT_BRAND,
+  brand: brandCopy,
   children,
 }: AuthShellProps) {
+  const t = useText();
+  const brand = brandCopy ?? {
+    eyebrow: t("auth.shell.eyebrow"),
+    heading: t("auth.shell.heading"),
+    body: t("auth.shell.body"),
+  };
+
   return (
     <div className="flex grow flex-col md:flex-row">
-      <div className="bg-card relative hidden flex-col justify-center overflow-hidden border-r p-12 md:flex md:w-1/2">
+      <div className="relative hidden flex-col justify-center overflow-hidden border-r p-12 md:flex md:w-1/2">
         <Glow className="-top-30 -right-24 size-80" />
         <div className="relative flex flex-col gap-4">
           <Eyebrow variant="kicker" tone="light">
@@ -45,14 +48,14 @@ export function AuthShell({
             {brand.heading}
           </h2>
           {brand.body ? (
-            <p className="text-foreground/80 max-w-md font-light">
+            <p className="text-muted-foreground max-w-md font-light">
               {brand.body}
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="bg-card relative flex flex-col overflow-hidden border-b px-6 pt-6 pb-7 md:hidden">
+      <div className="relative flex flex-col overflow-hidden border-b px-6 pt-6 pb-7 md:hidden">
         <Glow className="-top-24 -right-16 size-56" />
         <div className="relative flex flex-col gap-2">
           <Eyebrow variant="kicker" tone="light" className="text-xs">
@@ -75,6 +78,8 @@ export function AuthShell({
 }
 
 function ModeToggle({ mode, search }: Pick<AuthShellProps, "mode" | "search">) {
+  const t = useText();
+
   return (
     <div className={segmentGroupClassName}>
       <Link
@@ -82,14 +87,14 @@ function ModeToggle({ mode, search }: Pick<AuthShellProps, "mode" | "search">) {
         className={segmentVariants({ active: mode === "login" })}
         aria-current={mode === "login" ? "page" : undefined}
       >
-        log in
+        {t("auth.toggle.login")}
       </Link>
       <Link
         to={{ pathname: "/join", search }}
         className={segmentVariants({ active: mode === "join" })}
         aria-current={mode === "join" ? "page" : undefined}
       >
-        sign up
+        {t("auth.toggle.join")}
       </Link>
     </div>
   );

@@ -117,7 +117,16 @@ model Event {
   date                DateTime
   slots               Int
   price               Int
+  // charged instead of `price` to guests who tick the signup form's
+  // "student" checkbox; null means students pay the full price
+  studentPrice        Int?
   discounts           String?
+  // the signup mail's subject and message, one pair per outcome; null falls
+  // back to the default copy in app/features/signup-form/confirmation-mail.ts
+  confirmedMailSubject String?
+  confirmedMailMessage String?
+  waitlistMailSubject  String?
+  waitlistMailMessage  String?
 
   // the cover slot — deleting the image leaves the event standing (SetNull)
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -135,6 +144,8 @@ model Event {
   formId String @unique
 
   galleryImages EventGalleryImage[]
+
+  volunteers Volunteer[]
 }
 
 model Form {
@@ -166,6 +177,20 @@ model FormVersion {
 model FormSubmission {
   id      String @id @default(cuid())
   answers Json
+  // "confirmed" | "waitlisted" | "cancelled", decided when the signup is
+  // stored (app/models/event-signup.server.ts); only confirmed seats count
+  // against Event.slots
+  status  String @default("confirmed")
+  // the signer plus their friends, fixed at signup
+  seats   Int    @default(1)
+  // lowercased, to stop one address from signing up twice for an event
+  email   String @default("")
+  // admin bookkeeping for the staggered payments: whether each half of what
+  // the party owes has come in. Never shown to the guest.
+  firstHalfPaid  Boolean @default(false)
+  secondHalfPaid Boolean @default(false)
+  // free text for the admin team, e.g. "pays by transfer, allergy call"
+  adminNote String @default("")
 
   createdAt DateTime @default(now())
 
@@ -221,6 +246,7 @@ model Image {
 
   event        Event?
   boardMember  BoardMember?
+  volunteer    Volunteer?
   galleryLinks EventGalleryImage[]
 }
 
@@ -251,9 +277,42 @@ model BoardMember {
   id       String @id @default(cuid())
   name     String
   position String
+  bio      String?
 
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   imageId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The people who cook, host and wash up. Separate from the board: a volunteer
+// has no office, and can be credited on the evenings they helped with.
+model Volunteer {
+  id   String  @id @default(cuid())
+  name String
+  // a short tagline — "kitchen", "host", "dishes" — optional
+  role String?
+  bio  String?
+
+  image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  imageId String? @unique
+
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// An admin's edit of one public-facing text (app/features/site-text). A text
+// nobody has edited has no row and shows the default written in the code.
+model SiteText {
+  // the registry key, e.g. "landing.vision.headline"
+  key           String @id
+  value         String
+  // the code's default when this was saved, so the editor can point out an
+  // edit whose default has changed since
+  defaultAtEdit String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

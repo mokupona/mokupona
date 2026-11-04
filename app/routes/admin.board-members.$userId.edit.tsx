@@ -30,11 +30,12 @@ export async function action({ request, params }: Route.ActionArgs) {
     fieldName: "image",
     schema: MemberSchema,
     async onSuccess({ value }) {
-      const { name, position, image } = value;
+      const { name, position, bio, image } = value;
 
       const { replacedImageKey } = await updateBoardMember(userId, {
         name,
         position,
+        bio,
         ...(image && {
           image: {
             contentType: image.type,
@@ -73,6 +74,7 @@ export default function BoardMemberEditRoute({
       defaultValue={{
         name: loaderData.boardMember.name,
         position: loaderData.boardMember.position,
+        bio: loaderData.boardMember.bio ?? "",
       }}
       heading={
         <>

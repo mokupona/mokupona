@@ -4,6 +4,7 @@ import type z from "zod";
 import type { SelectFieldSchema } from "./model";
 
 import { SelectField as BaseSelectField } from "~/components/forms";
+import { useText } from "~/features/site-text/site-text-context";
 
 type SelectFieldProps = {
   fieldConfig: z.infer<typeof SelectFieldSchema>;
@@ -14,6 +15,8 @@ export function SelectField({
   fieldConfig: config,
   fieldMetadata: metadata,
 }: SelectFieldProps) {
+  const t = useText();
+
   return (
     <BaseSelectField
       labelProps={{ children: config.data.label }}
@@ -21,7 +24,7 @@ export function SelectField({
       selectProps={{
         ...getSelectProps(metadata),
         options: [
-          { label: "Select…", value: "" },
+          { label: t("signup.select.placeholder"), value: "" },
           ...config.data.options.map((option) => ({
             label: option,
             value: option,

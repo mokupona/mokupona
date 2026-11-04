@@ -31,7 +31,12 @@ export interface EventCreateData {
   date: Date;
   slots: number;
   price: number;
+  studentPrice?: number | null;
   discounts?: string | null;
+  confirmedMailSubject?: string | null;
+  confirmedMailMessage?: string | null;
+  waitlistMailSubject?: string | null;
+  waitlistMailMessage?: string | null;
   addressId: string;
   image: ImageCreateData;
   createdById: string;
@@ -44,17 +49,24 @@ export async function countEvents(): Promise<number> {
 }
 
 export async function getEventsWithAddress(): Promise<
-  (EventWithImage & { address: Address })[]
+  (EventWithImage & { address: Address; galleryImageCount: number })[]
 > {
-  return prisma.event.findMany({
+  const events = await prisma.event.findMany({
     orderBy: {
       date: "asc",
     },
     include: {
       address: true,
       ...EVENT_IMAGE_INCLUDE,
+      // decides whether a past dinner points at its gallery or its detail page
+      _count: { select: { galleryImages: true } },
     },
   });
+
+  return events.map(({ _count, ...event }) => ({
+    ...event,
+    galleryImageCount: _count.galleryImages,
+  }));
 }
 
 function nextEventArgs(now: Date) {

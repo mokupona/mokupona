@@ -229,8 +229,22 @@ export function fillEventForm(values: ReturnType<typeof eventFormValues>) {
   selectFirstAddress();
 }
 
-export function uploadEventCover(file: string | Cypress.FileReferenceObject) {
+/**
+ * Picks a cover file. A decodable image opens the edit dialog, which is
+ * accepted as-is; pass `crop: false` for files that never reach the cropper
+ * (e.g. oversized garbage bytes meant to trip validation).
+ */
+export function uploadEventCover(
+  file: string | Cypress.FileReferenceObject,
+  { crop = true }: { crop?: boolean } = {},
+) {
   cy.findByLabelText(/^cover$/i).selectFile(file, { force: true });
+  if (crop) {
+    cy.findByRole("dialog", { name: /edit cover photo/i })
+      .findByRole("button", { name: /use photo/i })
+      .click();
+    cy.findByRole("dialog").should("not.exist");
+  }
 }
 
 export function createEventViaAdminForm(
@@ -283,5 +297,5 @@ export function acceptPrivacyAndJoin() {
   cy.findByLabelText(/agree to the privacy policy/i).click();
   cy.findByRole("button", { name: /join/i }).click();
   cy.location("pathname").should("equal", "/events");
-  cy.findByText(/signup complete/i);
+  cy.findByText(/you're in!|you're on the waiting list/i);
 }

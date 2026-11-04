@@ -1,7 +1,7 @@
 import { getFormProps, getInputProps, useForm } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
 import { CheckIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { data, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -25,36 +25,51 @@ import { isAuthToggleEnabled } from "~/features/auth/auth-settings.server";
 import { authClient } from "~/features/auth/auth.client";
 import { auth, googleAuthEnabled } from "~/features/auth/auth.server";
 import { GoogleMark } from "~/features/auth/components/google-button";
-import { displayNameSchema } from "~/features/auth/form-schemas";
+import { createDisplayNameSchema } from "~/features/auth/form-schemas";
 import {
   requestLoggerContext,
   requireResolvedUser,
 } from "~/features/auth/middleware.server";
 import { withPasswordConfirmation } from "~/features/auth/password-schema";
+import { textFromMatches } from "~/features/site-text/meta";
+import { RichText } from "~/features/site-text/rich-text";
+import { roleText } from "~/features/site-text/role-text";
+import { useText } from "~/features/site-text/site-text-context";
+import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { cn } from "~/lib/utils";
 import { getUserAuthOverview, updateUserName } from "~/models/user.server";
 import { unknownIntent } from "~/shared/http.server";
 
-const nameSchema = z.object({
-  intent: z.literal("update-name"),
-  name: displayNameSchema,
-});
+function nameSchema(t: Text) {
+  return z.object({
+    intent: z.literal("update-name"),
+    name: createDisplayNameSchema(t),
+  });
+}
 
-const passwordActionSchema = withPasswordConfirmation({
-  intent: z.enum(["change-password", "set-password"]),
-  currentPassword: z.string().optional(),
-}).check((ctx) => {
-  if (ctx.value.intent === "change-password" && !ctx.value.currentPassword) {
-    ctx.issues.push({
-      code: "custom",
-      path: ["currentPassword"],
-      message: "Current password is required",
-      input: ctx.value.currentPassword,
-    });
-  }
-});
+function passwordActionSchema(t: Text) {
+  return withPasswordConfirmation(
+    {
+      intent: z.enum(["change-password", "set-password"]),
+      currentPassword: z.string().optional(),
+    },
+    t,
+  ).check((ctx) => {
+    if (ctx.value.intent === "change-password" && !ctx.value.currentPassword) {
+      ctx.issues.push({
+        code: "custom",
+        path: ["currentPassword"],
+        message: t("account.password.currentRequired"),
+        input: ctx.value.currentPassword,
+      });
+    }
+  });
+}
 
-export const meta: Route.MetaFunction = () => [{ title: "your account" }];
+export const meta: Route.MetaFunction = ({ matches }) => [
+  { title: textFromMatches(matches)("account.metaTitle") },
+];
 
 export const loader = async ({ request, context }: Route.LoaderArgs) => {
   const user = await requireResolvedUser(context, request);
@@ -77,9 +92,10 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   const log = context.get(requestLoggerContext);
   const formData = await request.formData();
   const intent = formData.get("intent");
+  const t = await getText();
 
   if (intent === "update-name") {
-    const submission = parseWithZod(formData, { schema: nameSchema });
+    const submission = parseWithZod(formData, { schema: nameSchema(t) });
     if (submission.status !== "success") {
       return data({ result: submission.reply(), done: null });
     }
@@ -88,7 +104,9 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
   }
 
   if (intent === "change-password" || intent === "set-password") {
-    const submission = parseWithZod(formData, { schema: passwordActionSchema });
+    const submission = parseWithZod(formData, {
+      schema: passwordActionSchema(t),
+    });
     if (submission.status !== "success") {
       return data({ result: submission.reply(), done: null });
     }
@@ -115,16 +133,8 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
         result: submission.reply({
           fieldErrors:
             intent === "change-password"
-              ? {
-                  currentPassword: [
-                    "that doesn't match your current password.",
-                  ],
-                }
-              : {
-                  password: [
-                    "a password is already set. reload the page to change it.",
-                  ],
-                },
+              ? { currentPassword: [t("account.password.wrongCurrent")] }
+              : { password: [t("account.password.alreadySet")] },
         }),
         done: null,
       });
@@ -170,14 +180,15 @@ function useActionToast(
 export default function MeRoute({ loaderData }: Route.ComponentProps) {
   const { user, hasPassword, googleLinked, sessionCount, googleEnabled } =
     loaderData;
+  const t = useText();
 
   return (
     <PageContainer className="animate-page-in flex grow flex-col gap-5 pt-7 pb-20">
       <div className="mb-1">
         <Eyebrow variant="tracked" tone="label" className="mb-2">
-          account
+          {t("account.eyebrow")}
         </Eyebrow>
-        <h1 className={pageTitleClassName}>your account</h1>
+        <h1 className={pageTitleClassName}>{t("account.title")}</h1>
       </div>
 
       <ProfileCard user={user} />
@@ -213,7 +224,7 @@ function SectionCard({
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">{title}</h2>
           {subtitle ? (
-            <p className="text-foreground/50 text-sm">{subtitle}</p>
+            <p className="text-muted-foreground text-sm">{subtitle}</p>
           ) : null}
         </div>
       ) : null}
@@ -228,17 +239,19 @@ function ProfileCard({
   user: Route.ComponentProps["loaderData"]["user"];
 }) {
   const fetcher = useFetcher<typeof action>();
+  const t = useText();
+  const schema = useMemo(() => nameSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: fetcher.data?.result ?? null,
-    constraint: getZodConstraint(nameSchema),
+    constraint: getZodConstraint(schema),
     defaultValue: { name: user.name },
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: nameSchema });
+      return parseWithZod(formData, { schema });
     },
   });
 
   const { state } = fetcher;
-  useActionToast(fetcher.data, state, "name", "name updated");
+  useActionToast(fetcher.data, state, "name", t("account.profile.saved"));
 
   return (
     <SectionCard>
@@ -251,7 +264,9 @@ function ProfileCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-semibold">{user.name}</p>
         </div>
-        <span className={pillVariants({ accent: true })}>{user.role.name}</span>
+        <span className={pillVariants({ accent: true })}>
+          {roleText(t, user.role.name)}
+        </span>
       </div>
 
       <fetcher.Form
@@ -261,14 +276,14 @@ function ProfileCard({
       >
         <input type="hidden" name="intent" value="update-name" />
         <div className="flex flex-col gap-2">
-          <Label htmlFor={fields.name.id}>name</Label>
+          <Label htmlFor={fields.name.id}>{t("auth.field.name")}</Label>
           <div className="flex gap-2">
             <Input
               className="flex-1"
               {...getInputProps(fields.name, { type: "text" })}
             />
             <Button type="submit" variant="outline" disabled={state !== "idle"}>
-              save
+              {t("account.profile.save")}
             </Button>
           </div>
           <ErrorList id={fields.name.errorId} errors={fields.name.errors} />
@@ -276,22 +291,24 @@ function ProfileCard({
       </fetcher.Form>
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold">email</span>
+        <span className="text-sm font-semibold">
+          {t("account.profile.emailLabel")}
+        </span>
         <div
           className={cn(
             fieldShellClassName,
-            "text-foreground/65 flex items-center justify-between text-sm",
+            "text-muted-foreground flex items-center justify-between text-sm",
           )}
         >
           <span className="truncate">{user.email}</span>
           {user.emailVerified ? (
             <Badge variant="info" pill className="ml-2 shrink-0 gap-1">
-              <CheckIcon className="size-3" /> verified
+              <CheckIcon className="size-3" /> {t("account.profile.verified")}
             </Badge>
           ) : null}
         </div>
-        <p className="text-foreground/50 text-sm">
-          your email is your login and can&apos;t be changed here.
+        <p className="text-muted-foreground text-sm">
+          {t("account.profile.emailHint")}
         </p>
       </div>
     </SectionCard>
@@ -300,14 +317,16 @@ function ProfileCard({
 
 function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
   const fetcher = useFetcher<typeof action>();
+  const t = useText();
+  const schema = useMemo(() => passwordActionSchema(t), [t]);
   const [form, fields] = useForm({
     lastResult: fetcher.data?.result ?? null,
-    constraint: getZodConstraint(passwordActionSchema),
+    constraint: getZodConstraint(schema),
     defaultValue: {
       intent: hasPassword ? "change-password" : "set-password",
     },
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: passwordActionSchema });
+      return parseWithZod(formData, { schema });
     },
   });
   const intent = hasPassword ? "change-password" : "set-password";
@@ -316,16 +335,20 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
     fetcher.data,
     state,
     "password",
-    hasPassword ? "password updated" : "password set",
+    hasPassword ? t("account.password.saved") : t("account.password.savedSet"),
   );
 
   return (
     <SectionCard
-      title={hasPassword ? "password" : "set a password"}
+      title={
+        hasPassword
+          ? t("account.password.title")
+          : t("account.password.titleSet")
+      }
       subtitle={
         hasPassword
-          ? "change the password you use to sign in."
-          : "you signed up with google. add a password to sign in either way — no current password needed."
+          ? t("account.password.subtitle")
+          : t("account.password.subtitleSet")
       }
     >
       <fetcher.Form
@@ -337,7 +360,7 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
 
         {hasPassword ? (
           <Field
-            labelProps={{ children: "current password" }}
+            labelProps={{ children: t("account.password.current") }}
             inputProps={{
               ...getInputProps(fields.currentPassword, { type: "password" }),
               required: true,
@@ -347,7 +370,7 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
         ) : null}
 
         <Field
-          labelProps={{ children: "new password" }}
+          labelProps={{ children: t("auth.field.newPassword") }}
           inputProps={{
             ...getInputProps(fields.password, { type: "password" }),
           }}
@@ -355,7 +378,7 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
         />
 
         <Field
-          labelProps={{ children: "confirm new password" }}
+          labelProps={{ children: t("auth.field.confirmNewPassword") }}
           inputProps={{
             ...getInputProps(fields.confirmPassword, { type: "password" }),
           }}
@@ -367,7 +390,9 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
           className="self-start"
           disabled={state !== "idle"}
         >
-          {hasPassword ? "update password" : "set password"}
+          {hasPassword
+            ? t("account.password.submit")
+            : t("account.password.submitSet")}
         </Button>
       </fetcher.Form>
     </SectionCard>
@@ -386,22 +411,32 @@ function ConnectedAccountsCard({
   hasPassword: boolean;
 }) {
   const fetcher = useFetcher<typeof action>();
+  const t = useText();
   const unlinkBlocked = googleLinked && !hasPassword;
 
   const { state } = fetcher;
-  useActionToast(fetcher.data, state, "unlink", "google unlinked");
+  useActionToast(
+    fetcher.data,
+    state,
+    "unlink",
+    t("account.connected.unlinked"),
+  );
 
   return (
     <SectionCard
-      title="connected accounts"
-      subtitle="sign in faster by linking a provider."
+      title={t("account.connected.title")}
+      subtitle={t("account.connected.subtitle")}
     >
       <div className="flex items-center gap-4 rounded-lg border px-4 py-4">
         <GoogleMark className="size-5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold">google</p>
-          <p className="text-foreground/50 truncate text-sm">
-            {googleLinked ? `linked as ${email}` : "not linked"}
+          <p className="text-base font-semibold">
+            {t("account.connected.google")}
+          </p>
+          <p className="text-muted-foreground truncate text-sm">
+            {googleLinked
+              ? t("account.connected.linkedAs", { email })
+              : t("account.connected.notLinked")}
           </p>
         </div>
         {googleLinked ? (
@@ -413,7 +448,7 @@ function ConnectedAccountsCard({
               variant="destructive-outline"
               disabled={unlinkBlocked || state !== "idle"}
             >
-              unlink
+              {t("account.connected.unlink")}
             </Button>
           </fetcher.Form>
         ) : googleEnabled ? (
@@ -428,14 +463,13 @@ function ConnectedAccountsCard({
               })
             }
           >
-            link
+            {t("account.connected.link")}
           </Button>
         ) : null}
       </div>
       {unlinkBlocked ? (
-        <p className="text-foreground/50 text-sm">
-          google is your only way to sign in right now. set a password first,
-          then you can unlink.
+        <p className="text-muted-foreground text-sm">
+          {t("account.connected.unlinkBlocked")}
         </p>
       ) : null}
     </SectionCard>
@@ -444,18 +478,33 @@ function ConnectedAccountsCard({
 
 function SessionsCard({ sessionCount }: { sessionCount: number }) {
   const fetcher = useFetcher<typeof action>();
+  const t = useText();
 
   const { state } = fetcher;
-  useActionToast(fetcher.data, state, "sessions", "signed out everywhere else");
+  useActionToast(
+    fetcher.data,
+    state,
+    "sessions",
+    t("account.sessions.signedOut"),
+  );
 
   return (
-    <SectionCard title="sessions">
-      <p className="text-foreground/65 text-sm">
-        you&apos;re signed in on{" "}
-        <strong className="text-foreground font-semibold">
-          {sessionCount === 1 ? "1 device" : `${sessionCount} devices`}
-        </strong>
-        , including this one.
+    <SectionCard title={t("account.sessions.title")}>
+      <p className="text-muted-foreground text-sm">
+        <RichText
+          text={t("account.sessions.body")}
+          vars={{
+            devices: (
+              <strong className="text-foreground font-semibold">
+                {sessionCount === 1
+                  ? t("account.sessions.devices.one")
+                  : t("account.sessions.devices.other", {
+                      count: sessionCount,
+                    })}
+              </strong>
+            ),
+          }}
+        />
       </p>
       <fetcher.Form method="post">
         <input type="hidden" name="intent" value="revoke-others" />
@@ -464,7 +513,7 @@ function SessionsCard({ sessionCount }: { sessionCount: number }) {
           variant="outline"
           disabled={sessionCount <= 1 || state !== "idle"}
         >
-          sign out other sessions
+          {t("account.sessions.signOutOthers")}
         </Button>
       </fetcher.Form>
     </SectionCard>

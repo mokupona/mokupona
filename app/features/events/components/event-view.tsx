@@ -24,19 +24,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
+import { useText } from "~/features/site-text/site-text-context";
 
 export interface EventViewProps {
   event: EventDetailModel;
 }
 
 export function EventStory({ event }: EventViewProps) {
+  const t = useText();
+
   return (
     <div className="flex min-w-0 flex-col gap-5 md:gap-6">
       <CoverImage
         image={event.image}
         alt=""
         sizes="(min-width: 1024px) 520px, 100vw"
-        className="w-full rounded-2xl"
+        className="w-full"
       />
 
       <div className="flex flex-col gap-3">
@@ -52,7 +55,9 @@ export function EventStory({ event }: EventViewProps) {
         <Accordion defaultValue={["menu"]} className="mt-2 border-t">
           {event.menuDescription ? (
             <AccordionItem value="menu">
-              <AccordionTrigger className="text-primary">menu</AccordionTrigger>
+              <AccordionTrigger className="text-primary">
+                {t("events.detail.menu")}
+              </AccordionTrigger>
               <AccordionContent className="pb-6">
                 <p className="text-foreground/80 text-base font-light whitespace-pre-line">
                   <AutoLink text={event.menuDescription} />
@@ -64,7 +69,7 @@ export function EventStory({ event }: EventViewProps) {
           {event.donationDescription ? (
             <AccordionItem value="donation">
               <AccordionTrigger className="text-primary">
-                donation
+                {t("events.detail.donation")}
               </AccordionTrigger>
               <AccordionContent className="pb-6">
                 <p className="text-foreground/80 text-base font-light whitespace-pre-line">
@@ -79,13 +84,17 @@ export function EventStory({ event }: EventViewProps) {
   );
 }
 
-export function EventFactList({ event }: EventViewProps) {
+export function EventFactList({
+  event,
+  seatsLeft = null,
+}: EventViewProps & { seatsLeft?: number | null }) {
+  const t = useText();
   const eventDate = new Date(event.date);
 
   return (
     <div className="text-foreground/80 flex flex-col gap-3 text-sm">
       <span className="flex items-center gap-2">
-        <CalendarIcon className="text-foreground/50 size-4" />
+        <CalendarIcon className="text-muted-foreground size-4" />
         <time dateTime={eventDate.toISOString()} suppressHydrationWarning>
           {formatEventDateLine(eventDate, "short")}
         </time>
@@ -94,24 +103,24 @@ export function EventFactList({ event }: EventViewProps) {
       <EventLocationFact addressLine={event.addressLine} />
 
       <div className="flex items-center justify-between">
-        <EventPriceFact price={event.price} />
+        <EventPriceFact price={event.price} studentPrice={event.studentPrice} />
 
         <Popover>
           <PopoverTrigger>
             <span className="text-primary border-primary/60 flex items-center gap-1 border-b border-dotted text-xs">
-              discounts
+              {t("events.facts.discounts")}
               <InfoIcon className="size-4" />
             </span>
           </PopoverTrigger>
           <PopoverContent>
             <p className="text-sm whitespace-pre-line">
-              {event.discounts ?? "no discounts currently available"}
+              {event.discounts ?? t("events.facts.noDiscounts")}
             </p>
           </PopoverContent>
         </Popover>
       </div>
 
-      <EventSeatsFact slots={event.slots} />
+      <EventSeatsFact slots={event.slots} seatsLeft={seatsLeft} />
     </div>
   );
 }

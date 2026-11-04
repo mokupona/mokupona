@@ -39,7 +39,7 @@ describe("admin event uploads", () => {
   }
 
   function submitOversizedCoverExpectingError(pathname: string) {
-    uploadEventCover(oversizedZodUpload());
+    uploadEventCover(oversizedZodUpload(), { crop: false });
     cy.findByRole("button", { name: /save event/i }).click();
 
     cy.findByText(FILE_TOO_LARGE_ERROR).should("be.visible");

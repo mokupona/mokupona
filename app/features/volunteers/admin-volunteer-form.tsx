@@ -1,0 +1,97 @@
+import {
+  getFormProps,
+  getInputProps,
+  getTextareaProps,
+  useForm,
+  type DefaultValue,
+  type SubmissionResult,
+} from "@conform-to/react";
+import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
+import { Form } from "react-router";
+import type { z } from "zod";
+
+import { VolunteerSchema } from "./schema";
+
+import { Field, fileFieldClassName, TextareaField } from "~/components/forms";
+import { Button } from "~/components/ui/button";
+import { VALID_IMAGE_TYPES } from "~/shared/image";
+
+type AdminVolunteerFormProps = {
+  lastResult?: SubmissionResult;
+  defaultValue?: DefaultValue<z.input<typeof VolunteerSchema>>;
+  heading: React.ReactNode;
+  description: React.ReactNode;
+  submitText: string;
+};
+
+export function AdminVolunteerForm({
+  lastResult,
+  defaultValue,
+  heading,
+  description,
+  submitText,
+}: AdminVolunteerFormProps) {
+  const [form, fields] = useForm({
+    lastResult,
+    shouldValidate: "onBlur",
+    constraint: getZodConstraint(VolunteerSchema),
+    defaultValue,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: VolunteerSchema });
+    },
+  });
+
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-3xl leading-tight font-light tracking-tight">
+          {heading}
+        </h2>
+        <p>{description}</p>
+      </div>
+
+      <Form
+        method="POST"
+        encType="multipart/form-data"
+        replace
+        className="mt-6 flex flex-col gap-6"
+        {...getFormProps(form)}
+      >
+        <Field
+          labelProps={{ children: "Name" }}
+          inputProps={{ ...getInputProps(fields.name, { type: "text" }) }}
+          errors={fields.name.errors}
+        />
+
+        <Field
+          labelProps={{ children: "Role" }}
+          inputProps={{
+            ...getInputProps(fields.role, { type: "text" }),
+            placeholder: "kitchen, host, dishes…",
+          }}
+          errors={fields.role.errors}
+        />
+
+        <TextareaField
+          labelProps={{ children: "Bio" }}
+          description="A few lines shown under their portrait on the about page. Optional."
+          textareaProps={{ ...getTextareaProps(fields.bio), rows: 4 }}
+          errors={fields.bio.errors}
+        />
+
+        <Field
+          labelProps={{ children: "Photo" }}
+          inputProps={{
+            ...getInputProps(fields.image, { type: "file" }),
+            tabIndex: 0,
+            accept: VALID_IMAGE_TYPES.join(","),
+            className: fileFieldClassName,
+          }}
+          errors={fields.image.errors}
+        />
+
+        <Button type="submit">{submitText}</Button>
+      </Form>
+    </>
+  );
+}

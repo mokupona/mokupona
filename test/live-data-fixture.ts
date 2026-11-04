@@ -5,7 +5,8 @@ const stamps = { createdAt: at, updatedAt: at };
 
 /**
  * A small but complete live-data copy: one past event with a cover, a form
- * with one signup in each signup table, a gallery photo and a board member.
+ * with one signup in each signup table, a gallery photo, a board member and
+ * a volunteer credited on the event.
  * Ids are prefixed so several fixtures can be told apart.
  */
 export function liveDataFixture(
@@ -74,6 +75,12 @@ export function liveDataFixture(
         id: id("submission"),
         formVersionId: id("form_v1"),
         answers: { name: "Ada", email: "ada@example.com" },
+        status: "waitlisted",
+        seats: 1,
+        email: "ada@example.com",
+        firstHalfPaid: true,
+        secondHalfPaid: false,
+        adminNote: "Pays the second half by transfer in December",
         createdAt: at,
       },
     ],
@@ -87,7 +94,12 @@ export function liveDataFixture(
         date: new Date("2025-02-01T18:00:00.000Z"),
         slots: 12,
         price: 30,
+        studentPrice: 20,
         discounts: null,
+        confirmedMailSubject: "See you at {event}",
+        confirmedMailMessage: null,
+        waitlistMailSubject: null,
+        waitlistMailMessage: "Fingers crossed, {name}.",
         imageId: id("cover"),
         addressId: id("address"),
         formId: id("form"),
@@ -123,7 +135,27 @@ export function liveDataFixture(
         id: id("board"),
         name: "Lin",
         position: "Chef",
+        bio: null,
         imageId: id("portrait"),
+        ...stamps,
+      },
+    ],
+    volunteers: [
+      {
+        id: id("volunteer"),
+        name: "Noa",
+        role: "dishes",
+        bio: null,
+        imageId: null,
+        ...stamps,
+      },
+    ],
+    eventVolunteers: [{ eventId: id("event"), volunteerId: id("volunteer") }],
+    siteTexts: [
+      {
+        key: "landing.vision.headline",
+        value: `${prefix}: food is how we meet`,
+        defaultAtEdit: "food as a way to connect",
         ...stamps,
       },
     ],
@@ -140,4 +172,7 @@ export const EMPTY_LIVE_DATA: LiveDataTables = {
   eventResponses: [],
   eventGalleryImages: [],
   boardMembers: [],
+  volunteers: [],
+  eventVolunteers: [],
+  siteTexts: [],
 };

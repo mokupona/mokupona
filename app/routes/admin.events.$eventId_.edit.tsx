@@ -74,7 +74,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         date,
         slots,
         price,
+        studentPrice,
         discounts,
+        confirmedMailSubject,
+        confirmedMailMessage,
+        waitlistMailSubject,
+        waitlistMailMessage,
         cover,
         addressId,
         signupForm,
@@ -111,7 +116,13 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           date: toUtcEventDate(date),
           slots,
           price,
+          // the form always sends these, so an empty field means "clear it"
+          studentPrice: studentPrice ?? null,
           discounts,
+          confirmedMailSubject: confirmedMailSubject ?? null,
+          confirmedMailMessage: confirmedMailMessage ?? null,
+          waitlistMailSubject: waitlistMailSubject ?? null,
+          waitlistMailMessage: waitlistMailMessage ?? null,
           addressId,
           ...(cover && {
             image: {
@@ -160,6 +171,7 @@ export default function AdminEventEditPage({
       cancelHref={`/admin/events/${event.id}`}
       lockFieldKeys={formHasSubmissions}
       answerCounts={answerCounts}
+      currentImage={event.image}
     />
   );
 }

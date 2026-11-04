@@ -11,12 +11,9 @@ import type z from "zod";
 import type { EventEditSchema } from "../event-schema";
 import type { AddressOptionModel } from "../view-models";
 
-import {
-  Field,
-  fileFieldClassName,
-  SelectField,
-  TextareaField,
-} from "~/components/forms";
+import { CoverPhotoField } from "./cover-photo-field";
+
+import { Field, SelectField, TextareaField } from "~/components/forms";
 import { BackLink, pageTitleClassName } from "~/components/section";
 import { SectionNav } from "~/components/section-nav";
 import { SignupFormBuilder } from "~/components/signup-form-builder";
@@ -28,9 +25,15 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  defaultSignupMailCopy,
+  SIGNUP_MAIL_PLACEHOLDERS,
+  type SignupMailCopy,
+} from "~/features/signup-form/confirmation-mail";
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
+import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
-import { VALID_IMAGE_TYPES } from "~/shared/image";
+import type { ImageDisplaySource } from "~/shared/image";
 
 type FieldsetOf<Schema extends z.ZodType> = {
   [K in keyof z.input<Schema>]-?: FieldMetadata<z.input<Schema>[K]>;
@@ -44,14 +47,18 @@ type AdminEventFormProps = {
   cancelHref: string;
   lockFieldKeys?: boolean;
   answerCounts?: AnswerCountsByFieldKey;
+  /** The saved cover on edit; absent when creating. */
+  currentImage?: ImageDisplaySource | null;
 };
 
 const SECTIONS = [
   { id: "section-basics", label: "Basics" },
+  { id: "section-photo", label: "Photo" },
   { id: "section-menu-donation", label: "Menu & donation" },
   { id: "section-schedule-pricing", label: "Schedule & pricing" },
-  { id: "section-cover-location", label: "Cover & location" },
+  { id: "section-location", label: "Location" },
   { id: "section-signup-form", label: "Signup form" },
+  { id: "section-signup-email", label: "Signup email" },
 ];
 
 function SectionCard({
@@ -76,6 +83,121 @@ function SectionCard({
   );
 }
 
+function SignupMailCopyFields({
+  legend,
+  description,
+  subject,
+  message,
+  defaults,
+}: {
+  legend: string;
+  description: string;
+  subject: AdminEventFormProps["fields"]["confirmedMailSubject"];
+  message: AdminEventFormProps["fields"]["confirmedMailMessage"];
+  defaults: SignupMailCopy;
+}) {
+  const form = useFormMetadata();
+  const isBlank = !subject.value && !message.value;
+
+  return (
+    <fieldset className="flex flex-col gap-4 border-t pt-5 first:border-t-0 first:pt-0">
+      <legend className="float-left mb-1 w-full">
+        <span className="font-semibold">{legend}</span>
+        <span className="text-muted-foreground mt-1 block text-sm">
+          {description}
+        </span>
+      </legend>
+
+      <Field
+        labelProps={{ children: "Subject" }}
+        inputProps={{
+          ...getInputProps(subject, { type: "text" }),
+          placeholder: defaults.subject,
+        }}
+        errors={subject.errors}
+      />
+
+      <TextareaField
+        labelProps={{ children: "Message" }}
+        textareaProps={{
+          ...getTextareaProps(message),
+          placeholder: defaults.message,
+          rows: 7,
+        }}
+        errors={message.errors}
+      />
+
+      {isBlank ? (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              form.update({ name: subject.name, value: defaults.subject });
+              form.update({ name: message.name, value: defaults.message });
+            }}
+          >
+            Start from the default text
+          </Button>
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function SignupMailFields({
+  fields,
+}: {
+  fields: Pick<
+    AdminEventFormProps["fields"],
+    | "confirmedMailSubject"
+    | "confirmedMailMessage"
+    | "waitlistMailSubject"
+    | "waitlistMailMessage"
+  >;
+}) {
+  // an event without its own copy falls back to the site-wide texts, which
+  // admins edit under /admin/texts
+  const defaults = defaultSignupMailCopy(useText());
+
+  return (
+    <>
+      <SignupMailCopyFields
+        legend="Seat confirmed"
+        description="Sent when a group gets its seats at signup, and when you confirm a group from the waiting list."
+        subject={fields.confirmedMailSubject}
+        message={fields.confirmedMailMessage}
+        defaults={defaults.confirmed}
+      />
+
+      <SignupMailCopyFields
+        legend="Waiting list"
+        description="Sent when there aren't enough seats left for the whole group."
+        subject={fields.waitlistMailSubject}
+        message={fields.waitlistMailMessage}
+        defaults={defaults.waitlisted}
+      />
+
+      <div className="flex flex-col gap-2 border-t pt-5 text-sm">
+        <p className="text-muted-foreground">
+          A blank line starts a new paragraph. The guest list, everyone&apos;s
+          answers and the prices are added below the message automatically.
+          These placeholders work in subjects and messages:
+        </p>
+        <ul className="flex flex-col gap-1">
+          {Object.entries(SIGNUP_MAIL_PLACEHOLDERS).map(([name, meaning]) => (
+            <li key={name}>
+              <code className="bg-muted rounded px-1">{`{${name}}`}</code>{" "}
+              <span className="text-muted-foreground">{meaning}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
 function SaveBar({
   submitText,
   cancelHref,
@@ -86,11 +208,11 @@ function SaveBar({
   const form = useFormMetadata();
 
   return (
-    <div className="bg-background/90 sticky bottom-0 z-10 -mx-2 border-t px-4 py-3 backdrop-blur md:bottom-2 md:mx-0 md:rounded-2xl md:border">
+    <div className="bg-background/90 sticky bottom-0 z-10 -mx-2 border-t px-4 py-3 backdrop-blur md:bottom-2 md:mx-0 md:border">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p
           className={cn(
-            "text-foreground/50 order-last text-center text-sm sm:order-first sm:text-left",
+            "text-muted-foreground order-last text-center text-sm sm:order-first sm:text-left",
             !form.dirty && "invisible",
           )}
         >
@@ -118,6 +240,7 @@ export function AdminEventForm({
   cancelHref,
   lockFieldKeys,
   answerCounts,
+  currentImage,
 }: AdminEventFormProps) {
   return (
     <div className="flex flex-col gap-4 md:gap-6">
@@ -154,6 +277,18 @@ export function AdminEventForm({
           </SectionCard>
 
           <SectionCard
+            id="section-photo"
+            title="Photo"
+            description="The cover photo shown on the event page and cards."
+          >
+            <CoverPhotoField
+              field={fields.cover}
+              currentImage={currentImage}
+              title={fields.title.value}
+            />
+          </SectionCard>
+
+          <SectionCard
             id="section-menu-donation"
             title="Menu & donation"
             description="What is served and how donations work."
@@ -180,7 +315,7 @@ export function AdminEventForm({
           <SectionCard
             id="section-schedule-pricing"
             title="Schedule & pricing"
-            description="When it happens, how many seats, and what it costs."
+            description="When it happens, how many seats, and what it costs. Guests who tick “Student” on the signup form pay the student price."
           >
             <Field
               labelProps={{ children: "Date" }}
@@ -208,6 +343,16 @@ export function AdminEventForm({
                 }}
                 errors={fields.price.errors}
               />
+
+              <Field
+                className="grow"
+                labelProps={{ children: "Student price" }}
+                inputProps={{
+                  ...getInputProps(fields.studentPrice, { type: "number" }),
+                  placeholder: "Full price",
+                }}
+                errors={fields.studentPrice.errors}
+              />
             </div>
 
             <TextareaField
@@ -221,28 +366,10 @@ export function AdminEventForm({
           </SectionCard>
 
           <SectionCard
-            id="section-cover-location"
-            title="Cover & location"
-            description="Cover image and the venue address."
+            id="section-location"
+            title="Location"
+            description="Where the dinner takes place."
           >
-            <Field
-              labelProps={{ children: "Cover" }}
-              inputProps={{
-                ...getInputProps(fields.cover, { type: "file" }),
-                tabIndex: 0,
-                accept: VALID_IMAGE_TYPES.join(","),
-                className: fileFieldClassName,
-              }}
-              errors={fields.cover.errors}
-            />
-            <noscript>
-              <p className="text-foreground/65 text-sm">
-                Without JavaScript, the form&apos;s buttons reload the page and
-                a chosen cover file does not survive the reload — pick the cover
-                image last, right before saving.
-              </p>
-            </noscript>
-
             <SelectField
               labelProps={{ children: "Address" }}
               selectProps={{
@@ -263,6 +390,14 @@ export function AdminEventForm({
               lockFieldKeys={lockFieldKeys}
               answerCounts={answerCounts}
             />
+          </SectionCard>
+
+          <SectionCard
+            id="section-signup-email"
+            title="Signup email"
+            description="Sent to everyone who signs up, depending on whether they got seats. A blank field uses the default text shown in grey."
+          >
+            <SignupMailFields fields={fields} />
           </SectionCard>
 
           <SaveBar submitText={submitText} cancelHref={cancelHref} />

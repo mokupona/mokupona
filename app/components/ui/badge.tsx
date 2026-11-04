@@ -12,9 +12,11 @@ const badgeVariants = cva(
         secondary: "bg-card text-card-foreground",
         info: "border-sky-300/35 bg-sky-300/10 text-sky-300",
       },
+      // kept as a no-op so existing `pill` call sites still read sensibly —
+      // the site is square throughout, so neither state rounds anything
       pill: {
-        true: "rounded-full",
-        false: "rounded-lg",
+        true: "",
+        false: "",
       },
     },
     defaultVariants: {

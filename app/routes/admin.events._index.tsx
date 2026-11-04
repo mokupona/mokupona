@@ -20,13 +20,13 @@ import {
   isPastEvent,
   orderEventsByStatus,
 } from "~/features/events/event-status";
-import { getAttendeeCountsForEvents } from "~/features/signup-form/read.server";
 import { cn } from "~/lib/utils";
+import { getSeatCountsByEvent } from "~/models/event-signup.server";
 import { getEventsWithAddress } from "~/models/event.server";
 
 export async function loader() {
   const events = await getEventsWithAddress();
-  const seatCounts = await getAttendeeCountsForEvents(
+  const seatCounts = await getSeatCountsByEvent(
     events.map((event) => event.id),
   );
 
@@ -38,7 +38,8 @@ export async function loader() {
       image: event.image,
       slots: event.slots,
       location: `${event.address.streetName} ${event.address.houseNumber}`,
-      signups: seatCounts[event.id] ?? 0,
+      confirmed: seatCounts[event.id]?.confirmed ?? 0,
+      waitlisted: seatCounts[event.id]?.waitlisted ?? 0,
     })),
   };
 }
@@ -160,7 +161,7 @@ function EventCard({ event }: { event: Event }) {
           <p
             className={cn(
               "text-xs font-semibold tracking-wide",
-              event.past ? "text-foreground/50" : "text-accent-light",
+              event.past ? "text-muted-foreground" : "text-accent-light",
             )}
           >
             <time dateTime={date.toISOString()} suppressHydrationWarning>
@@ -173,22 +174,25 @@ function EventCard({ event }: { event: Event }) {
                 the action row sits above it via `relative` */}
             <Link
               to={event.id}
-              className="focus-visible:after:ring-ring after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-hidden focus-visible:after:ring-2"
+              className="focus-visible:after:ring-ring after:absolute after:inset-0 focus-visible:after:ring-2 after:focus-visible:outline-hidden"
             >
               {event.title}
             </Link>
           </h2>
-          <p className="text-foreground/65 mt-1 text-sm">{event.location}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{event.location}</p>
         </div>
         <div className="max-w-xs">
           <div className="mb-2 flex justify-between text-xs">
-            <span className="text-foreground/80">{event.signups} signups</span>
-            <span className="text-foreground/50">
-              {event.signups} / {event.slots}
+            <span className="text-foreground/80">
+              {event.confirmed} confirmed
+              {event.waitlisted > 0 ? ` · ${event.waitlisted} waiting` : ""}
+            </span>
+            <span className="text-muted-foreground">
+              {event.confirmed} / {event.slots}
             </span>
           </div>
           <SeatProgress
-            taken={event.signups}
+            taken={event.confirmed}
             total={event.slots}
             muted={event.past}
           />

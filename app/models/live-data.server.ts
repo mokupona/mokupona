@@ -3,6 +3,7 @@ import type { Prisma } from "#prisma/generated/client";
 import { prisma } from "~/db.server";
 import type { LiveDataTables } from "~/features/live-data/snapshot";
 import type { LiveDataCounts } from "~/features/live-data/tables";
+import { toSignupStatus } from "~/features/signup-form/signup-status";
 
 const INSERT_CHUNK_SIZE = 200;
 const REPLACE_TIMEOUT_MS = 120_000;
@@ -33,6 +34,9 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
+    eventVolunteers,
+    siteTexts,
   ] = await prisma.$transaction([
     prisma.address.count(),
     prisma.image.count(),
@@ -43,6 +47,11 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     prisma.eventResponse.count(),
     prisma.eventGalleryImage.count(),
     prisma.boardMember.count(),
+    prisma.volunteer.count(),
+    // the implicit join has no model of its own; each credit is one event
+    // seen from one volunteer
+    prisma.event.count({ where: { volunteers: { some: {} } } }),
+    prisma.siteText.count(),
   ]);
 
   return {
@@ -55,6 +64,9 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
+    eventVolunteers,
+    siteTexts,
   };
 }
 
@@ -80,6 +92,8 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
+    siteTexts,
   ] = await prisma.$transaction([
     prisma.address.findMany({
       orderBy: byId,
@@ -127,6 +141,12 @@ export async function readLiveDataTables({
         id: true,
         formVersionId: true,
         answers: true,
+        status: true,
+        seats: true,
+        email: true,
+        firstHalfPaid: true,
+        secondHalfPaid: true,
+        adminNote: true,
         createdAt: true,
       },
     }),
@@ -141,7 +161,12 @@ export async function readLiveDataTables({
         date: true,
         slots: true,
         price: true,
+        studentPrice: true,
         discounts: true,
+        confirmedMailSubject: true,
+        confirmedMailMessage: true,
+        waitlistMailSubject: true,
+        waitlistMailMessage: true,
         imageId: true,
         addressId: true,
         formId: true,
@@ -181,9 +206,26 @@ export async function readLiveDataTables({
         id: true,
         name: true,
         position: true,
+        bio: true,
         imageId: true,
         ...TIMESTAMPS,
       },
+    }),
+    prisma.volunteer.findMany({
+      orderBy: byId,
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        bio: true,
+        imageId: true,
+        ...TIMESTAMPS,
+        events: { orderBy: byId, select: { id: true } },
+      },
+    }),
+    prisma.siteText.findMany({
+      orderBy: { key: "asc" },
+      select: { key: true, value: true, defaultAtEdit: true, ...TIMESTAMPS },
     }),
   ]);
 
@@ -197,6 +239,7 @@ export async function readLiveDataTables({
     })),
     formSubmissions: formSubmissions.map((row) => ({
       ...row,
+      status: toSignupStatus(row.status),
       answers:
         row.answers as LiveDataTables["formSubmissions"][number]["answers"],
     })),
@@ -207,6 +250,16 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers: volunteers.map(
+      ({ events: _events, ...volunteer }) => volunteer,
+    ),
+    eventVolunteers: volunteers.flatMap((volunteer) =>
+      volunteer.events.map((event) => ({
+        eventId: event.id,
+        volunteerId: volunteer.id,
+      })),
+    ),
+    siteTexts,
   };
 }
 
@@ -257,7 +310,8 @@ async function insertAll<T>(
 /**
  * Swap every content table for the given rows in one transaction: either the
  * whole copy lands or this database is left exactly as it was. Users,
- * sessions, accounts, invites and roles are not touched.
+ * sessions, accounts, invites and roles are not touched. Edited site texts
+ * count as content: the target ends up worded like the live site.
  *
  * Returns the storageKeys of the images that were here before, for the
  * caller's post-commit provider cleanup.
@@ -294,6 +348,9 @@ export async function replaceLiveDataTables(
       await tx.formVersion.deleteMany();
       await tx.form.deleteMany();
       await tx.boardMember.deleteMany();
+      await tx.siteText.deleteMany();
+      // takes the event credits with it (the join cascades)
+      await tx.volunteer.deleteMany();
       await tx.image.deleteMany();
       await tx.address.deleteMany();
 
@@ -337,6 +394,20 @@ export async function replaceLiveDataTables(
       await insertAll(tables.boardMembers, (data) =>
         tx.boardMember.createMany({ data }),
       );
+      await insertAll(tables.volunteers, (data) =>
+        tx.volunteer.createMany({ data }),
+      );
+      for (const [volunteerId, eventIds] of groupEventIdsByVolunteer(
+        tables.eventVolunteers,
+      )) {
+        await tx.volunteer.update({
+          where: { id: volunteerId },
+          data: { events: { connect: eventIds.map((id) => ({ id })) } },
+        });
+      }
+      await insertAll(tables.siteTexts, (data) =>
+        tx.siteText.createMany({ data }),
+      );
 
       return {
         previousStorageKeys: previous.map((image) => image.storageKey),
@@ -344,4 +415,16 @@ export async function replaceLiveDataTables(
     },
     { timeout: REPLACE_TIMEOUT_MS, maxWait: 10_000 },
   );
+}
+
+function groupEventIdsByVolunteer(
+  rows: LiveDataTables["eventVolunteers"],
+): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+  for (const { eventId, volunteerId } of rows) {
+    const eventIds = grouped.get(volunteerId) ?? [];
+    eventIds.push(eventId);
+    grouped.set(volunteerId, eventIds);
+  }
+  return grouped;
 }

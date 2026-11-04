@@ -5,6 +5,7 @@ import {
   type Attendee,
   type RosterColumn,
 } from "~/features/signup-form/read.server";
+import type { SignupStatus } from "~/features/signup-form/signup-status";
 import { getEventById } from "~/models/event.server";
 import { contentDispositionAttachment } from "~/shared/content-disposition.server";
 import { buildCSVObject } from "~/shared/csv-builder.server";
@@ -19,8 +20,11 @@ export async function loader({ params }: Route.LoaderArgs) {
   ]);
 
   const data = buildCSVObject(
-    columns.map((column) => column.label),
-    attendees.map((attendee) => toCsvRow(attendee, columns)),
+    ["Status", ...columns.map((column) => column.label)],
+    attendees.map((attendee) => [
+      STATUS_LABELS[attendee.status],
+      ...toCsvRow(attendee, columns),
+    ]),
   );
 
   const filename = `${event.title.split(" ").join("-")}-signups.csv`;
@@ -34,6 +38,12 @@ export async function loader({ params }: Route.LoaderArgs) {
     },
   });
 }
+
+const STATUS_LABELS: Record<SignupStatus, string> = {
+  confirmed: "confirmed",
+  waitlisted: "waiting list",
+  cancelled: "cancelled",
+};
 
 function toCsvRow(attendee: Attendee, columns: RosterColumn[]) {
   return columns.map((column) => formatAnswer(attendee.answers[column.name]));
