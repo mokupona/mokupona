@@ -1,6 +1,6 @@
 import type { Route } from "./+types/about";
 
-import { OptimizedImage } from "~/components/optimized-image";
+import { PersonGrid } from "~/components/person-card";
 import { RouteErrorContent } from "~/components/route-error-content";
 import {
   Eyebrow,
@@ -13,13 +13,24 @@ import {
   type TextSectionBlockType,
 } from "~/features/cms/blocks/text-section";
 import { listBoardMembers } from "~/models/board-member.server";
-import type { ImageMetadata } from "~/models/image.server";
-
-/** Square portraits keep the grid honest whatever aspect the upload had. */
-const PORTRAIT_SIZE = 320;
+import { listVolunteers } from "~/models/volunteer.server";
 
 export async function loader() {
-  return { volunteers: await listBoardMembers() };
+  const [boardMembers, volunteers] = await Promise.all([
+    listBoardMembers(),
+    listVolunteers(),
+  ]);
+
+  return {
+    boardMembers: boardMembers.map(({ position, ...member }) => ({
+      ...member,
+      subtitle: position,
+    })),
+    volunteers: volunteers.map(({ role, ...volunteer }) => ({
+      ...volunteer,
+      subtitle: role,
+    })),
+  };
 }
 
 export const meta: Route.MetaFunction = () => [
@@ -43,7 +54,7 @@ const whoWeAreSectionData: TextSectionBlockType = {
 };
 
 export default function AboutPage({ loaderData }: Route.ComponentProps) {
-  const { volunteers } = loaderData;
+  const { boardMembers, volunteers } = loaderData;
 
   return (
     // TextSectionBlockView carries its own PageContainer, so the sections sit
@@ -70,12 +81,8 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
           the moku pona hall of fame
         </SectionDivider>
 
-        {volunteers.length > 0 ? (
-          <ul className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
-            {volunteers.map((volunteer) => (
-              <VolunteerCard key={volunteer.id} volunteer={volunteer} />
-            ))}
-          </ul>
+        {boardMembers.length > 0 ? (
+          <PersonGrid people={boardMembers} />
         ) : (
           <p className="text-muted-foreground max-w-md text-base font-light md:text-lg">
             the hall is still being hung. check back once we&apos;ve persuaded
@@ -83,74 +90,19 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
           </p>
         )}
       </PageContainer>
-    </main>
-  );
-}
 
-function VolunteerCard({
-  volunteer,
-}: {
-  volunteer: {
-    id: string;
-    name: string;
-    position: string;
-    bio: string | null;
-    image: ImageMetadata | null;
-  };
-}) {
-  return (
-    <li className="flex flex-col gap-3">
-      {/* the sage fill is the placeholder's own backdrop, not a card, so it
-          only appears when there is no portrait to show */}
-      <div className={volunteer.image ? "overflow-hidden" : "bg-sage/40"}>
-        {volunteer.image ? (
-          <OptimizedImage
-            image={volunteer.image}
-            alt={volunteer.name}
-            width={PORTRAIT_SIZE}
-            height={PORTRAIT_SIZE}
-            loading="lazy"
-            sizes="(min-width: 1024px) 260px, (min-width: 640px) 30vw, 45vw"
-            className="w-full"
-          />
-        ) : (
-          <PortraitPlaceholder name={volunteer.name} />
-        )}
-      </div>
-
-      <div className="flex flex-col gap-0.5">
-        <h3 className="text-base leading-tight font-light md:text-lg">
-          {volunteer.name}
-        </h3>
-        <p className="text-muted-foreground text-xs md:text-sm">
-          {volunteer.position}
-        </p>
-        {volunteer.bio ? (
-          <p className="text-foreground/80 mt-2 text-sm font-light whitespace-pre-line">
-            {volunteer.bio}
+      {volunteers.length > 0 ? (
+        <PageContainer as="section" className="mt-20">
+          <SectionDivider className="mb-4">our volunteers</SectionDivider>
+          <p className="text-muted-foreground mb-8 max-w-2xl text-base font-light md:text-lg">
+            the hands in the kitchen, at the door and at the sink — every
+            evening happens because of them.
           </p>
-        ) : null}
-      </div>
-    </li>
-  );
-}
 
-/** Stands in until someone uploads a portrait — initials on a sage card. */
-function PortraitPlaceholder({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-
-  return (
-    <div
-      className="text-ink/60 flex aspect-square items-center justify-center text-3xl font-light"
-      aria-hidden="true"
-    >
-      {initials}
-    </div>
+          <PersonGrid people={volunteers} />
+        </PageContainer>
+      ) : null}
+    </main>
   );
 }
 

@@ -39,6 +39,7 @@ async function seed() {
 
   // the public hall of fame reads these, so they reseed like everything else
   await prisma.boardMember.deleteMany().catch(() => {});
+  await prisma.volunteer.deleteMany().catch(() => {});
 
   // Gallery links cascade with their event, but pool images belong to
   // nothing and would survive every reseed.
@@ -252,6 +253,61 @@ async function seed() {
       },
     });
   }
+
+  // Volunteers: some with portraits, some without, so both the photo and the
+  // initials placeholder get exercised. The first few are credited on the
+  // most recent past event so its page shows the thank-you section.
+  const volunteerSeeds = [
+    { name: "Noa Keller", role: "kitchen", portrait: true },
+    { name: "Elif Demir", role: "host", portrait: true },
+    { name: "Sam Brunner", role: "dishes", portrait: false },
+    { name: "Yuki Tanaka", role: "desserts", portrait: true },
+    { name: "Marco Rossi", role: "kitchen", portrait: false },
+    { name: "Ines Moreau", role: null, portrait: false },
+  ];
+
+  const volunteerIds: string[] = [];
+  for (const [index, volunteer] of volunteerSeeds.entries()) {
+    const initials = volunteer.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("");
+
+    const created = await prisma.volunteer.create({
+      data: {
+        name: volunteer.name,
+        role: volunteer.role,
+        ...(volunteer.portrait && {
+          image: {
+            create: {
+              contentType: "image/svg+xml",
+              ...(await storeImage(
+                new File(
+                  [portraitSvg(initials, (index * 47 + 20) % 360)],
+                  `volunteer-${index + 1}.svg`,
+                  { type: "image/svg+xml" },
+                ),
+                "volunteers",
+              )),
+              width: 640,
+              height: 640,
+              altText: volunteer.name,
+            },
+          },
+        }),
+      },
+    });
+    volunteerIds.push(created.id);
+  }
+
+  await prisma.event.update({
+    where: { id: pastEvent.id },
+    data: {
+      volunteers: {
+        connect: volunteerIds.slice(0, 4).map((id) => ({ id })),
+      },
+    },
+  });
 
   console.log(`Database has been seeded. 🌱`);
 }

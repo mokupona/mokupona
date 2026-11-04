@@ -6,6 +6,7 @@ export interface AdminTabCounts {
   events: number;
   locations: number;
   board: number;
+  volunteers: number;
   users: number | null;
 }
 
@@ -14,6 +15,7 @@ const TABS = [
   { to: "/admin/events", label: "events", countKey: "events" },
   { to: "/admin/locations", label: "locations", countKey: "locations" },
   { to: "/admin/board-members", label: "board", countKey: "board" },
+  { to: "/admin/volunteers", label: "volunteers", countKey: "volunteers" },
   { to: "/admin/users", label: "users", countKey: "users", adminOnly: true },
   { to: "/admin/settings", label: "settings", adminOnly: true },
   { to: "/admin/sync", label: "sync", adminOnly: true },

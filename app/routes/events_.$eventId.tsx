@@ -30,12 +30,14 @@ import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.serve
 import { EventGallerySection } from "~/features/gallery/components/event-gallery-section";
 import { loadEventGallerySection } from "~/features/gallery/event-section.server";
 import { buildSignupSchema } from "~/features/signup-form/build-schema";
+import { EventVolunteersSection } from "~/features/volunteers/event-volunteers-section";
 import { cn } from "~/lib/utils";
 import { getEventWithCurrentFormVersion } from "~/models/event.server";
 import {
   createFormSubmission,
   FormVersionChangedError,
 } from "~/models/form-submission.server";
+import { listVolunteersForEvent } from "~/models/volunteer.server";
 import { getClientIPAddress, requireFound } from "~/shared/http.server";
 import { getImageUrl } from "~/shared/image";
 import { withOpenGraphUrls } from "~/shared/meta";
@@ -49,17 +51,25 @@ export async function loader({ params }: Route.LoaderArgs) {
     await getEventWithCurrentFormVersion(eventId),
   );
 
-  // the gallery belongs to evenings that already happened; upcoming events
-  // pay nothing for it
-  const gallery = isPastEvent(event.date, new Date())
-    ? await loadEventGallerySection(event.id)
-    : null;
+  // the gallery and the volunteer credits belong to evenings that already
+  // happened; upcoming events pay nothing for them
+  const eventIsPast = isPastEvent(event.date, new Date());
+  const [gallery, volunteers] = eventIsPast
+    ? await Promise.all([
+        loadEventGallerySection(event.id),
+        listVolunteersForEvent(event.id),
+      ])
+    : [null, []];
 
   return {
     event: toEventDetailModel(event),
     formFields: parseStoredFormSchemaOrLog(version),
     formVersionId: version.id,
     gallery,
+    volunteers: volunteers.map(({ role, ...volunteer }) => ({
+      ...volunteer,
+      subtitle: role,
+    })),
   };
 }
 
@@ -235,7 +245,7 @@ export default function EventPage({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { event, formFields, formVersionId, gallery } = loaderData;
+  const { event, formFields, formVersionId, gallery, volunteers } = loaderData;
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
   const signupFields = eventIsPast ? null : formFields;
@@ -279,6 +289,8 @@ export default function EventPage({
       </div>
 
       {gallery ? <EventGallerySection {...gallery} /> : null}
+
+      {eventIsPast ? <EventVolunteersSection people={volunteers} /> : null}
     </PageContainer>
   );
 }
