@@ -115,7 +115,7 @@ function EmptyState() {
           "mt-1 w-fit",
         )}
       >
-        follow on instagram
+        follow us on instagram
       </a>
     </div>
   );
