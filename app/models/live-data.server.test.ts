@@ -50,6 +50,8 @@ describe("replaceLiveDataTables", () => {
       eventResponses: 1,
       eventGalleryImages: 1,
       boardMembers: 1,
+      volunteers: 1,
+      eventVolunteers: 1,
     });
   });
 

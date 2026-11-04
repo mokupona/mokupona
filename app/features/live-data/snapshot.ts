@@ -113,6 +113,22 @@ const boardMemberRow = z.object({
   updatedAt: dateTime,
 });
 
+const volunteerRow = z.object({
+  id,
+  name: text,
+  role: nullableText,
+  bio: nullableText,
+  imageId: id.nullable(),
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
+
+/** One row of the implicit Event ↔ Volunteer join: who helped at what. */
+const eventVolunteerRow = z.object({
+  eventId: id,
+  volunteerId: id,
+});
+
 export const liveDataTablesSchema = z.object({
   addresses: z.array(addressRow),
   images: z.array(imageRow),
@@ -123,15 +139,29 @@ export const liveDataTablesSchema = z.object({
   eventResponses: z.array(eventResponseRow),
   eventGalleryImages: z.array(eventGalleryImageRow),
   boardMembers: z.array(boardMemberRow),
+  // absent from exports made before volunteers existed
+  volunteers: z.array(volunteerRow).default([]),
+  eventVolunteers: z.array(eventVolunteerRow).default([]),
 });
 
 export type LiveDataTables = z.output<typeof liveDataTablesSchema>;
 export type LiveDataImageRow = LiveDataTables["images"][number];
 
+// tables a live site running older code does not send at all
+const LATER_TABLES = new Set<string>(["volunteers", "eventVolunteers"]);
+
 const countsSchema = z.object(
   Object.fromEntries(
-    LIVE_DATA_TABLES.map((table) => [table, int.nonnegative()]),
-  ) as Record<keyof LiveDataCounts, z.ZodNumber>,
+    LIVE_DATA_TABLES.map((table) => [
+      table,
+      LATER_TABLES.has(table)
+        ? int.nonnegative().default(0)
+        : int.nonnegative(),
+    ]),
+  ) as unknown as Record<
+    keyof LiveDataCounts,
+    z.ZodType<number, number | undefined>
+  >,
 );
 
 const sourceSchema = z.object({

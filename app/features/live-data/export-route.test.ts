@@ -133,6 +133,24 @@ describe("GET /api/live-data", () => {
     });
   });
 
+  it("still reads an export from a live site that predates volunteers", async () => {
+    vi.stubEnv("LIVE_DATA_TOKEN", TOKEN);
+
+    const response = await get();
+    const json = await response.json();
+    // what older code sends: no volunteer tables in the data or the counts
+    delete json.data.volunteers;
+    delete json.data.eventVolunteers;
+    delete json.counts.volunteers;
+    delete json.counts.eventVolunteers;
+
+    const snapshot = liveDataSnapshotSchema.parse(json);
+
+    expect(snapshot.data.volunteers).toEqual([]);
+    expect(snapshot.data.eventVolunteers).toEqual([]);
+    expect(snapshot.counts.volunteers).toBe(0);
+  });
+
   it("leaves signups behind with signups=0", async () => {
     vi.stubEnv("LIVE_DATA_TOKEN", TOKEN);
 

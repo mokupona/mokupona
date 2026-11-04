@@ -33,6 +33,8 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
+    eventVolunteers,
   ] = await prisma.$transaction([
     prisma.address.count(),
     prisma.image.count(),
@@ -43,6 +45,10 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     prisma.eventResponse.count(),
     prisma.eventGalleryImage.count(),
     prisma.boardMember.count(),
+    prisma.volunteer.count(),
+    // the implicit join has no model of its own; each credit is one event
+    // seen from one volunteer
+    prisma.event.count({ where: { volunteers: { some: {} } } }),
   ]);
 
   return {
@@ -55,6 +61,8 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
+    eventVolunteers,
   };
 }
 
@@ -80,6 +88,7 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers,
   ] = await prisma.$transaction([
     prisma.address.findMany({
       orderBy: byId,
@@ -186,6 +195,18 @@ export async function readLiveDataTables({
         ...TIMESTAMPS,
       },
     }),
+    prisma.volunteer.findMany({
+      orderBy: byId,
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        bio: true,
+        imageId: true,
+        ...TIMESTAMPS,
+        events: { orderBy: byId, select: { id: true } },
+      },
+    }),
   ]);
 
   return {
@@ -208,6 +229,15 @@ export async function readLiveDataTables({
     eventResponses,
     eventGalleryImages,
     boardMembers,
+    volunteers: volunteers.map(
+      ({ events: _events, ...volunteer }) => volunteer,
+    ),
+    eventVolunteers: volunteers.flatMap((volunteer) =>
+      volunteer.events.map((event) => ({
+        eventId: event.id,
+        volunteerId: volunteer.id,
+      })),
+    ),
   };
 }
 
@@ -295,6 +325,8 @@ export async function replaceLiveDataTables(
       await tx.formVersion.deleteMany();
       await tx.form.deleteMany();
       await tx.boardMember.deleteMany();
+      // takes the event credits with it (the join cascades)
+      await tx.volunteer.deleteMany();
       await tx.image.deleteMany();
       await tx.address.deleteMany();
 
@@ -338,6 +370,17 @@ export async function replaceLiveDataTables(
       await insertAll(tables.boardMembers, (data) =>
         tx.boardMember.createMany({ data }),
       );
+      await insertAll(tables.volunteers, (data) =>
+        tx.volunteer.createMany({ data }),
+      );
+      for (const [volunteerId, eventIds] of groupEventIdsByVolunteer(
+        tables.eventVolunteers,
+      )) {
+        await tx.volunteer.update({
+          where: { id: volunteerId },
+          data: { events: { connect: eventIds.map((id) => ({ id })) } },
+        });
+      }
 
       return {
         previousStorageKeys: previous.map((image) => image.storageKey),
@@ -345,4 +388,16 @@ export async function replaceLiveDataTables(
     },
     { timeout: REPLACE_TIMEOUT_MS, maxWait: 10_000 },
   );
+}
+
+function groupEventIdsByVolunteer(
+  rows: LiveDataTables["eventVolunteers"],
+): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+  for (const { eventId, volunteerId } of rows) {
+    const eventIds = grouped.get(volunteerId) ?? [];
+    eventIds.push(eventId);
+    grouped.set(volunteerId, eventIds);
+  }
+  return grouped;
 }
