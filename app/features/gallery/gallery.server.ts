@@ -7,6 +7,7 @@ import {
   type GalleryAlbum,
   type GalleryEntry,
 } from "~/models/gallery.server";
+import { markdownToText } from "~/shared/markdown.server";
 
 function toGalleryAlbumModel(album: GalleryAlbum): GalleryAlbumModel {
   // altText lives on the image row but is an album-level concern here, so it
@@ -23,7 +24,7 @@ function toGalleryAlbumModel(album: GalleryAlbum): GalleryAlbumModel {
   return {
     id: album.id,
     title: album.title,
-    description: album.description,
+    description: markdownToText(album.description),
     date: album.date,
     imageCount: album.imageCount,
     cover,

@@ -1,5 +1,4 @@
 import type { Address } from "~/models/address.server";
-import type { EventWithImage } from "~/models/event.server";
 import type { ImageMetadata } from "~/models/image.server";
 
 export type SerializableDate = Date | string;
@@ -7,6 +6,7 @@ export type SerializableDate = Date | string;
 export interface EventSummaryModel {
   id: string;
   title: string;
+  /** plain text, the Markdown taken out: cards show it as a teaser */
   description: string;
   date: SerializableDate;
   image: ImageMetadata | null;
@@ -20,50 +20,18 @@ export interface EventCardModel extends EventSummaryModel {
   galleryImageCount: number;
 }
 
-type EventWithAddress = EventWithImage & { address: Address };
-type EventWithAddressAndGalleryCount = EventWithAddress & {
-  galleryImageCount: number;
-};
-
-function toEventSummaryModel(event: EventWithImage): EventSummaryModel {
-  return {
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    date: event.date,
-    image: event.image,
-    price: event.price,
-    slots: event.slots,
-  };
-}
-
-export function toEventCardModel(
-  event: EventWithAddressAndGalleryCount,
-): EventCardModel {
-  return {
-    ...toEventSummaryModel(event),
-    addressLine: `${event.address.zip} ${event.address.city}`.toLowerCase(),
-    galleryImageCount: event.galleryImageCount,
-  };
-}
-
+/**
+ * The event page's texts come rendered from Markdown on the server
+ * (view-models.server.ts), so the parser never ships to the browser. An
+ * optional text that's missing or blank is null.
+ */
 export interface EventDetailModel extends EventSummaryModel {
   studentPrice: number | null;
-  menuDescription: string | null;
-  donationDescription: string | null;
-  discounts: string | null;
+  descriptionHtml: string;
+  menuHtml: string | null;
+  donationHtml: string | null;
+  discountsHtml: string | null;
   addressLine: string;
-}
-
-export function toEventDetailModel(event: EventWithAddress): EventDetailModel {
-  return {
-    ...toEventSummaryModel(event),
-    studentPrice: event.studentPrice,
-    menuDescription: event.menuDescription,
-    donationDescription: event.donationDescription,
-    discounts: event.discounts,
-    addressLine: `${event.address.zip} ${event.address.city}`,
-  };
 }
 
 export interface AddressOptionModel {

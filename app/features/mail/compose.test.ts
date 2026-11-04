@@ -232,7 +232,58 @@ describe("signupConfirmation", () => {
       true,
     );
     expect(html).toContain("<p>Dear Ada,</p>");
-    expect(html).toContain("<p>you owe us 75 CHF.<br>Cash only.</p>");
+    expect(html).toContain("<p>you owe us 75 CHF.<br>\nCash only.</p>");
+  });
+
+  it("renders the message's Markdown, with link addresses in the text part", () => {
+    const { text, html } = mailTemplates.signupConfirmation(
+      props({
+        mailMessage:
+          "Hi {name},\n\nread **the house rules** on [our site](https://mokupona.ch/rules) before you come.",
+      }),
+      defaultText,
+    );
+
+    expect(html).toContain(
+      '<p>read <strong>the house rules</strong> on <a href="https://mokupona.ch/rules" target="_blank" rel="noopener noreferrer">our site</a> before you come.</p>',
+    );
+    expect(
+      text.startsWith(
+        "Hi Ada,\n\nread the house rules on our site (https://mokupona.ch/rules) before you come.",
+      ),
+    ).toBe(true);
+    // the inbox preview is the first paragraph, as plain text
+    expect(html).toContain(
+      '<span style="display: none; max-height: 0; overflow: hidden;">Hi Ada,</span>',
+    );
+  });
+
+  it("fills in a guest's name as plain text, never as markup", () => {
+    const booking = props().booking;
+    const { text, html } = mailTemplates.signupConfirmation(
+      {
+        ...props({ mailMessage: "Hi {name}!" }),
+        booking: {
+          ...booking,
+          guests: [
+            {
+              ...booking.guests[0],
+              name: "[Ada](https://evil.example) **<b>**",
+            },
+            ...booking.guests.slice(1),
+          ],
+        },
+      },
+      defaultText,
+    );
+
+    expect(html).toContain(
+      "<p>Hi [Ada](https://evil.example) **&lt;b&gt;**!</p>",
+    );
+    expect(html).not.toContain('evil.example"');
+    expect(text.startsWith("Hi [Ada](https://evil.example) **<b>**!")).toBe(
+      true,
+    );
   });
 
   it("falls back to the default copy for blank fields", () => {

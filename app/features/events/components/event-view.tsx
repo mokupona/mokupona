@@ -10,8 +10,8 @@ import {
   EventSeatsFact,
 } from "./event-facts";
 
-import { AutoLink } from "~/components/auto-link";
 import { CoverImage } from "~/components/cover-image";
+import { MarkdownText } from "~/components/markdown-text";
 import { pageTitleClassName } from "~/components/section";
 import {
   Accordion,
@@ -47,34 +47,37 @@ export function EventStory({ event }: EventViewProps) {
         <h1 className={pageTitleClassName}>{event.title}</h1>
       </div>
 
-      <p className="text-foreground/80 text-base font-light whitespace-pre-line md:text-lg">
-        <AutoLink text={event.description} />
-      </p>
+      <MarkdownText
+        html={event.descriptionHtml}
+        className="text-foreground/80 text-base font-light md:text-lg"
+      />
 
-      {event.menuDescription || event.donationDescription ? (
+      {event.menuHtml || event.donationHtml ? (
         <Accordion defaultValue={["menu"]} className="mt-2 border-t">
-          {event.menuDescription ? (
+          {event.menuHtml ? (
             <AccordionItem value="menu">
               <AccordionTrigger className="text-primary">
                 {t("events.detail.menu")}
               </AccordionTrigger>
               <AccordionContent className="pb-6">
-                <p className="text-foreground/80 text-base font-light whitespace-pre-line">
-                  <AutoLink text={event.menuDescription} />
-                </p>
+                <MarkdownText
+                  html={event.menuHtml}
+                  className="text-foreground/80 text-base font-light"
+                />
               </AccordionContent>
             </AccordionItem>
           ) : null}
 
-          {event.donationDescription ? (
+          {event.donationHtml ? (
             <AccordionItem value="donation">
               <AccordionTrigger className="text-primary">
                 {t("events.detail.donation")}
               </AccordionTrigger>
               <AccordionContent className="pb-6">
-                <p className="text-foreground/80 text-base font-light whitespace-pre-line">
-                  <AutoLink text={event.donationDescription} />
-                </p>
+                <MarkdownText
+                  html={event.donationHtml}
+                  className="text-foreground/80 text-base font-light"
+                />
               </AccordionContent>
             </AccordionItem>
           ) : null}
@@ -113,9 +116,11 @@ export function EventFactList({
             </span>
           </PopoverTrigger>
           <PopoverContent>
-            <p className="text-sm whitespace-pre-line">
-              {event.discounts ?? t("events.facts.noDiscounts")}
-            </p>
+            {event.discountsHtml ? (
+              <MarkdownText html={event.discountsHtml} className="text-sm" />
+            ) : (
+              <p className="text-sm">{t("events.facts.noDiscounts")}</p>
+            )}
           </PopoverContent>
         </Popover>
       </div>

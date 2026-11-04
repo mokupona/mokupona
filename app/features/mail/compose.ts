@@ -1,15 +1,30 @@
 import type { MailMessage } from "./types";
 
+import { markdownToText, renderMarkdown } from "~/shared/markdown.server";
+
 export type DetailRow = readonly [label: string, value: string];
 
 type Block =
   | { kind: "paragraph"; text: string }
+  | { kind: "markdown"; html: string; text: string }
   | { kind: "action"; label: string; url: string }
   | { kind: "note"; text: string }
   | { kind: "details"; title: string; rows: DetailRow[] };
 
 export function paragraph(text: string): Block {
   return { kind: "paragraph", text };
+}
+
+/**
+ * An admin's Markdown, e.g. a signup message: html in the html part, and in
+ * the text part the words with each link's address after its label.
+ */
+export function markdown(source: string): Block {
+  return {
+    kind: "markdown",
+    html: renderMarkdown(source),
+    text: markdownToText(source, { linkUrls: true }),
+  };
 }
 
 export function action(label: string, url: string): Block {
@@ -74,8 +89,11 @@ function renderHtml(
   blocks: Block[],
   options: ComposeOptions,
 ): string {
-  const preheader =
-    blocks.find((block) => block.kind === "paragraph")?.text ?? subject;
+  const opening = blocks.find(
+    (block) => block.kind === "paragraph" || block.kind === "markdown",
+  );
+  // the inbox preview: the mail's first paragraph
+  const preheader = opening?.text.split("\n\n")[0] ?? subject;
   const body = blocks
     .map((block) => renderBlock(block, options))
     .join("\n      ");
@@ -100,6 +118,9 @@ function renderBlock(block: Block, { linkFallback }: ComposeOptions): string {
   switch (block.kind) {
     case "paragraph":
       return `<p>${escapeMultiline(block.text)}</p>`;
+    case "markdown":
+      // renderMarkdown escapes the source itself
+      return block.html;
     case "note":
       return `<p style="${NOTE_STYLE}">${escapeMultiline(block.text)}</p>`;
     case "details":

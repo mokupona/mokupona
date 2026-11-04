@@ -17,6 +17,10 @@ const FRIEND_VARS = {
 const SIGNUP_HINT =
   "The default for every event; an event can still set its own on its edit page. A blank line starts a new paragraph. The guest list, answers and prices follow automatically.";
 
+// the signup messages are Markdown (app/shared/markdown.server.ts)
+const SIGNUP_MESSAGE_MARKDOWN =
+  "Markdown works here: [link text](https://…), **bold**, *italic*, and lines starting with - for a list.";
+
 export const emailTexts = defineTexts("emails", {
   linkFallback: {
     label: "Under every button",
@@ -106,7 +110,7 @@ export const emailTexts = defineTexts("emails", {
     ].join("\n\n"),
     kind: "paragraph",
     vars: SIGNUP_VARS,
-    hint: "Also sent when a group is moved up from the waiting list.",
+    hint: `Also sent when a group is moved up from the waiting list. ${SIGNUP_MESSAGE_MARKDOWN}`,
   },
   "signup.waitlistedSubject": {
     label: "Event signup, waiting list: subject",
@@ -123,6 +127,7 @@ export const emailTexts = defineTexts("emails", {
     ].join("\n\n"),
     kind: "paragraph",
     vars: SIGNUP_VARS,
+    hint: SIGNUP_MESSAGE_MARKDOWN,
   },
   "signup.guest": {
     label: "Event signup: heading for each guest",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toEventCardModel, toEventDetailModel } from "./view-models";
+import { toEventCardModel, toEventDetailModel } from "./view-models.server";
 
 const event = {
   id: "event-id",
@@ -61,11 +61,33 @@ describe("event view-model mapping", () => {
     expect(detail).toMatchObject({
       ...sharedSummary,
       addressLine: "8003 Zürich",
-      menuDescription: event.menuDescription,
-      donationDescription: event.donationDescription,
-      discounts: event.discounts,
+      descriptionHtml: "<p>Event description</p>",
+      menuHtml: "<p>Seasonal menu</p>",
+      donationHtml: "<p>Pay what you can</p>",
+      discountsHtml: "<p>Student discount</p>",
       studentPrice: event.studentPrice,
     });
     expect(detail).not.toHaveProperty("galleryImageCount");
+  });
+
+  it("renders the event texts from Markdown, and strips it for the card", () => {
+    const withMarkdown = {
+      ...event,
+      description: "Book at [our site](https://mokupona.ch), **soon**.",
+      menuDescription: "  ",
+      donationDescription: null,
+    };
+
+    expect(toEventCardModel(withMarkdown).description).toBe(
+      "Book at our site, soon.",
+    );
+
+    const detail = toEventDetailModel(withMarkdown);
+    expect(detail.description).toBe("Book at our site, soon.");
+    expect(detail.descriptionHtml).toContain(
+      '<a href="https://mokupona.ch" target="_blank" rel="noopener noreferrer">our site</a>',
+    );
+    expect(detail.menuHtml).toBeNull();
+    expect(detail.donationHtml).toBeNull();
   });
 });

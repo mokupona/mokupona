@@ -4,7 +4,7 @@ import type { Route } from "./+types/admin.events.$eventId";
 
 import { Button, buttonVariants } from "~/components/ui/button";
 import { EventView } from "~/features/events/components/event-view";
-import { toEventDetailModel } from "~/features/events/view-models";
+import { toEventDetailModel } from "~/features/events/view-models.server";
 import { getEventById } from "~/models/event.server";
 import { requireFound } from "~/shared/http.server";
 
