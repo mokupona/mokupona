@@ -28,7 +28,7 @@ const OG_IMAGE_HEIGHT = 630;
 /** Three past dinners, then a "see more" tile fills the fourth slot. */
 const PAST_DINNERS_ON_LANDING = 3;
 
-export const handle: RouteHandle = { glyphBackdrop: true };
+export const handle: RouteHandle = { glyphs: "full", hideHeaderAtTop: true };
 
 export const loader = async () => {
   const events = await getEventsWithAddress();

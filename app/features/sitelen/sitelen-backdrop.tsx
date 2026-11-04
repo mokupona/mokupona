@@ -50,8 +50,8 @@ const INTERACTIVE =
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
  * strength. That's a mouse-only touch: on phones the glyphs just sit there.
- * moku and pona are doors: a click or tap on either (where the page itself
- * has nothing clickable) opens /musi.
+ * On the full (landing page) wall, moku and pona are doors: a click or tap
+ * on either (where the page itself has nothing clickable) opens /musi.
  *
  * The layer never takes pointer events (the page above it stays fully
  * clickable), so the glyph under the pointer is found by hit-testing the
@@ -60,14 +60,23 @@ const INTERACTIVE =
  * The glyph shapes arrive as one sprite after hydration — they are
  * decoration, so the layer fades in once they're ready.
  */
-export function SitelenBackdrop({ className }: { className?: string }) {
+export function SitelenBackdrop({
+  className,
+  faint = false,
+}: {
+  className?: string;
+  /** rest at half strength, for pages full of content */
+  faint?: boolean;
+}) {
   const sprite = useSprite(SPRITE_URL);
   const rowCount = useRowCount();
   const rows = useShuffledRows(rowCount);
   const rowRefs = useRef<(HTMLDivElement | null)[]>([]);
   const ready = sprite !== null && rowCount > 0 && rows.length >= rowCount;
   useScrollLinkedRows(rowRefs, ready, rowCount);
-  usePointerPop(rowRefs, ready);
+  // the /musi doors only on the full wall (the landing page): on pages full
+  // of forms a click on blank space mustn't navigate away
+  usePointerPop(rowRefs, ready, !faint);
 
   return (
     <div
@@ -79,6 +88,8 @@ export function SitelenBackdrop({ className }: { className?: string }) {
       style={
         {
           "--smp-rim": "rgb(246 240 252)",
+          // how strongly the glyphs show at rest (hovered ones go to full)
+          "--glyph-rest": faint ? 0.1 : 0.2,
           "--smp-shadow": "rgb(43 18 56 / 0.2)",
         } as React.CSSProperties
       }
@@ -141,7 +152,7 @@ function Glyph({ word, index }: { word: string; index: number }) {
     >
       <svg
         viewBox="-8 -8 116 116"
-        className="size-18 opacity-20 transition-[scale,opacity] duration-500 ease-[cubic-bezier(.3,1.6,.5,1)] group-data-active:scale-[1.6] group-data-active:opacity-100 motion-reduce:transition-none md:size-24"
+        className="size-18 opacity-(--glyph-rest) transition-[scale,opacity] duration-500 ease-[cubic-bezier(.3,1.6,.5,1)] group-data-active:scale-[1.6] group-data-active:opacity-100 motion-reduce:transition-none md:size-24"
       >
         <use href={`#smp-${word}`} />
       </svg>
@@ -298,6 +309,7 @@ function useScrollLinkedRows(
 function usePointerPop(
   rowRefs: React.RefObject<(HTMLDivElement | null)[]>,
   ready: boolean,
+  doors: boolean,
 ) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -327,7 +339,7 @@ function usePointerPop(
     };
 
     const isDoor = (glyph: HTMLElement | null) =>
-      !!glyph && EASTER_EGG_WORDS.has(glyph.dataset.word ?? "");
+      doors && !!glyph && EASTER_EGG_WORDS.has(glyph.dataset.word ?? "");
 
     const setActive = (glyph: HTMLElement | null) => {
       if (glyph === active) return;
@@ -389,7 +401,7 @@ function usePointerPop(
       if (frame) cancelAnimationFrame(frame);
       setActive(null);
     };
-  }, [ready, rowRefs, navigate]);
+  }, [ready, rowRefs, navigate, doors]);
 }
 
 function mod(n: number, m: number) {
