@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deliversFramedImage,
   getImageUrl,
   IMAGE_SIZE_ERROR,
   IMAGE_TYPE_ERROR,
@@ -139,4 +140,60 @@ describe("imageFileSchema", () => {
       expect(firstError(upload(10, type))).toBe(IMAGE_TYPE_ERROR);
     },
   );
+});
+
+describe("getImageUrl — an admin's framing", () => {
+  const framed = {
+    ...dbImage,
+    width: 1200,
+    height: 800,
+    cropX: 0.1,
+    cropY: 0.2,
+    cropWidth: 0.5,
+    cropHeight: 0.4,
+  };
+  const base = "https://res.cloudinary.com/test-cloud/image/upload";
+
+  it("crops on Cloudinary first, then sizes the crop around its middle", () => {
+    expect(
+      getImageUrl(framed, cloudinaryConfig, { width: 432, height: 288 }),
+    ).toBe(
+      `${base}/c_crop,x_120,y_160,w_600,h_320/f_auto,q_auto,c_fill,g_center,w_432,h_288/v42/abc123`,
+    );
+    expect(getImageUrl(framed, cloudinaryConfig)).toBe(
+      `${base}/c_crop,x_120,y_160,w_600,h_320/f_auto,q_auto/v42/abc123`,
+    );
+    expect(
+      getImageUrl(framed, cloudinaryConfig, { width: 1280, fit: "contain" }),
+    ).toBe(
+      `${base}/c_crop,x_120,y_160,w_600,h_320/f_auto,q_auto,c_fit,w_1280/v42/abc123`,
+    );
+  });
+
+  it("hands out the whole photo when asked, to edit the framing", () => {
+    expect(getImageUrl(framed, cloudinaryConfig, { uncropped: true })).toBe(
+      `${base}/f_auto,q_auto/v42/abc123`,
+    );
+  });
+
+  it("can't cut a crop without the stored size", () => {
+    expect(
+      getImageUrl({ ...framed, width: null }, cloudinaryConfig, {
+        width: 432,
+        height: 288,
+      }),
+    ).toBe(`${base}/f_auto,q_auto,c_fill,g_auto,w_432,h_288/v42/abc123`);
+  });
+
+  it("leaves the local provider's file as it is", () => {
+    expect(getImageUrl(framed, localConfig, { width: 432 })).toBe(
+      "/file/img-1",
+    );
+  });
+
+  it("says which deliveries arrive already framed", () => {
+    expect(deliversFramedImage(framed, cloudinaryConfig)).toBe(true);
+    expect(deliversFramedImage(framed, localConfig)).toBe(false);
+    expect(deliversFramedImage(dbImage, cloudinaryConfig)).toBe(false);
+  });
 });

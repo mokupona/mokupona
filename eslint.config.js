@@ -131,8 +131,9 @@ export default [
       // the statistics report's labels, which only /admin/stats shows
       "app/features/stats/report.ts",
       // copy that only the admin area shows: role pickers, the auth
-      // switches, the event cover editor, and the validation of event,
-      // location, board-member, volunteer and signup-form-builder forms
+      // switches, the event cover editor, photo framing, and the validation
+      // of event, location, board-member, volunteer and signup-form-builder
+      // forms
       "app/features/auth/auth-settings.ts",
       "app/features/auth/roles.ts",
       "app/features/board-members/schema.ts",
@@ -145,6 +146,7 @@ export default [
       "app/features/users/invite.shared.ts",
       "app/features/volunteers/schema.ts",
       "app/shared/image.ts",
+      "app/shared/image-crop.ts",
       "app/utils/address-validation.ts",
       // the starting questions of a new event's signup form, which admins
       // then word per event in the form builder

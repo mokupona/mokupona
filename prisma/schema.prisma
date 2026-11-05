@@ -240,6 +240,13 @@ model Image {
   width       Int?
   height      Int?
   blurDataUrl String?
+  // the admin's framing (app/shared/image-crop.ts): the part of the photo to
+  // show, as fractions of its width and height. All four or none; none shows
+  // the photo whole. The file itself is never cut.
+  cropX       Float?
+  cropY       Float?
+  cropWidth   Float?
+  cropHeight  Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

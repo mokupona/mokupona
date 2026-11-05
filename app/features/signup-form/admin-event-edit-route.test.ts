@@ -167,4 +167,52 @@ describe("admin event edit action", () => {
 
     expect(unlinked?.data.label).toBe(FRIEND_LABEL);
   });
+
+  it("frames the current cover anew without a new file", async () => {
+    const { eventId, addressId } = await createTestEvent();
+    const before = await prisma.event.findUniqueOrThrow({
+      where: { id: eventId },
+      include: { image: true },
+    });
+    const body = editBody(addressId, defaultBuilderRows());
+    body.set("coverCrop", "0.1 0.2 0.5 0.4");
+
+    const result = await submit(eventId, body, await moderator());
+
+    expect((result as Response).status).toBe(302);
+    const after = await prisma.event.findUniqueOrThrow({
+      where: { id: eventId },
+      include: { image: true },
+    });
+    // the same file, now framed
+    expect(after.imageId).toBe(before.imageId);
+    expect(after.image).toMatchObject({
+      storageKey: before.image?.storageKey,
+      cropX: 0.1,
+      cropY: 0.2,
+      cropWidth: 0.5,
+      cropHeight: 0.4,
+    });
+  });
+
+  it("leaves the cover's framing alone when the form doesn't touch it", async () => {
+    const { eventId, addressId } = await createTestEvent();
+    const event = await prisma.event.findUniqueOrThrow({
+      where: { id: eventId },
+    });
+    await prisma.image.update({
+      where: { id: event.imageId! },
+      data: { cropX: 0, cropY: 0, cropWidth: 0.5, cropHeight: 0.5 },
+    });
+
+    await submit(
+      eventId,
+      editBody(addressId, defaultBuilderRows()),
+      await moderator(),
+    );
+
+    expect(
+      await prisma.image.findUniqueOrThrow({ where: { id: event.imageId! } }),
+    ).toMatchObject({ cropWidth: 0.5, cropHeight: 0.5 });
+  });
 });

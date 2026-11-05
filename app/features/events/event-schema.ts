@@ -8,6 +8,7 @@ import {
   unknownSignupMailPlaceholders,
 } from "~/features/signup-form/confirmation-mail";
 import { imageFileSchema } from "~/shared/image";
+import { cropFieldSchema } from "~/shared/image-crop";
 
 // a typo'd placeholder would reach guests as literal "{nmae}", so it fails
 // validation instead
@@ -63,6 +64,9 @@ export const EventSchema = z.object({
   waitlistMailSubject: signupMailCopy(MAX_SIGNUP_MAIL_SUBJECT_LENGTH),
   waitlistMailMessage: signupMailCopy(MAX_SIGNUP_MAIL_MESSAGE_LENGTH),
   cover: imageFileSchema(),
+  // how the cover sits in its 3:2 frame (cover-photo-field.tsx); absent
+  // leaves the current cover's framing as it is
+  coverCrop: cropFieldSchema,
   addressId: z.string({ error: "Address is required" }).trim(),
 });
 

@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import {
+  deliversFramedImage,
   getImageUrl,
   RESPONSIVE_IMAGE_WIDTHS,
   type ImageDisplaySource,
   type ImageFit,
 } from "~/shared/image";
+import { cropOf, framedImageStyle } from "~/shared/image-crop";
 import { useImageConfig } from "~/shared/root-data";
 
 type ImageInputProps = {
@@ -48,6 +50,23 @@ export function OptimizedImage({
     return `${getImageUrl(image, config, { width: w, height: h, fit })} ${w}w`;
   }).join(", ");
 
+  // an admin's framing the delivered file doesn't carry (the local provider
+  // serves files as stored): place the whole file so the frame shows it
+  const crop = cropOf(image);
+  const framing =
+    crop &&
+    fit === "cover" &&
+    image.width &&
+    image.height &&
+    !deliversFramedImage(image, config)
+      ? framedImageStyle(
+          crop,
+          { width: image.width, height: image.height },
+          aspect,
+        )
+      : undefined;
+  const fill = framing ? "absolute" : "absolute inset-0 size-full object-cover";
+
   return (
     <div
       className={cn("relative overflow-hidden", className)}
@@ -78,9 +97,11 @@ export function OptimizedImage({
             loading={loading}
             onLoad={() => setLoaded(true)}
             className={cn(
-              "absolute inset-0 size-full object-cover transition-opacity duration-300",
+              fill,
+              "transition-opacity duration-300",
               loaded ? "opacity-100" : "opacity-0",
             )}
+            style={framing}
             {...props}
           />
           <noscript>
@@ -91,7 +112,8 @@ export function OptimizedImage({
               height={height}
               alt={alt}
               loading={loading}
-              className="absolute inset-0 size-full object-cover"
+              className={fill}
+              style={framing}
             />
           </noscript>
         </>

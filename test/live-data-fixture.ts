@@ -35,6 +35,11 @@ export function liveDataFixture(
         width: 1200,
         height: 800,
         blurDataUrl: null,
+        // framed by an admin, which a copy must keep
+        cropX: 0.1,
+        cropY: 0.05,
+        cropWidth: 0.75,
+        cropHeight: 0.75,
         ...stamps,
       },
       {
@@ -46,6 +51,10 @@ export function liveDataFixture(
         width: 900,
         height: 600,
         blurDataUrl: null,
+        cropX: null,
+        cropY: null,
+        cropWidth: null,
+        cropHeight: null,
         ...stamps,
       },
       {
@@ -57,6 +66,10 @@ export function liveDataFixture(
         width: null,
         height: null,
         blurDataUrl: null,
+        cropX: null,
+        cropY: null,
+        cropWidth: null,
+        cropHeight: null,
         ...stamps,
       },
     ],
