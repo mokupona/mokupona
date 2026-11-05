@@ -278,6 +278,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   if (typeof values.email === "string") {
     try {
       await sendSignupConfirmation({
+        submissionId: signup.id,
         to: values.email,
         status: signup.status,
         event,

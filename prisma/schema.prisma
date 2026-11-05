@@ -25,6 +25,8 @@ model User {
 
   events Event[]
 
+  signupMailsSent SignupMail[]
+
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   roleId String
 }
@@ -214,11 +216,45 @@ model FormSubmission {
   secondHalfPaid Boolean @default(false)
   // free text for the admin team, e.g. "pays by transfer, allergy call"
   adminNote String @default("")
+  // false for signups stored before the site kept a record of the mails it
+  // sends (SignupMail), and for signups copied in from the live site: for
+  // those, no record doesn't mean no mail
+  mailsTracked Boolean @default(true)
 
   createdAt DateTime @default(now())
 
   formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   formVersionId String
+
+  mails SignupMail[]
+}
+
+// One mail that went out about a signup, so the signup sheet can show who
+// has heard from us and what we told them. A mail that failed to send leaves
+// no row.
+model SignupMail {
+  id        String   @id @default(cuid())
+  // "confirmed" or "waitlisted": the signup mail to the signer, with that
+  // outcome (app/features/signup-form/confirmation-mail.server.ts);
+  // "friend": the note to a friend the signer gave an address for;
+  // "custom": a message an admin wrote on the signup sheet
+  kind      String
+  recipient String
+  // what an admin wrote, placeholders filled in; empty for the site's own
+  // mails, whose wording lives in the site texts
+  subject   String   @default("")
+  message   String   @default("")
+  createdAt DateTime @default(now())
+
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  submissionId String
+
+  // the admin who sent it from the signup sheet; null when it went out on
+  // its own, at signup
+  sentBy   User?   @relation(fields: [sentById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sentById String?
+
+  @@index([submissionId])
 }
 
 model EventResponse {

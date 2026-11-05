@@ -103,6 +103,7 @@ Auth & mail:
 - `RESEND_API_KEY`: required when `MAIL_PROVIDER=resend`
 - `MAIL_FROM`: sender address for account mail (verify, reset, invite), defaults to `moku pona <noreply@mokupona.ch>`
 - `EVENT_SIGNUP_MAIL_FROM`: sender address for the confirmation mail guests get after signing up for an event, defaults to `moku pona <noreply@mokupona.ch>`. Its domain must be verified in Resend.
+- `GUEST_MAIL_COPY_TO`: the team inbox that gets a copy of every email to a guest (the signup mail, the note to a friend, a message written on the signup sheet), each under a line naming the guest. Defaults to `mokuponadinnerclub@gmail.com`; set it to an empty string to turn the copies off, e.g. on staging.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth; the "Continue with Google" buttons hide while unset
 
 Optional:

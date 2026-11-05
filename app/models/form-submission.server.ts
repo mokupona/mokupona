@@ -1,5 +1,7 @@
 import type { Prisma } from "#prisma/generated/client";
 
+import { SIGNUP_MAIL_ORDER_BY, SIGNUP_MAIL_SELECT } from "./signup-mail.server";
+
 import { prisma } from "~/db.server";
 
 export class FormVersionChangedError extends Error {
@@ -57,7 +59,10 @@ export async function getFormSubmissionAnswersByEvent(eventIds: string[]) {
 export async function getFormSubmissionsForEvent(eventId: string) {
   return prisma.formSubmission.findMany({
     where: { formVersion: { form: { event: { id: eventId } } } },
-    include: { formVersion: true },
+    include: {
+      formVersion: true,
+      mails: { orderBy: SIGNUP_MAIL_ORDER_BY, select: SIGNUP_MAIL_SELECT },
+    },
     orderBy: { createdAt: "asc" },
   });
 }
