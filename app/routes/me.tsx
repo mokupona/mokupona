@@ -38,7 +38,11 @@ import { useText } from "~/features/site-text/site-text-context";
 import { getText } from "~/features/site-text/site-text.server";
 import type { Text } from "~/features/site-text/text";
 import { cn } from "~/lib/utils";
-import { getUserAuthOverview, updateUserName } from "~/models/user.server";
+import {
+  getLinkedAccountId,
+  getUserAuthOverview,
+  updateUserName,
+} from "~/models/user.server";
 import { unknownIntent } from "~/shared/http.server";
 
 function nameSchema(t: Text) {
@@ -147,8 +151,11 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
 
   if (intent === "unlink-google") {
     try {
+      // better-auth 1.7 unlinks by account row id, not by provider.
+      const accountId = await getLinkedAccountId(userId, "google");
+      if (!accountId) throw new Error("No Google account is linked");
       await auth.api.unlinkAccount({
-        body: { providerId: "google" },
+        body: { accountId },
         headers: request.headers,
       });
       return data({ result: null, done: "unlink" as const });
