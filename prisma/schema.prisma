@@ -116,10 +116,14 @@ model Event {
   donationDescription String?
   date                DateTime
   slots               Int
+  // a draft (false) is only visible in the admin area: the public pages,
+  // the signup form and the gallery all leave it out
+  published           Boolean  @default(true)
   price               Int
-  // charged instead of `price` to guests who tick the signup form's
-  // "student" checkbox; null means students pay the full price
-  studentPrice        Int?
+  // CHF taken off `price` for a guest who ticks the signup form's "student"
+  // or "vegetarian" checkbox; the two stack. null means no such discount.
+  studentDiscount     Int?
+  vegetarianDiscount  Int?
   discounts           String?
   // the signup mail's subject and message, one pair per outcome; null falls
   // back to the default copy in app/features/signup-form/confirmation-mail.ts
@@ -146,6 +150,25 @@ model Event {
   galleryImages EventGalleryImage[]
 
   volunteers Volunteer[]
+
+  checklistItems EventChecklistItem[]
+}
+
+// The organisers' to-do list for one dinner (book a photographer, buy wine,
+// …). Admin-only bookkeeping, never shown on the public site.
+model EventChecklistItem {
+  id       String    @id @default(cuid())
+  label    String
+  position Int       @default(0)
+  doneAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventId String
+
+  @@index([eventId])
 }
 
 model Form {

@@ -13,6 +13,7 @@ import {
   SeatProgress,
 } from "~/components/admin-ui";
 import { CoverImage } from "~/components/cover-image";
+import { Badge } from "~/components/ui/badge";
 import { buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { formatAdminDateLine } from "~/features/events/date-format";
@@ -25,7 +26,7 @@ import { getSeatCountsByEvent } from "~/models/event-signup.server";
 import { getEventsWithAddress } from "~/models/event.server";
 
 export async function loader() {
-  const events = await getEventsWithAddress();
+  const events = await getEventsWithAddress({ includeDrafts: true });
   const seatCounts = await getSeatCountsByEvent(
     events.map((event) => event.id),
   );
@@ -37,6 +38,7 @@ export async function loader() {
       date: event.date,
       image: event.image,
       slots: event.slots,
+      published: event.published,
       location: `${event.address.streetName} ${event.address.houseNumber}`,
       confirmed: seatCounts[event.id]?.confirmed ?? 0,
       waitlisted: seatCounts[event.id]?.waitlisted ?? 0,
@@ -52,6 +54,7 @@ const FILTERS = [
   { id: "all", label: "All" },
   { id: "upcoming", label: "Upcoming" },
   { id: "past", label: "Past" },
+  { id: "drafts", label: "Drafts" },
 ] as const;
 
 type Filter = (typeof FILTERS)[number]["id"];
@@ -69,9 +72,11 @@ export default function AdminEventsPage({ loaderData }: Route.ComponentProps) {
       ...event,
       past: isPastEvent(new Date(event.date), now),
     }))
-    .filter((event) =>
-      filter === "all" ? true : filter === "past" ? event.past : !event.past,
-    )
+    .filter((event) => {
+      if (filter === "all") return true;
+      if (filter === "drafts") return !event.published;
+      return filter === "past" ? event.past : !event.past;
+    })
     .filter(
       (event) =>
         !q ||
@@ -168,16 +173,21 @@ function EventCard({ event }: { event: Event }) {
               {formatAdminDateLine(date)}
             </time>
           </p>
-          <h2 className="mt-1 truncate text-base font-semibold">
+          <h2 className="mt-1 flex items-center gap-2 text-base font-semibold">
             {/* stretched link: the pseudo-element makes the whole card the
                 hit area while the accessible name stays the event title;
                 the action row sits above it via `relative` */}
             <Link
               to={event.id}
-              className="focus-visible:after:ring-ring after:absolute after:inset-0 focus-visible:after:ring-2 after:focus-visible:outline-hidden"
+              className="focus-visible:after:ring-ring min-w-0 truncate after:absolute after:inset-0 focus-visible:after:ring-2 after:focus-visible:outline-hidden"
             >
               {event.title}
             </Link>
+            {event.published ? null : (
+              <Badge variant="secondary" className="shrink-0">
+                Draft
+              </Badge>
+            )}
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">{event.location}</p>
         </div>

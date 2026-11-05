@@ -15,13 +15,13 @@ import { listGalleryImagesForEvent } from "~/features/gallery/gallery.server";
 import { MosaicGallery } from "~/features/gallery/layouts/mosaic";
 import { textFromMatches } from "~/features/site-text/meta";
 import { useText } from "~/features/site-text/site-text-context";
-import { getEventById } from "~/models/event.server";
+import { getEventById, publishedOrNull } from "~/models/event.server";
 import { requireFound } from "~/shared/http.server";
 import { markdownToText } from "~/shared/markdown.server";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
-  const event = requireFound(await getEventById(eventId));
+  const event = requireFound(publishedOrNull(await getEventById(eventId)));
 
   // An upcoming event has no album to show, and neither does a past one
   // nobody photographed — send both to the event itself rather than

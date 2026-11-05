@@ -104,30 +104,45 @@ const formSubmissionRow = z
     },
   );
 
-const eventRow = z.object({
-  id,
-  title: text,
-  description: text,
-  menuDescription: nullableText,
-  donationDescription: nullableText,
-  date: dateTime,
-  slots: int,
-  price: int,
-  // added after format version 1 shipped: a live site on older code leaves
-  // them out, which reads as "not set"
-  studentPrice: int.nullable().default(null),
-  discounts: nullableText,
-  confirmedMailSubject: nullableText.default(null),
-  confirmedMailMessage: nullableText.default(null),
-  waitlistMailSubject: nullableText.default(null),
-  waitlistMailMessage: nullableText.default(null),
-  imageId: id.nullable(),
-  addressId: id,
-  formId: id,
-  // users are not copied, so the creator travels as an email the target
-  // matches against its own accounts (or drops)
-  createdByEmail: nullableText,
-});
+const eventRow = z
+  .object({
+    id,
+    title: text,
+    description: text,
+    menuDescription: nullableText,
+    donationDescription: nullableText,
+    date: dateTime,
+    slots: int,
+    // added after format version 1 shipped: a live site on older code has no
+    // drafts, so every event it sends is public
+    published: z.boolean().default(true),
+    price: int,
+    // the stackable discounts replaced a fixed student price; a live site on
+    // older code sends that instead and it is turned into the same deduction
+    studentPrice: int.nullable().optional(),
+    studentDiscount: int.nullable().optional(),
+    vegetarianDiscount: int.nullable().default(null),
+    discounts: nullableText,
+    confirmedMailSubject: nullableText.default(null),
+    confirmedMailMessage: nullableText.default(null),
+    waitlistMailSubject: nullableText.default(null),
+    waitlistMailMessage: nullableText.default(null),
+    imageId: id.nullable(),
+    addressId: id,
+    formId: id,
+    // users are not copied, so the creator travels as an email the target
+    // matches against its own accounts (or drops)
+    createdByEmail: nullableText,
+  })
+  .transform(({ studentPrice, studentDiscount, ...row }) => ({
+    ...row,
+    studentDiscount:
+      studentDiscount !== undefined
+        ? studentDiscount
+        : studentPrice != null
+          ? Math.max(0, row.price - studentPrice)
+          : null,
+  }));
 
 const eventResponseRow = z.object({
   id,

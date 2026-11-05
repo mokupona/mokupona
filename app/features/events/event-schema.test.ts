@@ -8,11 +8,13 @@ describe("event form schemas", () => {
     expect(EventEditSchema.shape.cover.safeParse(undefined).success).toBe(true);
   });
 
-  it("accepts a blank student price and rejects a negative one", () => {
-    const { studentPrice } = EventSchema.shape;
-    expect(studentPrice.safeParse(undefined).success).toBe(true);
-    expect(studentPrice.safeParse(30).success).toBe(true);
-    expect(studentPrice.safeParse(-1).success).toBe(false);
+  it("accepts blank discounts and rejects negative ones", () => {
+    const { studentDiscount, vegetarianDiscount } = EventSchema.shape;
+    for (const discount of [studentDiscount, vegetarianDiscount]) {
+      expect(discount.safeParse(undefined).success).toBe(true);
+      expect(discount.safeParse(10).success).toBe(true);
+      expect(discount.safeParse(-1).success).toBe(false);
+    }
   });
 
   it("rejects signup mail copy with a placeholder the mail can't fill", () => {

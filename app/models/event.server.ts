@@ -1,8 +1,10 @@
 import type { Address, Event, Prisma } from "#prisma/generated/client";
 
 import { prisma } from "~/db.server";
+import { DEFAULT_CHECKLIST_ITEMS } from "~/features/events/checklist";
 import { FormSchema, type FieldDescriptor } from "~/features/forms/fields";
 import { DEFAULT_FORM } from "~/features/signup-form/default-form";
+import { addChecklistItemsInTx } from "~/models/event-checklist.server";
 import {
   CURRENT_FORM_VERSION_ORDER_BY,
   saveFormSchemaInTx,
@@ -31,7 +33,10 @@ export interface EventCreateData {
   date: Date;
   slots: number;
   price: number;
-  studentPrice?: number | null;
+  studentDiscount?: number | null;
+  vegetarianDiscount?: number | null;
+  /** false saves a draft that only the admin area shows. */
+  published?: boolean;
   discounts?: string | null;
   confirmedMailSubject?: string | null;
   confirmedMailMessage?: string | null;
@@ -48,10 +53,17 @@ export async function countEvents(): Promise<number> {
   return prisma.event.count();
 }
 
-export async function getEventsWithAddress(): Promise<
+/**
+ * Events with their address, oldest first. Drafts are left out unless the
+ * caller is the admin area and asks for them.
+ */
+export async function getEventsWithAddress({
+  includeDrafts = false,
+}: { includeDrafts?: boolean } = {}): Promise<
   (EventWithImage & { address: Address; galleryImageCount: number })[]
 > {
   const events = await prisma.event.findMany({
+    where: includeDrafts ? {} : { published: true },
     orderBy: {
       date: "asc",
     },
@@ -83,6 +95,24 @@ export async function getNextEvent(
     ...nextEventArgs(now),
     include: { address: true, ...EVENT_IMAGE_INCLUDE },
   });
+}
+
+/** Shows a draft on the public site, or takes a published event back down. */
+export async function setEventPublished(
+  id: string,
+  published: boolean,
+): Promise<Event> {
+  return prisma.event.update({ where: { id }, data: { published } });
+}
+
+/**
+ * Lets the public pages treat a draft exactly like a missing event, so its
+ * existence doesn't leak. The admin area reads drafts without this.
+ */
+export function publishedOrNull<T extends { published: boolean }>(
+  event: T | null,
+): T | null {
+  return event?.published ? event : null;
 }
 
 export async function getEventById(
@@ -144,9 +174,14 @@ export async function createEvent(
 
     const cover = await tx.image.create({ data: image });
 
-    return tx.event.create({
+    const event = await tx.event.create({
       data: { ...eventData, formId: form.id, imageId: cover.id },
     });
+
+    // every dinner starts with the usual to-dos on its admin checklist
+    await addChecklistItemsInTx(tx, event.id, DEFAULT_CHECKLIST_ITEMS);
+
+    return event;
   });
 }
 

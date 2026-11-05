@@ -146,7 +146,7 @@ async function nextPositionInTx(
  */
 export async function getGalleryEntries(now: Date): Promise<GalleryEntry[]> {
   const entries = await prisma.eventGalleryImage.findMany({
-    where: { event: { date: { lt: now } } },
+    where: { event: { date: { lt: now }, published: true } },
     select: ENTRY_SELECT,
     orderBy: ENTRY_ORDER_BY,
   });
@@ -163,6 +163,7 @@ export async function getGalleryAlbums(now: Date): Promise<GalleryAlbum[]> {
   const events = await prisma.event.findMany({
     where: {
       date: { lt: now },
+      published: true,
       galleryImages: { some: {} },
     },
     orderBy: { date: "desc" },

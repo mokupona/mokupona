@@ -52,9 +52,14 @@ export const EventSchema = z.object({
     .number({ error: "Price is required" })
     .min(0, "Price cannot be less than 0")
     .int(),
-  studentPrice: z
+  studentDiscount: z
     .number()
-    .min(0, "Student price cannot be less than 0")
+    .min(0, "Student discount cannot be less than 0")
+    .int()
+    .optional(),
+  vegetarianDiscount: z
+    .number()
+    .min(0, "Vegetarian discount cannot be less than 0")
     .int()
     .optional(),
   discounts: z.string().trim().optional(),

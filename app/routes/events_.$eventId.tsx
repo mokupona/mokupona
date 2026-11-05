@@ -43,7 +43,10 @@ import {
   DuplicateSignupError,
   getSeatCounts,
 } from "~/models/event-signup.server";
-import { getEventWithCurrentFormVersion } from "~/models/event.server";
+import {
+  getEventWithCurrentFormVersion,
+  publishedOrNull,
+} from "~/models/event.server";
 import { FormVersionChangedError } from "~/models/form-submission.server";
 import { listVolunteersForEvent } from "~/models/volunteer.server";
 import {
@@ -56,11 +59,18 @@ import { withOpenGraphUrls } from "~/shared/meta";
 import { getImageConfig } from "~/shared/root-data";
 import { redirectWithToast } from "~/utils/toast.server";
 
+// a draft reads as a missing event: no page, no signups
+function publishedVersion<T extends { event: { published: boolean } }>(
+  record: T | null,
+): T | null {
+  return publishedOrNull(record?.event ?? null) ? record : null;
+}
+
 export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
 
   const { event, version } = requireFound(
-    await getEventWithCurrentFormVersion(eventId),
+    await getEventWithCurrentFormVersion(eventId).then(publishedVersion),
   );
 
   // the gallery and the volunteer credits belong to evenings that already
@@ -109,7 +119,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   const logger = context.get(requestLoggerContext);
 
   const { event, version } = requireFound(
-    await getEventWithCurrentFormVersion(eventId),
+    await getEventWithCurrentFormVersion(eventId).then(publishedVersion),
   );
 
   if (isPastEvent(event.date, new Date())) {

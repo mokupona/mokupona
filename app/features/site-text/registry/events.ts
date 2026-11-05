@@ -73,11 +73,22 @@ export const eventsTexts = defineTexts("events", {
     default: "{price} chf",
     vars: { price: "the event's price" },
   },
-  "facts.studentPrice": {
-    label: "Student price",
-    default: "· students {price} chf",
-    vars: { price: "the student price" },
-    hint: "Only on events that have a student price.",
+  "facts.studentDiscount": {
+    label: "Student discount",
+    default: "· students −{amount} chf",
+    vars: { amount: "CHF taken off for students" },
+    hint: "Only on events that have a student discount.",
+  },
+  "facts.vegetarianDiscount": {
+    label: "Vegetarian discount",
+    default: "· veggie −{amount} chf",
+    vars: { amount: "CHF taken off for vegetarians" },
+    hint: "Only on events that have a vegetarian discount.",
+  },
+  "facts.discountsStack": {
+    label: "Discounts stack",
+    default: "(both combine)",
+    hint: "Only on events that have both a student and a vegetarian discount.",
   },
   "facts.seats": {
     label: "Seats",

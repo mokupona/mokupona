@@ -106,7 +106,11 @@ export function EventFactList({
       <EventLocationFact addressLine={event.addressLine} />
 
       <div className="flex items-center justify-between">
-        <EventPriceFact price={event.price} studentPrice={event.studentPrice} />
+        <EventPriceFact
+          price={event.price}
+          studentDiscount={event.studentDiscount}
+          vegetarianDiscount={event.vegetarianDiscount}
+        />
 
         <Popover>
           <PopoverTrigger>

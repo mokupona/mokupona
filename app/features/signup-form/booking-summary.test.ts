@@ -30,7 +30,7 @@ describe("summarizeBooking", () => {
           { name: "Grace", vegetarian: false, student: true, restrictions: "" },
         ],
       },
-      { price: 45, studentPrice: null },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -78,7 +78,7 @@ describe("summarizeBooking", () => {
           { name: "Alan", [FRIEND_EMAIL_FIELD]: "" },
         ],
       },
-      { price: 45, studentPrice: null },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -113,7 +113,7 @@ describe("summarizeBooking", () => {
     const summary = summarizeBooking(
       fields,
       { ...signer, friends: [{ name: "Grace" }] },
-      { price: 45, studentPrice: null },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -127,10 +127,7 @@ describe("summarizeBooking", () => {
     const summary = summarizeBooking(
       DEFAULT_FORM,
       signer,
-      {
-        price: 45,
-        studentPrice: null,
-      },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -141,7 +138,7 @@ describe("summarizeBooking", () => {
     ]);
   });
 
-  it("charges students the student price and adds up the party", () => {
+  it("takes the student discount off for students and adds up the party", () => {
     const summary = summarizeBooking(
       DEFAULT_FORM,
       {
@@ -152,7 +149,7 @@ describe("summarizeBooking", () => {
           { name: "Alan", student: true },
         ],
       },
-      { price: 45, studentPrice: 30 },
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -160,11 +157,45 @@ describe("summarizeBooking", () => {
     expect(summary.total).toBe(105);
   });
 
-  it("charges everyone the full price when the event has no student price", () => {
+  it("stacks the student and vegetarian discounts", () => {
+    const summary = summarizeBooking(
+      DEFAULT_FORM,
+      {
+        ...signer,
+        student: true,
+        vegetarian: true,
+        friends: [
+          { name: "Grace", student: false, vegetarian: true },
+          { name: "Alan", student: true, vegetarian: false },
+          { name: "Ken", student: false, vegetarian: false },
+        ],
+      },
+      { price: 45, studentDiscount: 15, vegetarianDiscount: 5 },
+      defaultText,
+    );
+
+    expect(summary.guests.map((guest) => guest.price)).toEqual([
+      25, 40, 30, 45,
+    ]);
+    expect(summary.total).toBe(140);
+  });
+
+  it("never prices a guest below zero", () => {
+    const summary = summarizeBooking(
+      DEFAULT_FORM,
+      { ...signer, student: true, vegetarian: true },
+      { price: 10, studentDiscount: 8, vegetarianDiscount: 5 },
+      defaultText,
+    );
+
+    expect(summary.total).toBe(0);
+  });
+
+  it("charges everyone the full price when the event has no discounts", () => {
     const summary = summarizeBooking(
       DEFAULT_FORM,
       { ...signer, student: true, friends: [{ name: "Grace", student: true }] },
-      { price: 45, studentPrice: null },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -189,7 +220,7 @@ describe("summarizeBooking", () => {
     const summary = summarizeBooking(
       fields,
       { ...signer, heardFrom: "Instagram" },
-      { price: 45, studentPrice: null },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -203,7 +234,7 @@ describe("summarizeBooking", () => {
     const summary = summarizeBooking(
       DEFAULT_FORM,
       { ...signer, friends: [{ name: "  " }, "not an object"] },
-      { price: 10, studentPrice: null },
+      { price: 10, studentDiscount: null, vegetarianDiscount: null },
       defaultText,
     );
 
