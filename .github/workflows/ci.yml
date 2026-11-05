@@ -104,6 +104,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # npm's cache holds the cypress package but not its browser binary
+      # (~/.cache/Cypress), which npm ci would otherwise download every run
+      - name: Cache Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-binary-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install deps
         run: npm ci
 

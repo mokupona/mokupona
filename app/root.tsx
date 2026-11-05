@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { LinksFunction } from "react-router";
 import {
   data,
@@ -91,8 +92,20 @@ export const loader = async ({ request, context }: Route.LoaderArgs) => {
   );
 };
 
+/**
+ * Marks <html> with data-cy-hydrated once React has hydrated the page, so
+ * Cypress's visitAndCheck waits for exactly that instead of a fixed pause.
+ * Only when the server runs with CYPRESS_SUPPORT=true.
+ */
+function useCypressHydratedMark(enabled: boolean) {
+  useEffect(() => {
+    if (enabled) document.documentElement.dataset.cyHydrated = "";
+  }, [enabled]);
+}
+
 export default function App({ loaderData }: Route.ComponentProps) {
   const { allowIndexing, cypressSupport } = loaderData;
+  useCypressHydratedMark(cypressSupport);
 
   return (
     <html lang="en" className="h-full scroll-smooth">
