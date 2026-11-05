@@ -11,10 +11,13 @@ import {
 
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { QR_SOURCE, withSource } from "~/features/stats/source";
 
 /**
  * The QR code of an event's public page, for flyers, posters and chats:
- * copy it as an image, download it as a PNG or SVG, or copy the link.
+ * copy it as an image, download it as a PNG or SVG, or copy the link. The
+ * code carries the moku pona mark in its middle, and its link is tagged so
+ * the statistics can count the scans; the copied link stays the plain one.
  */
 export function AdminEventQrCode({
   url,
@@ -24,7 +27,10 @@ export function AdminEventQrCode({
   url: string;
   title: string;
 }) {
-  const qr = useMemo(() => createQrCode(url), [url]);
+  const qr = useMemo(
+    () => createQrCode(withSource(url, QR_SOURCE), { logo: true }),
+    [url],
+  );
   const fileName = qrCodeFileName(title);
 
   async function copyImage() {
@@ -80,6 +86,15 @@ export function AdminEventQrCode({
       >
         <rect width={qr.size} height={qr.size} fill="#fff" />
         <path d={qr.path} fill="#000" />
+        {qr.logo ? (
+          <image
+            href={qr.logo.href}
+            x={qr.logo.x}
+            y={qr.logo.y}
+            width={qr.logo.width}
+            height={qr.logo.height}
+          />
+        ) : null}
       </svg>
 
       <div className="flex min-w-0 flex-col gap-3">
