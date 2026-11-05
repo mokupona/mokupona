@@ -7,6 +7,8 @@ import { createQrCode, qrCodePng, qrCodeSvgDataUrl } from "../qr-code";
 
 import { AdminEventQrCode } from "./admin-event-qr-code";
 
+import { withSource } from "~/features/stats/source";
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -20,6 +22,9 @@ vi.mock("../qr-code", async (importOriginal) => ({
 const png = new Blob(["png"], { type: "image/png" });
 
 const url = "https://mokupona.ch/events/cm9x2k3ab0001qz8f7h6y5t4r";
+
+/** What the panel draws: the tagged link, with the logo in the middle. */
+const panelCode = () => createQrCode(withSource(url, "qr"), { logo: true });
 
 function renderPanel() {
   return render(<AdminEventQrCode url={url} title="Summer Dinner" />);
@@ -54,12 +59,36 @@ describe("AdminEventQrCode", () => {
     );
   });
 
+  it("encodes the page tagged as a QR scan and draws the logo in it", () => {
+    const { container } = renderPanel();
+
+    const scanned = createQrCode(`${url}?src=qr`, { logo: true });
+    expect(container.querySelector("svg path")).toHaveAttribute(
+      "d",
+      scanned.path,
+    );
+    expect(container.querySelector("svg image")).toHaveAttribute(
+      "href",
+      scanned.logo?.href,
+    );
+  });
+
+  it("copies the plain link, without the scan tag", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    stubClipboard({ writeText });
+    renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: /copy link/i }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(url));
+  });
+
   it("offers the SVG as a named download of the same code", () => {
     renderPanel();
 
     const link = screen.getByRole("link", { name: /download svg/i });
     expect(link).toHaveAttribute("download", "summer-dinner-qr-code.svg");
-    expect(link).toHaveAttribute("href", qrCodeSvgDataUrl(createQrCode(url)));
+    expect(link).toHaveAttribute("href", qrCodeSvgDataUrl(panelCode()));
   });
 
   it("copies the event link", async () => {
@@ -108,7 +137,7 @@ describe("AdminEventQrCode", () => {
     const [[[item]]] = write.mock.calls;
     expect(Object.keys(item.items)).toEqual(["image/png"]);
     await expect(item.items["image/png"]).resolves.toBe(png);
-    expect(qrCodePng).toHaveBeenCalledWith(createQrCode(url));
+    expect(qrCodePng).toHaveBeenCalledWith(panelCode());
   });
 
   it("downloads the code as a named PNG", async () => {

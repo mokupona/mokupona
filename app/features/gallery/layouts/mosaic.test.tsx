@@ -138,6 +138,33 @@ describe("mosaic layout", () => {
     });
   });
 
+  it("takes the shape of an admin's framing over the photo's own", () => {
+    const { container } = renderMosaic({
+      images: [
+        makeImage({
+          id: "framed",
+          alt: "framed square",
+          image: {
+            id: "img-framed",
+            storageKey: "framed",
+            version: null,
+            width: 2000,
+            height: 1000,
+            blurDataUrl: null,
+            // 1000 × 1000 out of the middle
+            cropX: 0.25,
+            cropY: 0,
+            cropWidth: 0.5,
+            cropHeight: 1,
+          },
+        }),
+      ],
+    });
+
+    const frame = frameOf(firstWallOf(container), "framed square");
+    expect(frame.width / frame.height).toBeCloseTo(1, 2);
+  });
+
   it("falls back to a 3:2 frame when the row has no intrinsic dimensions", () => {
     const { container } = renderMosaic({
       images: [

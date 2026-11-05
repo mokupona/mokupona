@@ -5,8 +5,8 @@ import {
   useForm,
 } from "@conform-to/react";
 import { getZodConstraint, parseWithZod } from "@conform-to/zod/v4";
-import { useMemo } from "react";
-import { Form, Link } from "react-router";
+import { useMemo, useRef } from "react";
+import { Form, Link, useLocation } from "react-router";
 
 import type { Route } from "./+types/events_.$eventId";
 
@@ -14,7 +14,10 @@ import { CheckboxField, ErrorList } from "~/components/forms";
 import { RouteErrorContent } from "~/components/route-error-content";
 import { BackLink, PageContainer } from "~/components/section";
 import { Button } from "~/components/ui/button";
-import { requestLoggerContext } from "~/features/auth/middleware.server";
+import {
+  optionalUserContext,
+  requestLoggerContext,
+} from "~/features/auth/middleware.server";
 import {
   EventFactList,
   EventStory,
@@ -36,6 +39,8 @@ import { RichText } from "~/features/site-text/rich-text";
 import { useText } from "~/features/site-text/site-text-context";
 import { getText } from "~/features/site-text/site-text.server";
 import type { Text } from "~/features/site-text/text";
+import { trackStat } from "~/features/stats/stats-tracker";
+import { recordServerStatHit } from "~/features/stats/stats.server";
 import { EventVolunteersSection } from "~/features/volunteers/event-volunteers-section";
 import { cn } from "~/lib/utils";
 import {
@@ -258,6 +263,18 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     "Successful submission for event signup",
   );
 
+  // the last step of the event's funnel in the statistics; counted here,
+  // where the signup is known to be stored, rather than by the browser
+  await recordServerStatHit(request, () => context.get(optionalUserContext)(), {
+    kind: "signup",
+    path: `/events/${event.id}`,
+    eventId: event.id,
+    source: "internal",
+    referrer: null,
+    device: "unknown",
+    detail: signup.status,
+  });
+
   if (typeof values.email === "string") {
     try {
       await sendSignupConfirmation({
@@ -397,11 +414,24 @@ function SignupForm({
   const party = partySize(form.value ?? {});
   const willWait = seatsLeft !== null && party > seatsLeft;
 
+  // the statistics' signup funnel: the first touch of the form, then every
+  // press of submit (valid or not; the stored signup is counted server-side)
+  const { pathname } = useLocation();
+  const started = useRef(false);
+
   return (
     <FormProvider context={form.context}>
       <Form
         method="post"
         {...getFormProps(form)}
+        onFocusCapture={() => {
+          if (started.current) return;
+          started.current = true;
+          trackStat({ kind: "signup_start", path: pathname });
+        }}
+        onSubmitCapture={() =>
+          trackStat({ kind: "signup_submit", path: pathname })
+        }
         className="flex flex-col gap-3"
       >
         <button type="submit" hidden />

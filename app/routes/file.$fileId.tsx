@@ -40,7 +40,9 @@ export async function loader({ params }: Route.LoaderArgs) {
   const config = imageConfigFromEnv();
 
   if (config.imageProvider === "cloudinary" && config.cloudinaryCloudName) {
-    return redirect(getImageUrl(image, config), 302);
+    // the stored file, as this route always serves it: the admin's framing
+    // is applied where the image is shown, not to the file
+    return redirect(getImageUrl(image, config, { uncropped: true }), 302);
   }
 
   const file = requireFound(await getLocalImageFile(image.storageKey));

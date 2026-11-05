@@ -1,9 +1,11 @@
+// @vitest-environment node
 import { RouterContextProvider } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildEventData } from "../../../test/factories";
 
 import { prisma } from "~/db.server";
+import { optionalUserContext } from "~/features/auth/middleware.server";
 import {
   HONEYPOT_FIELD_NAME,
   HONEYPOT_VALID_FROM_FIELD_NAME,
@@ -55,14 +57,26 @@ function answers(versionId: string) {
   };
 }
 
-function submit(eventId: string, body: Record<string, string>) {
+/** What the root middleware gives every request: here, a guest. */
+function guestContext() {
+  const context = new RouterContextProvider();
+  context.set(optionalUserContext, async () => null);
+  return context;
+}
+
+function submit(
+  eventId: string,
+  body: Record<string, string>,
+  headers?: HeadersInit,
+) {
   return action({
     params: { eventId },
     request: new Request(`http://localhost:3000/events/${eventId}`, {
       method: "POST",
       body: new URLSearchParams(body),
+      headers,
     }),
-    context: new RouterContextProvider(),
+    context: guestContext(),
   } as unknown as Parameters<typeof action>[0]);
 }
 
@@ -278,5 +292,56 @@ describe("event signup action", () => {
 
     expect(readFormErrors(result)).toEqual([defaultText("site.forms.retry")]);
     expect(await storedFor(versionId)).toHaveLength(0);
+  });
+
+  describe("statistics", () => {
+    const browser = {
+      "User-Agent":
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    };
+
+    afterEach(async () => {
+      await prisma.statHit.deleteMany();
+    });
+
+    function signupHits(eventId: string) {
+      return prisma.statHit.findMany({ where: { eventId, kind: "signup" } });
+    }
+
+    it("counts a stored signup as the last step of the event's funnel", async () => {
+      const { eventId, versionId } = await createTestEvent();
+
+      expectSuccessRedirect(
+        await submit(eventId, fromBrowser(answers(versionId)), browser),
+      );
+
+      const [hit, ...rest] = await signupHits(eventId);
+      expect(rest).toHaveLength(0);
+      expect(hit).toMatchObject({
+        path: `/events/${eventId}`,
+        detail: "confirmed",
+      });
+    });
+
+    it("leaves out a signup from a browser the team uses", async () => {
+      const { eventId, versionId } = await createTestEvent();
+
+      expectSuccessRedirect(
+        await submit(eventId, fromBrowser(answers(versionId)), {
+          ...browser,
+          Cookie: "stats_exclude=1",
+        }),
+      );
+
+      expect(await signupHits(eventId)).toHaveLength(0);
+    });
+
+    it("counts nothing for a rejected signup", async () => {
+      const { eventId } = await createTestEvent();
+
+      await submit(eventId, fromBrowser({ formVersionId: "stale" }), browser);
+
+      expect(await signupHits(eventId)).toHaveLength(0);
+    });
   });
 });

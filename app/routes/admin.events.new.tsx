@@ -15,6 +15,7 @@ import {
 import { requestLogger } from "~/logger/request-context.server";
 import { getAddresses } from "~/models/address.server";
 import { createEvent } from "~/models/event.server";
+import { cropColumns } from "~/shared/image-crop";
 import { redirectWithToast } from "~/utils/toast.server";
 
 export async function loader() {
@@ -46,6 +47,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         waitlistMailSubject,
         waitlistMailMessage,
         cover,
+        coverCrop,
         addressId,
         signupForm,
       } = value;
@@ -82,6 +84,7 @@ export async function action({ request, context }: Route.ActionArgs) {
           image: {
             contentType: cover.type,
             ...(await storeImage(cover, "events")),
+            ...cropColumns(coverCrop ?? null),
           },
           createdById: user.id,
         },

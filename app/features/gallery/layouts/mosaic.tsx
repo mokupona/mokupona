@@ -12,6 +12,7 @@ import { formatEventMonthYear } from "~/features/events/date-format";
 import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import type { ImageMetadata } from "~/models/image.server";
+import { framedSize } from "~/shared/image-crop";
 
 /**
  * Requested crop width for every tile. The intrinsic ratio decides the
@@ -32,10 +33,11 @@ const PAGE_TILE_SIZES =
   "(min-width: 1024px) 300px, (min-width: 768px) 45vw, calc(100vw - 2.5rem)";
 
 // The wall's rhythm comes from the photos, so the frame is derived from the
-// stored dimensions rather than from a fixed grid cell.
+// stored dimensions (or the admin's framing of them) rather than from a
+// fixed grid cell.
 function tileSize(image: ImageMetadata) {
-  const aspect =
-    image.width && image.height ? image.width / image.height : FALLBACK_ASPECT;
+  const size = framedSize(image);
+  const aspect = size ? size.width / size.height : FALLBACK_ASPECT;
 
   return { width: TILE_WIDTH, height: Math.round(TILE_WIDTH / aspect) };
 }

@@ -94,6 +94,35 @@ The data will be deleted as soon as it is no longer necessary to achieve the pur
 
 Data collection for the provision of the website and storage of data in log files are essential for the operation of the website. Therefore, users cannot object to this.
 
+## Anonymous Visitor Statistics
+
+### Description and Scope of Data Processing
+
+To learn how our website is used, for example how many people look at an event and how many of them sign up, we count visits ourselves. No external analytics service is involved and the data stay on our server.
+
+For each page view we record:
+
+1. The page and the date and time of the visit
+2. How the visitor arrived: the page or website they came from, or the source named in the link (for example the QR code on our posters)
+3. Whether the screen is a phone, tablet or computer size
+4. On event pages, whether the signup form was started, submitted and completed, and links followed off the website
+
+To count a visitor only once a day, we derive a code from the IP address and the browser identification together with a random key that is renewed every day and never stored. The IP address itself is not stored for this purpose. Once the key is discarded, the code can no longer be traced back to anyone or linked to visits on other days.
+
+No cookie is set for the statistics. The only exception is the browsers of our own team: when a team member signs in, we store a cookie in that browser so that their own visits are left out of the statistics.
+
+### Legal Basis for Data Processing
+
+The legal basis for this processing is Article 6(1)(f) GDPR.
+
+### Purpose of Data Processing
+
+The statistics help us plan our events and improve the website. They are only looked at as totals, not used for marketing and not combined into user profiles. Our legitimate interest in data processing under Article 6(1)(f) GDPR lies in these purposes.
+
+### Duration of Storage, Objection, and Removal Options
+
+The recorded visits cannot be linked to a person, so they are kept for as long as they are useful to us. If you use a content blocker or switch off JavaScript, your visits are not counted.
+
 ## Use of Cookies
 
 ### Description and Scope of Data Processing

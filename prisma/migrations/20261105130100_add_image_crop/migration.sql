@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Image" ADD COLUMN "cropHeight" REAL;
+ALTER TABLE "Image" ADD COLUMN "cropWidth" REAL;
+ALTER TABLE "Image" ADD COLUMN "cropX" REAL;
+ALTER TABLE "Image" ADD COLUMN "cropY" REAL;

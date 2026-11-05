@@ -1,8 +1,13 @@
 import type { FieldMetadata } from "@conform-to/react";
 import { getInputProps, useFormMetadata } from "@conform-to/react";
-import { ImageIcon, MinusIcon, PlusIcon } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { ImageIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  ImageFramer,
+  loadImage,
+  type FramerPhoto,
+} from "~/components/admin-image-framer";
 import { CoverImage } from "~/components/cover-image";
 import { Field, fileFieldClassName } from "~/components/forms";
 import { Badge } from "~/components/ui/badge";
@@ -13,88 +18,53 @@ import {
   DialogDescription,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { Label } from "~/components/ui/label";
 import type { ImageDisplaySource } from "~/shared/image";
 import { getImageUrl, VALID_IMAGE_TYPES } from "~/shared/image";
+import {
+  cropOf,
+  framedImageStyle,
+  serializeCrop,
+  type ImageCrop,
+} from "~/shared/image-crop";
+import {
+  cropFromFraming,
+  framingFromCrop,
+  INITIAL_FRAMING,
+  type Framing,
+} from "~/shared/image-framing";
 import { useImageConfig } from "~/shared/root-data";
 
 /**
  * Every place a cover appears (event page, next-event card, past-dinner
- * tiles) renders it at 3:2 with object-fit: cover, so cropping to exactly that
- * frame here is what makes the preview honest.
+ * tiles) renders it at 3:2 with object-fit: cover, so framing it in exactly
+ * that frame here is what makes the preview honest.
  */
 const COVER_ASPECT = 3 / 2;
-/** 2× the largest rendered width (1080px), enough for retina screens. */
-const MAX_OUTPUT_WIDTH = 2160;
+/**
+ * The longest side of an uploaded cover: twice the widest it is shown
+ * (1080px) with room to frame tighter later, since the whole photo is kept.
+ */
+const MAX_UPLOAD_SIDE = 2560;
 const MAX_OUTPUT_BYTES = 3 * 1024 * 1024;
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 4;
 
-type Offset = { x: number; y: number };
-
-type Source = {
-  /** Used to name the cropped upload. */
+type Source = FramerPhoto & {
+  /** Used to name the upload. */
   name: string;
-  url: string;
-  width: number;
-  height: number;
 };
 
-type CropState = { zoom: number; offset: Offset };
-
-const INITIAL_CROP: CropState = { zoom: 1, offset: { x: 0, y: 0 } };
-
-function loadImage(url: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    // The saved cover may come from Cloudinary; without CORS the canvas
-    // would be tainted and refuse to export.
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Could not decode image"));
-    img.src = url;
-  });
-}
-
 /**
- * Geometry in frame-relative units: the frame is 1 wide and 1/ASPECT tall,
- * offsets are the image centre's distance from the frame centre in those same
- * units. Keeping everything relative means a resize of the dialog never
- * shifts the crop.
+ * What the field will save: a new photo with its framing, or a new framing
+ * for the current cover.
  */
-function displayedSize(source: Source, zoom: number) {
-  const frameH = 1 / COVER_ASPECT;
-  const base = Math.max(1 / source.width, frameH / source.height);
-  return {
-    w: source.width * base * zoom,
-    h: source.height * base * zoom,
-    scale: base * zoom,
-  };
-}
-
-function clampOffset(source: Source, zoom: number, offset: Offset): Offset {
-  const { w, h } = displayedSize(source, zoom);
-  const maxX = Math.max(0, (w - 1) / 2);
-  const maxY = Math.max(0, (h - 1 / COVER_ASPECT) / 2);
-  return {
-    x: Math.min(maxX, Math.max(-maxX, offset.x)),
-    y: Math.min(maxY, Math.max(-maxY, offset.y)),
-  };
-}
-
-/** The crop rectangle in the source image's natural pixels. */
-function sourceRect(source: Source, { zoom, offset }: CropState) {
-  const { w, h, scale } = displayedSize(source, zoom);
-  const frameH = 1 / COVER_ASPECT;
-  const left = 0.5 + offset.x - w / 2;
-  const top = frameH / 2 + offset.y - h / 2;
-  return {
-    sx: -left / scale,
-    sy: -top / scale,
-    sw: 1 / scale,
-    sh: frameH / scale,
-  };
-}
+type Applied =
+  | {
+      kind: "new";
+      source: Source;
+      framing: Framing;
+      crop: ImageCrop;
+      file: File;
+    }
+  | { kind: "current"; source: Source; framing: Framing; crop: ImageCrop };
 
 function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
   return new Promise<Blob>((resolve, reject) => {
@@ -106,11 +76,19 @@ function canvasToBlob(canvas: HTMLCanvasElement, quality: number) {
   });
 }
 
-async function renderCrop(source: Source, crop: CropState): Promise<File> {
+/**
+ * The whole photo as the upload, scaled down to MAX_UPLOAD_SIDE and the
+ * upload limit. It is not cut to the frame: the framing travels alongside
+ * (coverCrop) and can be changed later without a new upload.
+ */
+async function renderUpload(source: Source): Promise<File> {
   const img = await loadImage(source.url);
-  const { sx, sy, sw, sh } = sourceRect(source, crop);
-  const outW = Math.round(Math.min(MAX_OUTPUT_WIDTH, sw));
-  const outH = Math.round(outW / COVER_ASPECT);
+  const scale = Math.min(
+    1,
+    MAX_UPLOAD_SIDE / Math.max(source.width, source.height),
+  );
+  const outW = Math.round(source.width * scale);
+  const outH = Math.round(source.height * scale);
 
   const canvas = document.createElement("canvas");
   canvas.width = outW;
@@ -121,7 +99,7 @@ async function renderCrop(source: Source, crop: CropState): Promise<File> {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, outW, outH);
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+  ctx.drawImage(img, 0, 0, outW, outH);
 
   let blob = await canvasToBlob(canvas, 0.9);
   for (const quality of [0.8, 0.7, 0.6]) {
@@ -142,200 +120,34 @@ function setInputFile(input: HTMLInputElement, file: File | null) {
   input.files = transfer.files;
 }
 
-function CoverCropper({
-  source,
-  crop,
-  onChange,
-}: {
-  source: Source;
-  crop: CropState;
-  onChange: (crop: CropState) => void;
-}) {
-  const frameRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    origin: Offset;
-  } | null>(null);
-  const zoomId = useId();
-
-  const { w, h } = displayedSize(source, crop.zoom);
-
-  const update = (next: Partial<CropState>) => {
-    const zoom = next.zoom ?? crop.zoom;
-    onChange({
-      zoom,
-      offset: clampOffset(source, zoom, next.offset ?? crop.offset),
-    });
-  };
-
-  function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      origin: crop.offset,
-    };
-  }
-
-  function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const state = drag.current;
-    const frame = frameRef.current;
-    if (!state || state.pointerId !== event.pointerId || !frame) return;
-    const width = frame.getBoundingClientRect().width;
-    update({
-      offset: {
-        x: state.origin.x + (event.clientX - state.startX) / width,
-        y: state.origin.y + (event.clientY - state.startY) / width,
-      },
-    });
-  }
-
-  function onPointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (drag.current?.pointerId === event.pointerId) drag.current = null;
-  }
-
-  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    const step = event.shiftKey ? 0.05 : 0.01;
-    const moves: Record<string, Offset> = {
-      ArrowLeft: { x: step, y: 0 },
-      ArrowRight: { x: -step, y: 0 },
-      ArrowUp: { x: 0, y: step },
-      ArrowDown: { x: 0, y: -step },
-    };
-    const move = moves[event.key];
-    if (move) {
-      event.preventDefault();
-      update({
-        offset: { x: crop.offset.x + move.x, y: crop.offset.y + move.y },
-      });
-    } else if (event.key === "+" || event.key === "=") {
-      event.preventDefault();
-      update({ zoom: Math.min(MAX_ZOOM, crop.zoom + 0.1) });
-    } else if (event.key === "-") {
-      event.preventDefault();
-      update({ zoom: Math.max(MIN_ZOOM, crop.zoom - 0.1) });
-    }
-  }
-
-  // Wheel zoom has to be a non-passive native listener to stop the dialog
-  // from scrolling underneath.
-  const cropRef = useRef(crop);
-  cropRef.current = crop;
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const current = cropRef.current;
-      const zoom = Math.min(
-        MAX_ZOOM,
-        Math.max(MIN_ZOOM, current.zoom * Math.exp(-event.deltaY * 0.002)),
-      );
-      onChange({ zoom, offset: clampOffset(source, zoom, current.offset) });
-    };
-    frame.addEventListener("wheel", onWheel, { passive: false });
-    return () => frame.removeEventListener("wheel", onWheel);
-  }, [onChange, source]);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div
-        ref={frameRef}
-        role="application"
-        aria-label="Photo editor. Drag or use the arrow keys to move the photo, plus and minus to zoom."
-        tabIndex={0}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onKeyDown={onKeyDown}
-        className="bg-muted focus-visible:ring-ring relative w-full cursor-grab touch-none overflow-hidden select-none focus-visible:ring-2 focus-visible:outline-hidden active:cursor-grabbing"
-        style={{ aspectRatio: `${COVER_ASPECT}` }}
-      >
-        <img
-          src={source.url}
-          alt=""
-          draggable={false}
-          className="pointer-events-none absolute max-w-none"
-          style={{
-            width: `${w * 100}%`,
-            left: `${(0.5 + crop.offset.x - w / 2) * 100}%`,
-            // top is a percentage of the frame's height, which is 1/ASPECT
-            // in our units.
-            top: `${(0.5 + (crop.offset.y - h / 2) * COVER_ASPECT) * 100}%`,
-          }}
-        />
-        {/* Rule-of-thirds guides. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3"
-        >
-          {Array.from({ length: 9 }, (_, i) => (
-            <div key={i} className="border-[0.5px] border-white/40" />
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Label htmlFor={zoomId} className="sr-only">
-          Zoom
-        </Label>
-        <button
-          type="button"
-          aria-label="Zoom out"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => update({ zoom: Math.max(MIN_ZOOM, crop.zoom - 0.25) })}
-        >
-          <MinusIcon className="size-4" />
-        </button>
-        <input
-          id={zoomId}
-          type="range"
-          min={MIN_ZOOM}
-          max={MAX_ZOOM}
-          step={0.01}
-          value={crop.zoom}
-          onChange={(event) => update({ zoom: Number(event.target.value) })}
-          className="accent-primary grow"
-        />
-        <button
-          type="button"
-          aria-label="Zoom in"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => update({ zoom: Math.min(MAX_ZOOM, crop.zoom + 0.25) })}
-        >
-          <PlusIcon className="size-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
  * How the cover will sit on the public site: the same 3:2 frame and badge
  * the next-event card uses, with the title currently typed into the form.
  */
 function CoverPreview({
-  imageUrl,
+  applied,
   image,
   title,
 }: {
-  imageUrl?: string;
+  applied: Applied | null;
   image?: ImageDisplaySource | null;
   title?: string;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
       <div className="relative sm:w-1/2 sm:shrink-0">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt="Cover preview"
-            className="aspect-3/2 w-full object-cover"
-          />
+        {applied ? (
+          <div className="relative aspect-3/2 w-full overflow-hidden">
+            <img
+              src={applied.source.url}
+              alt="Cover preview"
+              style={framedImageStyle(
+                applied.crop,
+                applied.source,
+                COVER_ASPECT,
+              )}
+            />
+          </div>
         ) : (
           <CoverImage
             image={image ?? null}
@@ -370,18 +182,17 @@ export function CoverPhotoField({
   const imageConfig = useImageConfig();
   const [loadingCurrent, setLoadingCurrent] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [source, setSource] = useState<Source | null>(null);
-  const [crop, setCrop] = useState<CropState>(INITIAL_CROP);
+  /** The photo in the dialog, and whether it is a new pick or the cover. */
+  const [editing, setEditing] = useState<{
+    kind: Applied["kind"];
+    source: Source;
+  } | null>(null);
+  const [framing, setFraming] = useState<Framing>(INITIAL_FRAMING);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [applying, setApplying] = useState(false);
   const [cropError, setCropError] = useState<string | null>(null);
-  /** The source + crop + output of the last applied crop, for undo/re-crop. */
-  const [applied, setApplied] = useState<{
-    source: Source;
-    crop: CropState;
-    file: File;
-    previewUrl: string;
-  } | null>(null);
+  /** The last framing applied, for the preview, undo and editing again. */
+  const [applied, setApplied] = useState<Applied | null>(null);
 
   // Object URLs we hand out are revoked on unmount.
   const urls = useRef(new Set<string>());
@@ -414,13 +225,16 @@ export function CoverPhotoField({
     const url = track(URL.createObjectURL(file));
     try {
       const img = await loadImage(url);
-      setSource({
-        name: file.name,
-        url,
-        width: img.naturalWidth,
-        height: img.naturalHeight,
+      setEditing({
+        kind: "new",
+        source: {
+          name: file.name,
+          url,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        },
       });
-      setCrop(INITIAL_CROP);
+      setFraming(INITIAL_FRAMING);
       setDialogOpen(true);
     } catch {
       setApplied(null);
@@ -430,29 +244,31 @@ export function CoverPhotoField({
   function cancelCrop() {
     setDialogOpen(false);
     const input = inputRef.current;
-    if (!input) return;
-    // Put back whatever was there before this pick: the previous crop, or
-    // nothing (keeping the current cover on edit).
-    setInputFile(input, applied?.file ?? null);
+    if (editing?.kind !== "new" || !input) return;
+    // Put back whatever was there before this pick: the previous new photo,
+    // or nothing (keeping the current cover on edit).
+    setInputFile(input, applied?.kind === "new" ? applied.file : null);
+    if (applied?.kind === "current") setApplied(null);
     revalidate();
   }
 
   async function applyCrop() {
     const input = inputRef.current;
-    if (!source || !input) return;
+    if (!editing || !input) return;
+    const { kind, source } = editing;
+    const crop = cropFromFraming(source, COVER_ASPECT, framing);
     setApplying(true);
     setCropError(null);
     try {
-      const file = await renderCrop(source, crop);
-      setInputFile(input, file);
-      setApplied({
-        source,
-        crop,
-        file,
-        previewUrl: track(URL.createObjectURL(file)),
-      });
+      if (kind === "new") {
+        const file = await renderUpload(source);
+        setInputFile(input, file);
+        setApplied({ kind, source, framing, crop, file });
+        revalidate();
+      } else {
+        setApplied({ kind, source, framing, crop });
+      }
       setDialogOpen(false);
-      revalidate();
     } catch {
       setCropError("Could not edit this photo. Try a different file.");
     } finally {
@@ -462,30 +278,31 @@ export function CoverPhotoField({
 
   function recrop() {
     if (!applied) return;
-    setSource(applied.source);
-    setCrop(applied.crop);
+    setEditing({ kind: applied.kind, source: applied.source });
+    setFraming(applied.framing);
     setDialogOpen(true);
   }
 
   /**
-   * Re-crop the saved cover: load the stored original (no resize transform)
-   * into the cropper. Applying it uploads the crop as a replacement, exactly
-   * as if a new file had been chosen.
+   * Frame the saved cover anew: the stored photo, whole, in the framer at
+   * its current framing. Applying it saves only the framing with the event;
+   * the file stays as it is.
    */
   async function cropCurrent() {
     if (!currentImage) return;
     setCropError(null);
     setLoadingCurrent(true);
     try {
-      const url = getImageUrl(currentImage, imageConfig);
+      const url = getImageUrl(currentImage, imageConfig, { uncropped: true });
       const img = await loadImage(url);
-      setSource({
+      const source = {
         name: "cover",
         url,
         width: img.naturalWidth,
         height: img.naturalHeight,
-      });
-      setCrop(INITIAL_CROP);
+      };
+      setEditing({ kind: "current", source });
+      setFraming(framingFromCrop(source, COVER_ASPECT, cropOf(currentImage)));
       setDialogOpen(true);
     } catch {
       setCropError("Could not load the current cover for editing.");
@@ -494,36 +311,50 @@ export function CoverPhotoField({
     }
   }
 
-  function removeNewPhoto() {
+  function discardApplied() {
     const input = inputRef.current;
-    if (input) setInputFile(input, null);
+    if (applied?.kind === "new" && input) {
+      setInputFile(input, null);
+      revalidate();
+    }
     setApplied(null);
-    revalidate();
   }
 
   const showPreview = Boolean(applied || currentImage);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* the framing travels with the form; without it the cover's own
+          framing stays as it is */}
+      {applied ? (
+        <input
+          type="hidden"
+          name="coverCrop"
+          value={serializeCrop(applied.crop)}
+        />
+      ) : null}
+
       {showPreview ? (
         <div className="flex flex-col gap-3">
           <p className="text-muted-foreground text-sm">
-            {applied
+            {applied?.kind === "new"
               ? "Preview — this is how the new cover will look on the site."
-              : "Current cover"}
+              : applied
+                ? "Preview — the cover's new framing, saved with the event."
+                : "Current cover"}
           </p>
-          <CoverPreview
-            imageUrl={applied?.previewUrl}
-            image={currentImage}
-            title={title}
-          />
+          <CoverPreview applied={applied} image={currentImage} title={title} />
           {applied ? (
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={recrop}>
                 Edit photo
               </Button>
-              <Button type="button" variant="ghost" onClick={removeNewPhoto}>
-                {currentImage ? "Keep current cover" : "Remove photo"}
+              <Button type="button" variant="ghost" onClick={discardApplied}>
+                {applied.kind === "current"
+                  ? "Undo framing change"
+                  : currentImage
+                    ? "Keep current cover"
+                    : "Remove photo"}
               </Button>
             </div>
           ) : (
@@ -534,7 +365,7 @@ export function CoverPhotoField({
                 onClick={cropCurrent}
                 disabled={loadingCurrent}
               >
-                {loadingCurrent ? "Loading…" : "Edit current cover"}
+                {loadingCurrent ? "Loading…" : "Move or crop current cover"}
               </Button>
             </div>
           )}
@@ -551,7 +382,7 @@ export function CoverPhotoField({
         description={
           applied || currentImage
             ? "Choose a new photo to replace the cover."
-            : "JPEG, PNG or WebP. You can edit it to fit the 3:2 cover frame after choosing."
+            : "JPEG, PNG or WebP. You can move and crop it in the 3:2 cover frame after choosing, and again any time later."
         }
         inputProps={{
           ...getInputProps(field, { type: "file" }),
@@ -583,12 +414,18 @@ export function CoverPhotoField({
             <DialogTitle>Edit cover photo</DialogTitle>
             <DialogDescription>
               Drag to reposition, zoom to tighten. The frame is exactly what
-              guests will see.
+              guests will see; the whole photo is kept, so this can be changed
+              again later.
             </DialogDescription>
           </div>
 
-          {source ? (
-            <CoverCropper source={source} crop={crop} onChange={setCrop} />
+          {editing ? (
+            <ImageFramer
+              photo={editing.source}
+              aspect={COVER_ASPECT}
+              framing={framing}
+              onChange={setFraming}
+            />
           ) : (
             <div className="bg-muted flex aspect-3/2 items-center justify-center">
               <ImageIcon className="text-muted-foreground size-8" />
@@ -608,9 +445,13 @@ export function CoverPhotoField({
             <Button
               type="button"
               onClick={applyCrop}
-              disabled={!source || applying}
+              disabled={!editing || applying}
             >
-              {applying ? "Applying…" : "Use photo"}
+              {applying
+                ? "Applying…"
+                : editing?.kind === "current"
+                  ? "Use framing"
+                  : "Use photo"}
             </Button>
           </div>
         </DialogContent>

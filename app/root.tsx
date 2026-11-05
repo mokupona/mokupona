@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { LinksFunction } from "react-router";
 import {
   data,
@@ -15,9 +16,10 @@ import { RouteErrorContent } from "./components/route-error-content";
 import { SiteNav } from "./components/site-nav";
 import { Toaster } from "./components/ui/sonner";
 import { SitelenBackdrop } from "./features/sitelen/sitelen-backdrop";
+import { StatsTracker } from "./features/stats/stats-tracker";
 import { useToast } from "./hooks/useToast";
 import { cn } from "./lib/utils";
-import { getDomainUrl } from "./shared/http.server";
+import { combineHeaders, getDomainUrl } from "./shared/http.server";
 import { getToast } from "./utils/toast.server";
 
 import {
@@ -28,6 +30,7 @@ import {
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
 import { SiteTextProvider } from "~/features/site-text/site-text-context";
 import { getSiteTextOverrides } from "~/features/site-text/site-text.server";
+import { statsTrackingFor } from "~/features/stats/stats.server";
 import stylesheet from "~/tailwind.css?url";
 
 export const links: LinksFunction = () => [
@@ -56,10 +59,12 @@ export const middleware: Route.MiddlewareFunction[] = [
 export const loader = async ({ request, context }: Route.LoaderArgs) => {
   const domainUrl = getDomainUrl(request);
   const user = await context.get(optionalUserContext)();
-  const [{ toast, headers }, siteText] = await Promise.all([
+  const [{ toast, headers }, siteText, stats] = await Promise.all([
     getToast(request),
     // only the admin's edits travel; the defaults ship with the code
     getSiteTextOverrides(),
+    // also marks the browser the moment a moderator or admin is seen in it
+    statsTrackingFor(request, user),
   ]);
   const allowIndexing = process.env.ALLOW_INDEXING !== "false";
   const cypressSupport = process.env.CYPRESS_SUPPORT === "true";
@@ -76,13 +81,31 @@ export const loader = async ({ request, context }: Route.LoaderArgs) => {
       cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? null,
       honeypot: getHoneypotInputProps(),
       siteText,
+      trackStats: !stats.excluded,
     },
-    { headers: headers ?? undefined },
+    {
+      headers: combineHeaders(
+        headers,
+        stats.markBrowser ? { "Set-Cookie": stats.markBrowser } : null,
+      ),
+    },
   );
 };
 
+/**
+ * Marks <html> with data-cy-hydrated once React has hydrated the page, so
+ * Cypress's visitAndCheck waits for exactly that instead of a fixed pause.
+ * Only when the server runs with CYPRESS_SUPPORT=true.
+ */
+function useCypressHydratedMark(enabled: boolean) {
+  useEffect(() => {
+    if (enabled) document.documentElement.dataset.cyHydrated = "";
+  }, [enabled]);
+}
+
 export default function App({ loaderData }: Route.ComponentProps) {
   const { allowIndexing, cypressSupport } = loaderData;
+  useCypressHydratedMark(cypressSupport);
 
   return (
     <html lang="en" className="h-full scroll-smooth">
@@ -105,6 +128,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <SiteTextProvider overrides={loaderData.siteText}>
           <Document toast={loaderData.toast} />
         </SiteTextProvider>
+        <StatsTracker track={loaderData.trackStats} />
         <ScrollRestoration />
         <Scripts />
         <Toaster />

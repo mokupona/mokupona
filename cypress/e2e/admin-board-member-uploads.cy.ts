@@ -18,7 +18,9 @@ describe("admin board member uploads", () => {
   }
 
   function selectPhoto(file: string | Cypress.FileReferenceObject) {
-    cy.findByLabelText(/photo/i).selectFile(file, { force: true });
+    // anchored: the board list beside the form has an "Adjust …'s photo"
+    // button for every member with a portrait
+    cy.findByLabelText(/^photo$/i).selectFile(file, { force: true });
   }
 
   function createBoardMember(record: { name: string; position?: string }) {

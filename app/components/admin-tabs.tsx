@@ -12,6 +12,7 @@ export interface AdminTabCounts {
 
 const TABS = [
   { to: "/admin", label: "overview", end: true },
+  { to: "/admin/stats", label: "stats" },
   { to: "/admin/events", label: "events", countKey: "events" },
   { to: "/admin/locations", label: "locations", countKey: "locations" },
   { to: "/admin/board-members", label: "board", countKey: "board" },

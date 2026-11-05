@@ -6,6 +6,10 @@ import { z } from "zod";
 
 import type { Route } from "./+types/admin.events.$eventId_.gallery";
 
+import {
+  GALLERY_SHAPES,
+  ImageFramingDialog,
+} from "~/components/admin-image-framer";
 import { AdminEmptyState, AdminPageHeader } from "~/components/admin-ui";
 import { Field, fileFieldClassName } from "~/components/forms";
 import { OptimizedImage } from "~/components/optimized-image";
@@ -318,6 +322,14 @@ export default function AdminEventGalleryPage({
                           </span>
                         )}
                       </p>
+
+                      <ImageFramingDialog
+                        image={entry.image}
+                        shapes={GALLERY_SHAPES}
+                        title="Adjust this photo"
+                        iconOnly
+                        className="-my-2 size-11 shrink-0 sm:my-0 sm:size-7"
+                      />
 
                       <Dialog
                         open={pendingDelete === entry.id}

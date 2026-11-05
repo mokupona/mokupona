@@ -13,7 +13,12 @@ import { Dialog, DialogContent, DialogTitle } from "~/components/ui/dialog";
 import { formatEventMonthYear } from "~/features/events/date-format";
 import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
-import { getImageUrl, RESPONSIVE_IMAGE_WIDTHS } from "~/shared/image";
+import {
+  deliversFramedImage,
+  getImageUrl,
+  RESPONSIVE_IMAGE_WIDTHS,
+} from "~/shared/image";
+import { cropOf, framedImageStyle, framedSize } from "~/shared/image-crop";
 import { useImageConfig } from "~/shared/root-data";
 
 const SLIDE_WIDTH = 1280;
@@ -26,8 +31,15 @@ const ARROW_CLASS =
 function GallerySlide({ image }: { image: GalleryImageModel }) {
   const config = useImageConfig();
   const { width, height } = image.image;
-  const aspect = width && height ? width / height : FALLBACK_ASPECT;
+  const size = framedSize(image.image);
+  const aspect = size ? size.width / size.height : FALLBACK_ASPECT;
   const slideHeight = Math.round(SLIDE_WIDTH / aspect);
+  // the local provider serves the whole file; the slide then frames it
+  const crop = cropOf(image.image);
+  const framing =
+    crop && width && height && !deliversFramedImage(image.image, config)
+      ? framedImageStyle(crop, { width, height }, aspect)
+      : null;
   const event = image.event;
   const date = event ? new Date(event.date) : null;
 
@@ -50,7 +62,18 @@ function GallerySlide({ image }: { image: GalleryImageModel }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex h-[60dvh] items-center justify-center">
-        {src ? (
+        {src && framing ? (
+          // as large as the slide allows at the framing's own shape
+          <div
+            className="relative max-w-full overflow-hidden"
+            style={{
+              aspectRatio: `${aspect}`,
+              width: `min(100%, calc(60dvh * ${aspect}))`,
+            }}
+          >
+            <img src={src} alt={image.alt} style={framing} />
+          </div>
+        ) : src ? (
           <img
             src={src}
             srcSet={srcSet}
