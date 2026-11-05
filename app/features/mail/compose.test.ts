@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { action, compose, details, note, paragraph } from "./compose";
-import { mailTemplates, type SignupConfirmationProps } from "./templates";
+import {
+  action,
+  compose,
+  details,
+  note,
+  paragraph,
+  withNotice,
+} from "./compose";
+import {
+  fillSignupMailCopy,
+  mailTemplates,
+  teamCopy,
+  type SignupConfirmationProps,
+} from "./templates";
 
 import { createText, defaultText } from "~/features/site-text/text";
 
@@ -434,5 +446,76 @@ describe("friendSignup", () => {
     expect(text).toContain(
       "Guest 2: Grace\nVegan / Vegetarian: no\nTheir email: grace@example.com",
     );
+  });
+});
+
+describe("withNotice", () => {
+  it("puts the notice on top of both parts and keeps the mail whole", () => {
+    const body = compose(
+      "Your seat",
+      [paragraph("See you on Saturday.")],
+      OPTIONS,
+    );
+
+    const copy = withNotice(body, {
+      subject: "Copy: Your seat",
+      notice: "Sent to <ada@example.com>:",
+    });
+
+    expect(copy.subject).toBe("Copy: Your seat");
+    expect(copy.text.startsWith("Sent to <ada@example.com>:\n\n")).toBe(true);
+    expect(copy.text.endsWith(body.text)).toBe(true);
+    expect(copy.html).toMatch(
+      /<body[^>]*>\s*<p style="[^"]*">Sent to &lt;ada@example.com&gt;:<\/p>/,
+    );
+    expect(copy.html).toContain("<p>See you on Saturday.</p>");
+  });
+});
+
+describe("guest messages", () => {
+  it("fills placeholders for the recipient, the guest's name as plain text", () => {
+    expect(
+      fillSignupMailCopy(
+        { subject: "Hi\n{name}  for {event}", message: "Dear {name}, {nope}" },
+        {
+          name: "Ada *star*",
+          event: "Winter table",
+          date: "Saturday 14 November, 19:00",
+          guests: "2",
+          total: "CHF 60",
+        },
+      ),
+    ).toEqual({
+      subject: "Hi Ada *star* for Winter table",
+      message: "Dear Ada \\*star\\*, {nope}",
+    });
+  });
+
+  it("renders an admin's message with a button to the event", () => {
+    const body = mailTemplates.signupMessage(
+      {
+        subject: "Change of venue",
+        message: "We **moved** next door.",
+        event: { title: "Winter table", url: "https://mokupona.ch/events/1" },
+      },
+      defaultText,
+    );
+
+    expect(body.subject).toBe("Change of venue");
+    expect(body.html).toContain("<strong>moved</strong>");
+    expect(body.text).toContain("https://mokupona.ch/events/1");
+    expect(body.text).toContain("you signed up for Winter table");
+  });
+
+  it("titles the team's copy with the guest and the subject they got", () => {
+    const body = compose("Your seat", [paragraph("Hello.")], OPTIONS);
+
+    const copy = teamCopy(body, { to: "ada@example.com" }, defaultText);
+
+    expect(copy.subject).toBe("Sent to ada@example.com: Your seat");
+    expect(copy.text).toContain(
+      "The guest ada@example.com was sent the following email:",
+    );
+    expect(copy.text).toContain("Hello.");
   });
 });

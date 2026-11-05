@@ -1,6 +1,6 @@
-import { DownloadIcon } from "lucide-react";
-import { Fragment, useState } from "react";
-import { data, Form, useFetcher } from "react-router";
+import { CheckIcon, DownloadIcon } from "lucide-react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { data, Form, useFetcher, useNavigation } from "react-router";
 
 import type { Route } from "./+types/admin.events.$eventId_.signups";
 
@@ -8,6 +8,7 @@ import { AdminPageHeader, InitialsAvatar } from "~/components/admin-ui";
 import { BackLink } from "~/components/section";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
 import {
   Table,
   TableBody,
@@ -22,6 +23,7 @@ import {
   userContext,
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
+import { guestMailCopyTo } from "~/features/mail/mail.server";
 import {
   bookingPrices,
   type BookingGuest,
@@ -32,7 +34,18 @@ import {
   type SignupBooking,
 } from "~/features/signup-form/bookings.server";
 import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
-import { sendSeatConfirmedMail } from "~/features/signup-form/confirmation-mail.server";
+import {
+  MAX_SIGNUP_MAIL_MESSAGE_LENGTH,
+  MAX_SIGNUP_MAIL_SUBJECT_LENGTH,
+  signupMailPlaceholderList,
+  unknownSignupMailPlaceholders,
+  type SignupMailKind,
+} from "~/features/signup-form/confirmation-mail";
+import {
+  sendSignupMessage,
+  sendStoredSignupMail,
+  SIGNUP_MESSAGE_REPLY_TO,
+} from "~/features/signup-form/confirmation-mail.server";
 import {
   summarizeHeadcount,
   type HeadcountSummary,
@@ -42,6 +55,14 @@ import {
   summarizeRevenue,
   type RevenueSummary,
 } from "~/features/signup-form/revenue";
+import {
+  confirmationMailState,
+  messageRecipients,
+  type ConfirmationMailState,
+  type MessageRecipient,
+  type SentSignupMail,
+  type SignupMailRecordKind,
+} from "~/features/signup-form/signup-mails";
 import {
   seatsLeft,
   type SignupStatus,
@@ -56,6 +77,7 @@ import {
   updateSignupStatus,
 } from "~/models/event-signup.server";
 import { getEventById } from "~/models/event.server";
+import { getSignupMailState } from "~/models/signup-mail.server";
 import { getDomainUrl, requireFound } from "~/shared/http.server";
 import { redirectWithToast, type ToastInput } from "~/utils/toast.server";
 
@@ -79,6 +101,14 @@ interface Party {
   secondHalfPaid: boolean;
   /** Admin bookkeeping: free text for the team, never shown to the guest. */
   adminNote: string;
+  /** Whether the mail the signup's status calls for has gone out. */
+  confirmation: ConfirmationMailState;
+  /** False when the site didn't keep track of this signup's mails. */
+  mailsTracked: boolean;
+  /** Every mail on record for this signup, oldest first. */
+  mails: SentSignupMail[];
+  /** Who in the party an admin can write to. */
+  recipients: MessageRecipient[];
 }
 
 function toParty(signup: SignupBooking): Party {
@@ -98,6 +128,20 @@ function toParty(signup: SignupBooking): Party {
     firstHalfPaid: signup.firstHalfPaid,
     secondHalfPaid: signup.secondHalfPaid,
     adminNote: signup.adminNote,
+    // pre-form signups can't be mailed from here: their rows hold no form
+    // to rebuild the mail from
+    confirmation: signup.isLegacy
+      ? { kind: "none", last: null }
+      : confirmationMailState({
+          status: signup.status,
+          mailsTracked: signup.mailsTracked,
+          mails: signup.mails,
+        }),
+    mailsTracked: signup.mailsTracked,
+    mails: signup.mails,
+    recipients: signup.isLegacy
+      ? []
+      : messageRecipients(guests, signup.signerEmail),
   };
 }
 
@@ -133,6 +177,7 @@ export async function loader({ params }: Route.LoaderArgs) {
     headcount: summarizeHeadcount(
       parties.map((party) => ({ status: party.status, guests: party.guests })),
     ),
+    mail: { copyTo: guestMailCopyTo(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
   };
 }
 
@@ -200,6 +245,121 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     return data({ saved: intent });
   }
 
+  if (intent === "send-confirmation") {
+    const submissionId = readSubmissionId(formData);
+    const signup = await getSignupMailState({ eventId, submissionId });
+    if (!signup) throw new Response("Not Found", { status: 404 });
+
+    // read again here, so a stale page or a second click can't mail twice
+    const confirmation = confirmationMailState(signup);
+    if (confirmation.kind === "none") {
+      return redirectWithToast(page, {
+        type: "error",
+        title: "This signup is cancelled",
+        description: "Restore it first if they should get a confirmation.",
+      });
+    }
+    if (confirmation.kind === "sent") {
+      return redirectWithToast(page, {
+        title: "Already sent",
+        description: `${MAIL_NAMES[confirmation.mail]} went out on ${formatAdminTimestamp(confirmation.sentAt)}.`,
+      });
+    }
+
+    try {
+      await sendStoredSignupMail({
+        submissionId,
+        status: confirmation.mail,
+        origin: getDomainUrl(request),
+        sentById: user.id,
+      });
+    } catch (error) {
+      log.error(
+        { event: eventId, submission: submissionId, error },
+        "Failed to send a signup mail from the signup sheet",
+      );
+      return redirectWithToast(page, {
+        type: "error",
+        title: "The email failed",
+        description: "Nothing was sent. The error is in the logs.",
+      });
+    }
+
+    log.info(
+      {
+        userId: user.id,
+        event: eventId,
+        submission: submissionId,
+        mail: confirmation.mail,
+      },
+      "Admin sent a signup's mail from the signup sheet",
+    );
+
+    return redirectWithToast(page, {
+      type: "success",
+      title: `${MAIL_NAMES[confirmation.mail]} sent`,
+      description:
+        "We've emailed the person who signed up, and each friend they gave an address for.",
+    });
+  }
+
+  if (intent === "message") {
+    const submissionId = readSubmissionId(formData);
+    const signup = await getSignupMailState({ eventId, submissionId });
+    if (!signup) throw new Response("Not Found", { status: 404 });
+
+    const draft = readMessageDraft(formData);
+    if ("error" in draft) {
+      return data({ messageError: draft.error }, { status: 400 });
+    }
+
+    let result: Awaited<ReturnType<typeof sendSignupMessage>>;
+    try {
+      result = await sendSignupMessage({
+        submissionId,
+        ...draft,
+        origin: getDomainUrl(request),
+        sentById: user.id,
+      });
+    } catch (error) {
+      log.error(
+        { event: eventId, submission: submissionId, error },
+        "Failed to send a message from the signup sheet",
+      );
+      return data(
+        {
+          messageError: "The email couldn't be sent. The error is in the logs.",
+        },
+        { status: 500 },
+      );
+    }
+
+    if (result.sent.length === 0 && result.failed.length === 0) {
+      return data(
+        { messageError: "Pick at least one person to write to." },
+        { status: 400 },
+      );
+    }
+
+    log.info(
+      {
+        userId: user.id,
+        event: eventId,
+        submission: submissionId,
+        sent: result.sent.length,
+        failed: result.failed.length,
+      },
+      "Admin wrote to a signup from the signup sheet",
+    );
+
+    return data({
+      messageResult: {
+        sent: result.sent.map((recipient) => recipient.name),
+        failed: result.failed.map((recipient) => recipient.name),
+      },
+    });
+  }
+
   const submissionId = formData.get("submissionId");
   if (!isIntent(intent) || typeof submissionId !== "string") {
     throw new Response("Bad Request", { status: 400 });
@@ -246,9 +406,11 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   let mailFailed = false;
   if (status === "confirmed") {
     try {
-      await sendSeatConfirmedMail({
+      await sendStoredSignupMail({
         submissionId,
+        status: "confirmed",
         origin: getDomainUrl(request),
+        sentById: user.id,
       });
     } catch (error) {
       mailFailed = true;
@@ -260,6 +422,62 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   }
 
   return redirectWithToast(page, statusToast(status, previous, mailFailed));
+}
+
+const MAIL_NAMES: Record<SignupMailKind, string> = {
+  confirmed: "Confirmation",
+  waitlisted: "Waiting-list email",
+};
+
+function readSubmissionId(formData: FormData): string {
+  const submissionId = formData.get("submissionId");
+  if (typeof submissionId !== "string" || !submissionId) {
+    throw new Response("Bad Request", { status: 400 });
+  }
+  return submissionId;
+}
+
+/** An admin's message to a party, checked before anything goes out. */
+function readMessageDraft(
+  formData: FormData,
+):
+  | { subject: string; message: string; guestIndexes: number[] }
+  | { error: string } {
+  const field = (name: string) => {
+    const value = formData.get(name);
+    return typeof value === "string" ? value.trim() : "";
+  };
+  const subject = field("subject");
+  const message = field("message");
+  const guestIndexes = formData
+    .getAll("recipient")
+    .map(Number)
+    .filter((index) => Number.isInteger(index) && index >= 0);
+
+  if (guestIndexes.length === 0) {
+    return { error: "Pick at least one person to write to." };
+  }
+  if (!subject) return { error: "The email needs a subject." };
+  if (subject.length > MAX_SIGNUP_MAIL_SUBJECT_LENGTH) {
+    return {
+      error: `Keep the subject to ${MAX_SIGNUP_MAIL_SUBJECT_LENGTH} characters.`,
+    };
+  }
+  if (!message) return { error: "The email needs a message." };
+  if (message.length > MAX_SIGNUP_MAIL_MESSAGE_LENGTH) {
+    return {
+      error: `Keep the message to ${MAX_SIGNUP_MAIL_MESSAGE_LENGTH} characters.`,
+    };
+  }
+  // a typo'd placeholder would reach the guest as a literal "{nmae}"
+  const unknown = unknownSignupMailPlaceholders(`${subject}\n${message}`);
+  if (unknown.length > 0) {
+    return {
+      error: `Unknown placeholder ${unknown.join(", ")}. Available: ${signupMailPlaceholderList()}.`,
+    };
+  }
+
+  return { subject, message, guestIndexes };
 }
 
 function readNote(formData: FormData): string {
@@ -329,9 +547,12 @@ const SECTIONS: { status: SignupStatus; title: string; empty: string }[] = [
 ];
 
 export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
-  const { event, seats, parties, revenue, headcount } = loaderData;
+  const { event, seats, parties, revenue, headcount, mail } = loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
+  ).length;
+  const mailsDue = parties.filter(
+    (party) => party.confirmation.kind === "due",
   ).length;
   const overbookedBy = seats.confirmed - event.slots;
 
@@ -375,6 +596,14 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         </Notice>
       ) : null}
 
+      {mailsDue > 0 ? (
+        <Notice>
+          {mailsDue} {mailsDue === 1 ? "group has" : "groups have"} no
+          confirmation email on record. You can send it from the Confirmation
+          column.
+        </Notice>
+      ) : null}
+
       <div className="flex flex-col gap-6">
         {SECTIONS.map(({ status, title, empty }) => {
           const rows = parties.filter((party) => party.status === status);
@@ -397,6 +626,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                 parties={rows}
                 seatsLeft={seats.left}
                 emptyText={empty}
+                mail={mail}
               />
             </section>
           );
@@ -567,14 +797,24 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Where a guest's reply lands, and where the team's copies go. */
+interface MailSettings {
+  copyTo: string | null;
+  replyTo: string;
+}
+
+const TABLE_COLUMNS = 8;
+
 function PartyTable({
   parties,
   seatsLeft,
   emptyText,
+  mail,
 }: {
   parties: Party[];
   seatsLeft: number;
   emptyText: string;
+  mail: MailSettings;
 }) {
   // the table scrolls sideways on a phone rather than being cut off
   return (
@@ -587,6 +827,7 @@ function PartyTable({
             <TableHead className="text-center">Party</TableHead>
             <TableHead className="text-right">Price</TableHead>
             <TableHead>Payments</TableHead>
+            <TableHead>Confirmation</TableHead>
             <TableHead className="text-right">Signed up</TableHead>
             <TableHead className="text-right">
               <span className="sr-only">Actions</span>
@@ -600,12 +841,13 @@ function PartyTable({
               party={party}
               index={index}
               seatsLeft={seatsLeft}
+              mail={mail}
             />
           ))}
           {parties.length === 0 ? (
             <TableRow className="hover:bg-transparent">
               <TableCell
-                colSpan={7}
+                colSpan={TABLE_COLUMNS}
                 className="text-muted-foreground py-8 text-center text-sm"
               >
                 {emptyText}
@@ -622,10 +864,12 @@ function PartyRow({
   party,
   index,
   seatsLeft,
+  mail,
 }: {
   party: Party;
   index: number;
   seatsLeft: number;
+  mail: MailSettings;
 }) {
   const [open, setOpen] = useState(false);
   const detailsId = `party-${party.submissionId}`;
@@ -665,6 +909,9 @@ function PartyRow({
         <TableCell>
           <PaymentTicks party={party} />
         </TableCell>
+        <TableCell>
+          <ConfirmationCell party={party} />
+        </TableCell>
         <TableCell className="text-right">
           <time
             dateTime={new Date(party.createdAt).toISOString()}
@@ -684,10 +931,10 @@ function PartyRow({
         <TableRow className="hover:bg-transparent">
           <TableCell
             id={detailsId}
-            colSpan={7}
+            colSpan={TABLE_COLUMNS}
             className="bg-foreground/[0.02] whitespace-normal"
           >
-            <PartyDetails party={party} />
+            <PartyDetails party={party} mail={mail} />
           </TableCell>
         </TableRow>
       ) : null}
@@ -695,10 +942,12 @@ function PartyRow({
   );
 }
 
-function PartyDetails({ party }: { party: Party }) {
+function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
   return (
     <div className="flex flex-col gap-4 py-3">
       {party.isLegacy ? null : <NoteForm party={party} />}
+
+      {party.isLegacy ? null : <PartyMails party={party} mail={mail} />}
 
       {party.contact.length > 0 ? (
         <div className="flex flex-col gap-2">
@@ -923,4 +1172,309 @@ function PartyActions({
       ) : null}
     </Form>
   );
+}
+
+const MAIL_KIND_LABELS: Record<SignupMailRecordKind, string> = {
+  confirmed: "Seat confirmation",
+  waitlisted: "Waiting-list email",
+  friend: "Note that they were signed up",
+  custom: "Message",
+};
+
+function SentAt({ date }: { date: Date }) {
+  const sentAt = new Date(date);
+  return (
+    <time
+      dateTime={sentAt.toISOString()}
+      suppressHydrationWarning
+      className="text-muted-foreground text-xs whitespace-nowrap"
+    >
+      {formatAdminTimestamp(sentAt)}
+    </time>
+  );
+}
+
+function ConfirmationCell({ party }: { party: Party }) {
+  const { confirmation } = party;
+
+  if (party.isLegacy) {
+    return <span className="text-muted-foreground text-sm">—</span>;
+  }
+
+  switch (confirmation.kind) {
+    case "sent":
+      return (
+        <div className="flex flex-col items-start gap-0.5 text-sm">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            <CheckIcon className="text-primary size-4" aria-hidden />
+            {MAIL_NAMES[confirmation.mail]} sent
+          </span>
+          <SentAt date={confirmation.sentAt} />
+        </div>
+      );
+    case "none":
+      return confirmation.last ? (
+        <div className="text-muted-foreground flex flex-col items-start gap-0.5 text-sm">
+          <span className="whitespace-nowrap">
+            {MAIL_NAMES[confirmation.last.mail]} sent
+          </span>
+          <SentAt date={confirmation.last.sentAt} />
+        </div>
+      ) : (
+        <span className="text-muted-foreground text-sm">—</span>
+      );
+    case "due":
+      return (
+        <div className="flex flex-col items-start gap-1 text-sm">
+          {confirmation.previous ? (
+            <span className="text-destructive-light whitespace-nowrap">
+              Only the {MAIL_NAMES[confirmation.previous.mail].toLowerCase()}
+            </span>
+          ) : confirmation.tracked ? (
+            <span className="text-destructive-light font-semibold whitespace-nowrap">
+              Not sent
+            </span>
+          ) : (
+            <span
+              className="text-muted-foreground whitespace-nowrap"
+              title="Signed up before the site kept track of its emails, so they may have had one"
+            >
+              No record
+            </span>
+          )}
+          <SendConfirmationButton party={party} confirmation={confirmation} />
+        </div>
+      );
+  }
+}
+
+function SendConfirmationButton({
+  party,
+  confirmation,
+}: {
+  party: Party;
+  confirmation: Extract<ConfirmationMailState, { kind: "due" }>;
+}) {
+  const navigation = useNavigation();
+  const sending =
+    navigation.state !== "idle" &&
+    navigation.formData?.get("intent") === "send-confirmation" &&
+    navigation.formData.get("submissionId") === party.submissionId;
+  const label =
+    confirmation.mail === "confirmed"
+      ? "Send confirmation"
+      : "Send waiting-list email";
+
+  return (
+    <Form method="post">
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <Button
+        type="submit"
+        name="intent"
+        value="send-confirmation"
+        size="sm"
+        variant="outline"
+        disabled={sending}
+        onClick={(clickEvent) => {
+          // only a signup from before the tracking may already have one
+          if (confirmation.tracked || confirmation.previous) return;
+          const ok = window.confirm(
+            `${party.name} signed up before the site kept track of its emails, so they may already have their ${MAIL_NAMES[confirmation.mail].toLowerCase()}. Send it now?`,
+          );
+          if (!ok) clickEvent.preventDefault();
+        }}
+      >
+        {sending ? "Sending…" : label}
+      </Button>
+    </Form>
+  );
+}
+
+function PartyMails({ party, mail }: { party: Party; mail: MailSettings }) {
+  const [writing, setWriting] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground text-xs font-semibold tracking-widest uppercase">
+        Emails
+      </p>
+      {party.mails.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          {party.mailsTracked
+            ? "No emails sent yet."
+            : "No emails on record. This signup is from before the site kept track, so they may have had their confirmation all the same."}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2 text-sm">
+          {party.mails.map((sent, mailIndex) => (
+            <li key={mailIndex} className="flex flex-col gap-0.5">
+              <span>
+                <span className="font-semibold">
+                  {MAIL_KIND_LABELS[sent.kind]}
+                </span>{" "}
+                to {sent.recipient}
+                {sent.sentBy ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · sent by {sent.sentBy}
+                  </span>
+                ) : null}
+              </span>
+              <SentAt date={sent.sentAt} />
+              {sent.kind === "custom" ? (
+                <details className="mt-1">
+                  <summary className="cursor-pointer">
+                    &ldquo;{sent.subject}&rdquo;
+                  </summary>
+                  <p className="bg-background mt-1 border p-2 whitespace-pre-wrap">
+                    {sent.message}
+                  </p>
+                </details>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {writing ? (
+        <MessageForm
+          party={party}
+          mail={mail}
+          onClose={() => setWriting(false)}
+        />
+      ) : party.recipients.length > 0 ? (
+        <div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setWriting(true)}
+          >
+            Write an email
+          </Button>
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Nobody in this signup gave an email address.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MessageForm({
+  party,
+  mail,
+  onClose,
+}: {
+  party: Party;
+  mail: MailSettings;
+  onClose: () => void;
+}) {
+  const fetcher = useFetcher<typeof action>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const id = useId();
+  const busy = fetcher.state !== "idle";
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const result =
+    reply && "messageResult" in reply ? reply.messageResult : undefined;
+  const error = reply && "messageError" in reply ? reply.messageError : null;
+
+  // once every mail is out, the form is ready for the next one
+  useEffect(() => {
+    if (result && result.failed.length === 0) formRef.current?.reset();
+  }, [result]);
+
+  return (
+    <fetcher.Form
+      ref={formRef}
+      method="post"
+      className="bg-background flex flex-col gap-3 border p-4"
+    >
+      <input type="hidden" name="intent" value="message" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+
+      <fieldset className="flex flex-col gap-1">
+        <legend className="mb-1 text-sm font-semibold">To</legend>
+        {party.recipients.map((recipient, recipientIndex) => (
+          <label
+            key={recipient.guestIndex}
+            className="inline-flex items-center gap-2 text-sm"
+          >
+            <input
+              type="checkbox"
+              name="recipient"
+              value={recipient.guestIndex}
+              defaultChecked={recipientIndex === 0}
+              className="accent-primary size-4"
+            />
+            {recipient.name}
+            <span className="text-muted-foreground">{recipient.email}</span>
+          </label>
+        ))}
+      </fieldset>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${id}-subject`} className="text-sm font-semibold">
+          Subject
+        </label>
+        <Input
+          id={`${id}-subject`}
+          name="subject"
+          required
+          maxLength={MAX_SIGNUP_MAIL_SUBJECT_LENGTH}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor={`${id}-message`} className="text-sm font-semibold">
+          Message
+        </label>
+        <Textarea
+          id={`${id}-message`}
+          name="message"
+          required
+          rows={6}
+          maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+        />
+        <p className="text-muted-foreground text-xs">
+          Each person gets an email of their own, with a button to the event
+          page under your message. Markdown works: [link text](https://…),
+          **bold**, *italic*. Placeholders: {signupMailPlaceholderList()};{" "}
+          {"{name}"} is each person&apos;s own name. Replies go to{" "}
+          {mail.replyTo}.
+          {mail.copyTo ? ` A copy of each email goes to ${mail.copyTo}.` : null}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" size="sm" disabled={busy}>
+          {busy ? "Sending…" : "Send email"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onClose}>
+          Close
+        </Button>
+        {error ? (
+          <span role="alert" className="text-destructive-light text-sm">
+            {error}
+          </span>
+        ) : null}
+        {result ? (
+          <span role="status" className="text-sm">
+            {result.sent.length > 0
+              ? `Sent to ${listNames(result.sent)}.`
+              : null}
+            {result.failed.length > 0
+              ? ` Couldn't email ${listNames(result.failed)}; the error is in the logs.`
+              : null}
+          </span>
+        ) : null}
+      </div>
+    </fetcher.Form>
+  );
+}
+
+function listNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }

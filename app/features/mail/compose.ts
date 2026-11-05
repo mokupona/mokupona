@@ -80,6 +80,31 @@ function renderText(blocks: Block[]): string {
   return lines.join("\n\n");
 }
 
+/**
+ * The same mail under a notice of its own, e.g. the team's copy of what a
+ * guest got: the notice opens both parts, the original follows untouched.
+ */
+export function withNotice(
+  body: MailBody,
+  { subject, notice }: { subject: string; notice: string },
+): MailBody {
+  const banner = `<p style="${NOTICE_STYLE}">${escapeMultiline(notice)}</p>`;
+  const html =
+    body.html && /<body[^>]*>/.test(body.html)
+      ? body.html.replace(/<body[^>]*>/, (tag) => `${tag}\n    ${banner}`)
+      : `${banner}\n${body.html ?? ""}`;
+
+  return {
+    ...body,
+    subject,
+    text: [notice, NOTICE_RULE, body.text].join("\n\n"),
+    html,
+  };
+}
+
+const NOTICE_RULE = "-".repeat(40);
+const NOTICE_STYLE =
+  "margin: 0 0 24px; padding: 12px 16px; border-left: 4px solid #999; background: #f4f4f4; font-family: sans-serif;";
 const NOTE_STYLE = "color: #666; font-size: 13px;";
 const DETAIL_CELL_STYLE = "padding: 2px 0; vertical-align: top;";
 const DETAIL_LABEL_STYLE = `${DETAIL_CELL_STYLE} padding-right: 16px; color: #666;`;

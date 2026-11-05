@@ -198,6 +198,31 @@ describe("event signup action", () => {
     });
   });
 
+  it("keeps a record of each mail that went out, for the signup sheet", async () => {
+    const { eventId, versionId } = await createTestEvent();
+
+    await submit(
+      eventId,
+      fromBrowser({
+        ...answers(versionId),
+        "friends[0].name": "Grace Friend",
+        "friends[0].friend_email": "grace@example.com",
+      }),
+    );
+
+    const [stored] = await storedFor(versionId);
+    expect(stored.mailsTracked).toBe(true);
+    expect(
+      await prisma.signupMail.findMany({
+        where: { submissionId: stored.id },
+        orderBy: { createdAt: "asc" },
+      }),
+    ).toMatchObject([
+      { kind: "confirmed", recipient: "ada@example.com", sentById: null },
+      { kind: "friend", recipient: "grace@example.com", sentById: null },
+    ]);
+  });
+
   it("waitlists a party that doesn't fit and mails the waiting-list copy", async () => {
     const { eventId, versionId } = await createTestEvent({
       slots: 1,
@@ -249,7 +274,12 @@ describe("event signup action", () => {
     expectSuccessRedirect(
       await submit(eventId, fromBrowser(answers(versionId))),
     );
-    expect(await storedFor(versionId)).toHaveLength(1);
+    const stored = await storedFor(versionId);
+    expect(stored).toHaveLength(1);
+    // no record, so the signup sheet offers to send it
+    expect(
+      await prisma.signupMail.count({ where: { submissionId: stored[0].id } }),
+    ).toBe(0);
   });
 
   it("answers a filled spam trap with the success redirect", async () => {

@@ -1,5 +1,13 @@
 import type { MailBody } from "./compose";
-import { action, compose, details, markdown, note, paragraph } from "./compose";
+import {
+  action,
+  compose,
+  details,
+  markdown,
+  note,
+  paragraph,
+  withNotice,
+} from "./compose";
 
 import { formatEventMailDate } from "~/features/events/date-format";
 import {
@@ -39,37 +47,69 @@ function options(t: Text) {
   return { linkFallback: t("emails.linkFallback") };
 }
 
+/**
+ * What the placeholders of a signup's mail stand for. `name` is whoever the
+ * mail is for: the signer, unless an admin writes to one of their friends.
+ */
+export function signupMailValues(
+  {
+    name,
+    event,
+    booking,
+  }: {
+    name: string;
+    event: { title: string; date: Date };
+    booking: BookingSummary;
+  },
+  t: Text,
+): SignupMailValues {
+  return {
+    name,
+    event: event.title,
+    date: formatEventMailDate(event.date),
+    guests: String(booking.guests.length),
+    total: formatChf(booking.total, t),
+  };
+}
+
+/**
+ * An admin's subject and Markdown message with the placeholders filled in.
+ * What a guest typed (their name) goes into the message as plain text, so it
+ * can't turn into a link or markup.
+ */
+export function fillSignupMailCopy(
+  copy: { subject: string; message: string },
+  values: SignupMailValues,
+): { subject: string; message: string } {
+  return {
+    subject: fillSignupMailPlaceholders(copy.subject, values)
+      // a subject is one header line, whatever was typed
+      .replace(/\s+/g, " ")
+      .trim(),
+    message: fillSignupMailPlaceholders(
+      copy.message,
+      Object.fromEntries(
+        Object.entries(values).map(([name, value]) => [
+          name,
+          escapeMarkdown(value),
+        ]),
+      ) as SignupMailValues,
+    ),
+  };
+}
+
 function signupConfirmation(
   { status, event, booking }: SignupConfirmationProps,
   t: Text,
 ) {
   const defaults = defaultSignupMailCopy(t)[status];
   const [signer] = booking.guests;
-  const values: SignupMailValues = {
-    name: signer.name,
-    event: event.title,
-    date: formatEventMailDate(event.date),
-    guests: String(booking.guests.length),
-    total: formatChf(booking.total, t),
-  };
-
-  const subject = fillSignupMailPlaceholders(
-    event.mailSubject?.trim() || defaults.subject,
-    values,
-  )
-    // a subject is one header line, whatever was typed
-    .replace(/\s+/g, " ")
-    .trim();
-  // the message is Markdown; what a guest typed (their name) is filled in as
-  // plain text, so it can't turn into a link or markup
-  const message = fillSignupMailPlaceholders(
-    event.mailMessage?.trim() || defaults.message,
-    Object.fromEntries(
-      Object.entries(values).map(([name, value]) => [
-        name,
-        escapeMarkdown(value),
-      ]),
-    ) as SignupMailValues,
+  const { subject, message } = fillSignupMailCopy(
+    {
+      subject: event.mailSubject?.trim() || defaults.subject,
+      message: event.mailMessage?.trim() || defaults.message,
+    },
+    signupMailValues({ name: signer.name, event, booking }, t),
   );
 
   const total =
@@ -180,6 +220,34 @@ function friendSignup(
   );
 }
 
+export interface SignupMessageProps {
+  /** The admin's subject, placeholders already filled in for this guest. */
+  subject: string;
+  /** The admin's Markdown message, placeholders already filled in. */
+  message: string;
+  event: {
+    title: string;
+    /** Absolute link to the public event page. */
+    url: string;
+  };
+}
+
+/** A message an admin wrote to a guest on the event's signup sheet. */
+function signupMessage(
+  { subject, message, event }: SignupMessageProps,
+  t: Text,
+) {
+  return compose(
+    subject,
+    [
+      markdown(message),
+      action(t("emails.message.button"), event.url),
+      note(t("emails.message.note", { event: event.title })),
+    ],
+    options(t),
+  );
+}
+
 /**
  * Every mail the site sends. Each takes its props and the site texts, so an
  * admin's edits under Emails reach the inbox.
@@ -232,6 +300,8 @@ export const mailTemplates = {
 
   friendSignup,
 
+  signupMessage,
+
   volunteerInterest: (
     { name, email, message }: { name: string; email: string; message?: string },
     t: Text,
@@ -252,3 +322,30 @@ export type MailTemplateName = keyof MailTemplates;
 export type MailTemplateProps<K extends MailTemplateName> = Parameters<
   MailTemplates[K]
 >[0];
+
+/**
+ * The mails that go to guests. The team inbox gets a copy of each one that
+ * goes out (mail.server.ts); account mails and mail to the team don't.
+ */
+export const GUEST_MAIL_TEMPLATES: ReadonlySet<MailTemplateName> = new Set([
+  "signupConfirmation",
+  "friendSignup",
+  "signupMessage",
+]);
+
+/**
+ * The team's copy of a guest's mail: the mail itself, under a line saying
+ * who got it.
+ */
+export function teamCopy(
+  body: MailBody,
+  { to }: { to: string },
+  t: Text,
+): MailBody {
+  return withNotice(body, {
+    subject: t("emails.copy.subject", { email: to, subject: body.subject })
+      .replace(/\s+/g, " ")
+      .trim(),
+    notice: t("emails.copy.intro", { email: to }),
+  });
+}

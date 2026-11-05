@@ -229,6 +229,31 @@ export const emailTexts = defineTexts("emails", {
     label: "Event signup: small print",
     default: "If you didn't sign up for this event, you can ignore this email.",
   },
+  "message.button": {
+    label: "Message from the signup sheet: button",
+    default: "View the event",
+    hint: "Under a message an admin writes to a guest from an event's signup sheet. The admin writes the subject and the text themselves.",
+  },
+  "message.note": {
+    label: "Message from the signup sheet: small print",
+    default:
+      "You're getting this email because you signed up for {event}. Just reply if you have any questions.",
+    vars: { event: "event title" },
+  },
+  "copy.subject": {
+    label: "Copy of a guest's email (to us): subject",
+    default: "Sent to {email}: {subject}",
+    vars: {
+      email: "the guest's email address",
+      subject: "the subject of the email they got",
+    },
+    hint: "Every email to a guest (the signup mail, the note to a friend, a message from the signup sheet) also goes to the team inbox, with this subject and the line below on top.",
+  },
+  "copy.intro": {
+    label: "Copy of a guest's email (to us): first line",
+    default: "The guest {email} was sent the following email:",
+    vars: { email: "the guest's email address" },
+  },
   "volunteer.subject": {
     label: "Volunteer sign-up (to us): subject",
     default: "New volunteer: {name}",
