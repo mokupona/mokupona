@@ -65,6 +65,18 @@ export async function getUserAuthOverview(id: string): Promise<{
   };
 }
 
+/** The Better Auth account row linking the user to `providerId`, if any. */
+export async function getLinkedAccountId(
+  userId: string,
+  providerId: string,
+): Promise<string | null> {
+  const account = await prisma.account.findFirst({
+    where: { userId, providerId },
+    select: { id: true },
+  });
+  return account?.id ?? null;
+}
+
 export async function updateUserName(id: string, name: string): Promise<void> {
   await prisma.user.update({ where: { id }, data: { name } });
 }
