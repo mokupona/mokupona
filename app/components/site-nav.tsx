@@ -57,7 +57,8 @@ function buildNavItems({
       // per-event albums live under /events/:id/gallery, so also light up
       // this tab when the reader is inside one
       isActive: (pathname) =>
-        pathname.startsWith("/gallery") || pathname.endsWith("/gallery"),
+        pathname.startsWith("/gallery") ||
+        (pathname.startsWith("/events") && pathname.endsWith("/gallery")),
     },
     {
       kind: "link",

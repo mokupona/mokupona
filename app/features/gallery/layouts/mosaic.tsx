@@ -126,11 +126,14 @@ function MosaicTile({
         // tile: the scrim is the hover target, so it covers the photo rather
         // than a band of it. Without an event link the tile holds nothing
         // focusable, so the caption itself takes focus to reveal that scrim.
+        // The site-wide text halo would pin it back to `relative` (leaving an
+        // invisible caption under every photo) and frost the photo behind
+        // it, so the overlay wins over both from md up.
         <figcaption
           tabIndex={event ? undefined : 0}
           className={cn(
             "text-foreground/80 flex flex-col gap-1 pt-2 text-xs",
-            "md:from-background md:pointer-events-none md:absolute md:inset-0 md:justify-end md:bg-linear-to-t md:to-transparent md:to-60% md:px-4 md:pt-12 md:pb-4 md:text-sm",
+            "md:from-background md:pointer-events-none md:absolute! md:inset-0 md:justify-end md:bg-linear-to-t md:to-transparent md:to-60% md:px-4 md:pt-12 md:pb-4 md:text-sm md:before:hidden!",
             "md:opacity-0 md:transition-opacity md:duration-200 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
             event
               ? null
