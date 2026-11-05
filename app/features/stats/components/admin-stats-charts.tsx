@@ -18,6 +18,11 @@ export function formatCount(value: number) {
     : wholeNumber.format(value);
 }
 
+/** "1 visitor", "2 visitors": `unit` is the plural. */
+export function countOf(value: number, unit: string) {
+  return `${formatCount(value)} ${value === 1 ? unit.replace(/s$/, "") : unit}`;
+}
+
 export function formatShare(part: number, whole: number) {
   if (whole === 0) return "–";
   return `${Math.round((part / whole) * 100)}%`;
@@ -54,7 +59,7 @@ function Delta({ metric, period }: { metric: Metric; period: number }) {
   if (previous === 0) {
     return (
       <p className="text-muted-foreground text-xs">
-        {value === 0 ? "No change" : "New"} {vs}
+        None in the previous {period} days{value === 0 ? " either" : ""}
       </p>
     );
   }
@@ -154,16 +159,16 @@ export function VisitorsChart({ chart }: { chart: StatsReport["chart"] }) {
         {shown ? (
           <>
             <span className="text-foreground font-semibold">
-              {formatCount(shown.visitors)} visitors
+              {countOf(shown.visitors, "visitors")}
             </span>
             {" · "}
-            {formatCount(shown.pageviews)} page views · {bucketLabel(shown)}
+            {countOf(shown.pageviews, "page views")} · {bucketLabel(shown)}
           </>
         ) : peak !== null ? (
           <>
             Busiest {unit}:{" "}
             <span className="text-foreground font-semibold">
-              {formatCount(buckets[peak].visitors)} visitors
+              {countOf(buckets[peak].visitors, "visitors")}
             </span>{" "}
             on {bucketLabel(buckets[peak])}
           </>
@@ -295,7 +300,8 @@ export function ShareBars({
               <span className="text-foreground font-semibold">
                 {formatCount(row.value)}
               </span>{" "}
-              {row.note ?? `${unit} · ${formatShare(row.value, total)}`}
+              {row.note ??
+                `${row.value === 1 ? unit.replace(/s$/, "") : unit} · ${formatShare(row.value, total)}`}
             </span>
           </div>
           <div className="bg-foreground/5 h-1.5 rounded-full">

@@ -7,6 +7,7 @@ import { chipVariants } from "~/components/section";
 import { Card } from "~/components/ui/card";
 import { formatAdminDateLine } from "~/features/events/date-format";
 import {
+  countOf,
   formatCount,
   formatShare,
   ShareBars,
@@ -159,7 +160,7 @@ export default function AdminStatsPage({ loaderData }: Route.ComponentProps) {
               key: link.host,
               label: link.label,
               value: link.clicks,
-              note: `clicks · ${formatCount(link.visitors)} visitors`,
+              note: `${link.clicks === 1 ? "click" : "clicks"} · ${countOf(link.visitors, "visitors")}`,
             }))}
             total={0}
             empty="Nobody followed an outside link in this period."
