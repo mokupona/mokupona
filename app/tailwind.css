@@ -223,6 +223,31 @@
   }
 }
 
+/* Photos printed on the same torn paper as the CTAs and glyphs, minus the
+ * hover pop. Goes on the photo's wrapper: ::before is the light rim with its
+ * shadow, and the first child (the photo) is clipped to a slightly smaller
+ * torn edge, so a ragged band of rim shows all the way round. Both shapes
+ * stretch to the box; they are drawn for 3:2 (scripts/artwork/torn_photo.py)
+ * and hold up at other ratios. Nothing reaches outside the box, so it is
+ * safe inside overflow-hidden parents. */
+@utility paper-photo {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url("/paper/torn-photo-rim.svg") 0 0 / 100% 100% no-repeat;
+    filter: hue-rotate(var(--art-hue-shift));
+  }
+  & > :first-child {
+    mask: url("/paper/torn-photo-mask.svg") 0 0 / 100% 100% no-repeat;
+  }
+}
+
 @utility animate-page-in {
   animation: page-in 300ms ease-out;
 }

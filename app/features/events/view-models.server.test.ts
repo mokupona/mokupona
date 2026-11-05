@@ -10,8 +10,10 @@ const event = {
   donationDescription: "Pay what you can",
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
+  published: true,
   price: 30,
-  studentPrice: 20,
+  studentDiscount: 10,
+  vegetarianDiscount: 5,
   discounts: "Student discount",
   confirmedMailSubject: null,
   confirmedMailMessage: null,
@@ -52,6 +54,7 @@ describe("event view-model mapping", () => {
       image: event.image,
       price: event.price,
       slots: event.slots,
+      published: true,
       addressLine: "8003 zürich",
       galleryImageCount: 4,
     });
@@ -65,7 +68,8 @@ describe("event view-model mapping", () => {
       menuHtml: "<p>Seasonal menu</p>",
       donationHtml: "<p>Pay what you can</p>",
       discountsHtml: "<p>Student discount</p>",
-      studentPrice: event.studentPrice,
+      studentDiscount: 10,
+      vegetarianDiscount: 5,
     });
     expect(detail).not.toHaveProperty("galleryImageCount");
   });

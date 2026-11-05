@@ -79,7 +79,7 @@ export function HeroBlockView({ blockData, ...rest }: HeroBlockViewProps) {
         ) : null}
       </div>
 
-      <div className="relative h-72 max-md:order-first md:h-auto">
+      <div className="paper-photo h-72 max-md:order-first md:h-auto">
         <OptimizedImage
           image={{ storageKey: src, blurDataUrl }}
           width={width ?? 1080}

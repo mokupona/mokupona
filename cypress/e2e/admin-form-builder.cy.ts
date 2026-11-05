@@ -55,7 +55,7 @@ describe("admin signup form builder", () => {
   }
 
   function saveEventExpectingDetail(title: string) {
-    cy.findByRole("button", { name: /save event/i }).click();
+    cy.findByRole("button", { name: /^(publish|save event)$/i }).click();
     cy.findByRole("heading", { name: title }).should("be.visible");
   }
 

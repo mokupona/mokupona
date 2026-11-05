@@ -43,6 +43,12 @@ type AdminEventFormProps = {
   fields: FieldsetOf<typeof EventEditSchema>;
   addressOptions: AddressOptionModel[];
   submitText: string;
+  /**
+   * When set, a second button saves the event as a draft under this label,
+   * and the main button publishes it. The buttons send `intent=draft` and
+   * `intent=publish`.
+   */
+  draftText?: string;
   pageTitle: string;
   cancelHref: string;
   lockFieldKeys?: boolean;
@@ -205,9 +211,11 @@ function SignupMailFields({
 
 function SaveBar({
   submitText,
+  draftText,
   cancelHref,
 }: {
   submitText: string;
+  draftText?: string;
   cancelHref: string;
 }) {
   const form = useFormMetadata();
@@ -230,7 +238,19 @@ function SaveBar({
           >
             Cancel
           </Link>
-          <Button type="submit">{submitText}</Button>
+          {draftText ? (
+            // first in the DOM, so Enter in a field saves a draft rather
+            // than publishing by accident
+            <Button type="submit" name="intent" value="draft" variant="outline">
+              {draftText}
+            </Button>
+          ) : null}
+          <Button
+            type="submit"
+            {...(draftText && { name: "intent", value: "publish" })}
+          >
+            {submitText}
+          </Button>
         </div>
       </div>
     </div>
@@ -241,6 +261,7 @@ export function AdminEventForm({
   fields,
   addressOptions,
   submitText,
+  draftText,
   pageTitle,
   cancelHref,
   lockFieldKeys,
@@ -323,7 +344,7 @@ export function AdminEventForm({
           <SectionCard
             id="section-schedule-pricing"
             title="Schedule & pricing"
-            description="When it happens, how many seats, and what it costs. Guests who tick “Student” on the signup form pay the student price."
+            description="When it happens, how many seats, and what it costs. Discounts are taken off the price for guests who tick “Student” or “Vegan / Vegetarian” on the signup form, and they add up: a vegetarian student gets both."
           >
             <Field
               labelProps={{ children: "Date" }}
@@ -351,15 +372,29 @@ export function AdminEventForm({
                 }}
                 errors={fields.price.errors}
               />
+            </div>
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
+              <Field
+                className="grow"
+                labelProps={{ children: "Student discount (CHF off)" }}
+                inputProps={{
+                  ...getInputProps(fields.studentDiscount, { type: "number" }),
+                  placeholder: "No discount",
+                }}
+                errors={fields.studentDiscount.errors}
+              />
 
               <Field
                 className="grow"
-                labelProps={{ children: "Student price" }}
+                labelProps={{ children: "Vegetarian discount (CHF off)" }}
                 inputProps={{
-                  ...getInputProps(fields.studentPrice, { type: "number" }),
-                  placeholder: "Full price",
+                  ...getInputProps(fields.vegetarianDiscount, {
+                    type: "number",
+                  }),
+                  placeholder: "No discount",
                 }}
-                errors={fields.studentPrice.errors}
+                errors={fields.vegetarianDiscount.errors}
               />
             </div>
 
@@ -409,7 +444,11 @@ export function AdminEventForm({
             <SignupMailFields fields={fields} />
           </SectionCard>
 
-          <SaveBar submitText={submitText} cancelHref={cancelHref} />
+          <SaveBar
+            submitText={submitText}
+            draftText={draftText}
+            cancelHref={cancelHref}
+          />
         </div>
       </div>
     </div>

@@ -41,6 +41,53 @@ export const EASTER_EGG_PATH = "/musi";
 /** a click on any of these is the page's own, never the backdrop's */
 const INTERACTIVE =
   "a, button, input, select, textarea, label, summary, [role=button], [contenteditable]";
+/**
+ * With the pointer over any of these the glyphs stay put: a glyph popping
+ * up behind the thing you're reading or about to click is distracting.
+ * Covers the interactive elements, blocks of text (with their halos) and
+ * pictures; loose text anywhere else is caught by `isOverText`.
+ */
+const QUIET = [
+  INTERACTIVE,
+  "h1, h2, h3, h4, h5, h6, p, li, dt, dd, blockquote, figcaption, time",
+  "img, picture, video, svg",
+  "[data-halo], [data-glyph-cover]",
+].join(", ");
+
+/** Whether (x, y) is on one of `element`'s own lines of text. */
+function isOverText(element: Element, x: number, y: number) {
+  const range = document.createRange();
+  try {
+    for (const node of element.childNodes) {
+      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) {
+        continue;
+      }
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        // a little slack, so the gap between lines counts as the text too
+        if (
+          x >= rect.left - 4 &&
+          x <= rect.right + 4 &&
+          y >= rect.top - 4 &&
+          y <= rect.bottom + 4
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } finally {
+    range.detach();
+  }
+}
+
+/** Whether the page has something of its own under (x, y). */
+function isOverPageContent(x: number, y: number) {
+  // the backdrop takes no pointer events, so this is the page's element
+  const element = document.elementFromPoint(x, y);
+  if (!element) return false;
+  return !!element.closest(QUIET) || isOverText(element, x, y);
+}
 
 /**
  * A full-screen wallpaper of torn-paper toki pona glyphs (sitelen moku pona)
@@ -49,7 +96,8 @@ const INTERACTIVE =
  * with some rows sliding sideways too, see SLIDE_EVERY; rows leaving
  * the top are recycled to the bottom, so the wall never runs out. The
  * glyphs rest faint; the one under the pointer pops up and comes to full
- * strength. That's a mouse-only touch: on phones the glyphs just sit there.
+ * strength — but not while the pointer is on the page's own text, buttons
+ * or pictures (see QUIET). That's a mouse-only touch: on phones the glyphs just sit there.
  * On the full (landing page) wall, moku and pona are doors: a click or tap
  * on either (where the page itself has nothing clickable) opens /musi.
  *
@@ -319,10 +367,9 @@ function usePointerPop(
     let active: HTMLElement | null = null;
 
     const glyphAt = (x: number, y: number) => {
-      // something solid on top (the header) hides the wall there
-      if (document.elementFromPoint(x, y)?.closest("[data-glyph-cover]")) {
-        return null;
-      }
+      // something solid on top (the header) hides the wall there, and over
+      // the page's own text or buttons the wall keeps still
+      if (isOverPageContent(x, y)) return null;
       for (const row of rowRefs.current) {
         if (!row) continue;
         const r = row.getBoundingClientRect();

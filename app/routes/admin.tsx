@@ -16,6 +16,10 @@ import { countBoardMembers } from "~/models/board-member.server";
 import { countEvents } from "~/models/event.server";
 import { countUsers } from "~/models/user.server";
 import { countVolunteers } from "~/models/volunteer.server";
+import type { RouteHandle } from "~/root";
+
+// admin text sits in cards and tables, so no halo behind it
+export const handle: RouteHandle = { textHalo: false };
 
 export const middleware: Route.MiddlewareFunction[] = [
   requireResolvedUserRoleMiddleware(ADMIN_ROLE_NAMES),

@@ -1,4 +1,5 @@
 import {
+  guestPrice,
   summarizeBooking,
   type BookingGuest,
   type BookingPrices,
@@ -99,10 +100,10 @@ function legacyBooking(
   t: Text,
 ): BookingSummary {
   const isStudent = row.student === true;
-  const price =
-    isStudent && prices.studentPrice !== null
-      ? prices.studentPrice
-      : prices.price;
+  const price = guestPrice(prices, {
+    isStudent,
+    vegetarian: row.vegetarian === true,
+  });
   const guest: BookingGuest = {
     name: row.name,
     isStudent,

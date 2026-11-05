@@ -74,7 +74,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         date,
         slots,
         price,
-        studentPrice,
+        studentDiscount,
+        vegetarianDiscount,
         discounts,
         confirmedMailSubject,
         confirmedMailMessage,
@@ -117,7 +118,11 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           slots,
           price,
           // the form always sends these, so an empty field means "clear it"
-          studentPrice: studentPrice ?? null,
+          studentDiscount: studentDiscount ?? null,
+          vegetarianDiscount: vegetarianDiscount ?? null,
+          // a draft's form offers "Save & publish"; otherwise the
+          // published state is left as it is
+          ...(formData.get("intent") === "publish" && { published: true }),
           discounts,
           confirmedMailSubject: confirmedMailSubject ?? null,
           confirmedMailMessage: confirmedMailMessage ?? null,
@@ -166,8 +171,11 @@ export default function AdminEventEditPage({
       lastResult={actionData}
       defaultValue={{ ...event, signupForm }}
       addressOptions={addressOptions}
-      submitText="Save event"
-      pageTitle="Edit event"
+      // a draft can be saved as it is or published in the same step; a
+      // published event just saves
+      submitText={event.published ? "Save event" : "Save & publish"}
+      draftText={event.published ? undefined : "Save draft"}
+      pageTitle={event.published ? "Edit event" : "Edit draft"}
       cancelHref={`/admin/events/${event.id}`}
       lockFieldKeys={formHasSubmissions}
       answerCounts={answerCounts}

@@ -29,6 +29,7 @@ function toEventSummaryModel(event: EventWithImage): EventSummaryModel {
     image: event.image,
     price: event.price,
     slots: event.slots,
+    published: event.published,
   };
 }
 
@@ -45,7 +46,8 @@ export function toEventCardModel(
 export function toEventDetailModel(event: EventWithAddress): EventDetailModel {
   return {
     ...toEventSummaryModel(event),
-    studentPrice: event.studentPrice,
+    studentDiscount: event.studentDiscount,
+    vegetarianDiscount: event.vegetarianDiscount,
     descriptionHtml: renderMarkdown(event.description),
     menuHtml: renderOptionalMarkdown(event.menuDescription),
     donationHtml: renderOptionalMarkdown(event.donationDescription),
