@@ -263,6 +263,13 @@ model Image {
   width       Int?
   height      Int?
   blurDataUrl String?
+  // the admin's framing (app/shared/image-crop.ts): the part of the photo to
+  // show, as fractions of its width and height. All four or none; none shows
+  // the photo whole. The file itself is never cut.
+  cropX       Float?
+  cropY       Float?
+  cropWidth   Float?
+  cropHeight  Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -339,4 +346,36 @@ model SiteText {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// One anonymous hit for the admin statistics (app/features/stats). Neither a
+// cookie nor an address is kept: `visitor` is a hash salted with a key that
+// lives in memory for one day and is never stored, so it tells hits apart
+// within that day and nothing more. Staff browsers and bots never get here.
+model StatHit {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  // the Zürich calendar day of the hit, "2026-11-05": what the charts group by
+  day       String
+  // "pageview", "signup_start", "signup_submit", "signup" or "outbound"
+  kind      String
+  // the page, with private segments (invite tokens) taken out
+  path      String
+  // the dinner the page belongs to; not a relation, so the numbers outlive
+  // a deleted event
+  eventId   String?
+  visitor   String
+  // how the visit arrived: "qr", "instagram", "google", … a referring site's
+  // host, "internal" (from another page here) or "direct"
+  source    String
+  // the previous page for internal visits, the referring host otherwise
+  referrer  String?
+  // "mobile", "tablet" or "desktop" by the window width; "unknown" when
+  // the server records the hit (a stored signup)
+  device    String
+  // per kind: the signup outcome, the outbound link's host
+  detail    String?
+
+  @@index([day, kind])
+  @@index([eventId, kind])
 }

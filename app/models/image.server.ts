@@ -1,10 +1,16 @@
 import type { Image, Prisma } from "#prisma/generated/client";
 
 import { prisma } from "~/db.server";
+import {
+  cropColumns,
+  type ImageCrop,
+  type ImageCropColumns,
+} from "~/shared/image-crop";
 
 export type { Image };
 
-export interface ImageMetadata {
+/** What showing an image takes; the crop columns are its admin framing. */
+export interface ImageMetadata extends ImageCropColumns {
   id: string;
   storageKey: string;
   version: number | null;
@@ -20,9 +26,13 @@ export const IMAGE_METADATA_SELECT = {
   width: true,
   height: true,
   blurDataUrl: true,
+  cropX: true,
+  cropY: true,
+  cropWidth: true,
+  cropHeight: true,
 } satisfies Prisma.ImageSelect;
 
-export interface ImageCreateData {
+export interface ImageCreateData extends ImageCropColumns {
   contentType: string;
   storageKey: string;
   version?: number | null;
@@ -33,6 +43,34 @@ export interface ImageCreateData {
 
 export async function getImageById(id: string): Promise<Image | null> {
   return prisma.image.findUnique({ where: { id } });
+}
+
+/**
+ * Sets (or with null, clears) an image's framing. `size` fills in the
+ * dimensions of a row stored before they were recorded, which a crop needs
+ * to be cut in pixels; dimensions already stored are left alone.
+ */
+export async function setImageCrop(
+  id: string,
+  crop: ImageCrop | null,
+  size?: { width: number; height: number },
+) {
+  const image = await prisma.image.findUnique({
+    where: { id },
+    select: { width: true, height: true },
+  });
+  if (!image) return null;
+
+  const backfill =
+    size && (!image.width || !image.height)
+      ? { width: size.width, height: size.height }
+      : {};
+
+  return prisma.image.update({
+    where: { id },
+    data: { ...cropColumns(crop), ...backfill },
+    select: IMAGE_METADATA_SELECT,
+  });
 }
 
 /**

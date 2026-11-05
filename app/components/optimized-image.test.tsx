@@ -212,3 +212,57 @@ describe("OptimizedImage blur-up", () => {
     restore();
   });
 });
+
+describe("OptimizedImage framing", () => {
+  const framing = {
+    cropX: 0.25,
+    cropY: 0.25,
+    cropWidth: 0.5,
+    cropHeight: 0.5,
+  };
+
+  function mainImage(container: HTMLElement) {
+    return container.querySelector<HTMLImageElement>('img[alt="Cropped"]')!;
+  }
+
+  it("places the whole local file so the frame shows the crop", () => {
+    mocks.useImageConfig.mockReturnValue({
+      imageProvider: "local",
+      cloudinaryCloudName: null,
+    });
+    const { container } = render(
+      <OptimizedImage
+        image={{ ...image, ...framing }}
+        width={600}
+        height={400}
+        alt="Cropped"
+      />,
+    );
+
+    const img = mainImage(container);
+    expect(img).not.toHaveClass("object-cover");
+    expect(img.style.width).toBe("200.0000%");
+    expect(img.style.left).toBe("-50.0000%");
+    expect(img.style.top).toBe("-50.0000%");
+  });
+
+  it("lets Cloudinary do the cropping when it delivers", () => {
+    mocks.useImageConfig.mockReturnValue({
+      imageProvider: "cloudinary",
+      cloudinaryCloudName: "test-cloud",
+    });
+    const { container } = render(
+      <OptimizedImage
+        image={{ ...image, ...framing }}
+        width={600}
+        height={400}
+        alt="Cropped"
+      />,
+    );
+
+    const img = mainImage(container);
+    expect(img).toHaveClass("object-cover");
+    expect(img.getAttribute("src")).toContain("c_crop,x_300,y_200,w_600,h_400");
+    expect(img.style.width).toBe("");
+  });
+});

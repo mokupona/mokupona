@@ -5,6 +5,10 @@ import type { Route } from "./+types/admin.board-members";
 
 import { AdminDeleteButton } from "~/components/admin-delete-button";
 import {
+  ImageFramingDialog,
+  PORTRAIT_SHAPES,
+} from "~/components/admin-image-framer";
+import {
   AdminEmptyState,
   AdminPageHeader,
   InitialsAvatar,
@@ -105,6 +109,15 @@ function BoardMemberCard({
         </p>
       </div>
       <div className="flex shrink-0 gap-2">
+        {image ? (
+          <ImageFramingDialog
+            image={image}
+            shapes={PORTRAIT_SHAPES}
+            title={`Adjust ${name}'s photo`}
+            label={`Adjust ${name}'s photo`}
+            iconOnly
+          />
+        ) : null}
         <Link
           to={`${id}/edit`}
           className={buttonVariants({ variant: "outline", size: "sm" })}

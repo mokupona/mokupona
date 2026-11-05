@@ -89,3 +89,77 @@ describe("qrCodeFileName", () => {
     expect(fileName).toBe(`${"a".repeat(59)}-qr-code`);
   });
 });
+
+describe("createQrCode with the logo", () => {
+  const tagged = `${url}?src=qr`;
+
+  it("switches to the highest error correction", () => {
+    const { size } = createQrCode(tagged, { logo: true });
+
+    expect(size).toBe(encode(tagged, { ecc: "H", border: 4 }).size);
+  });
+
+  it("clears an odd, centred square and keeps every other module", () => {
+    const { size, path, logo } = createQrCode(tagged, { logo: true });
+    const { data } = encode(tagged, { ecc: "H", border: 4 });
+    const grid = paintPath(size, path);
+
+    expect(logo).not.toBeNull();
+    const { area } = logo!;
+    expect(area.size % 2).toBe(1);
+    expect(area.x).toBe((size - area.size) / 2);
+    expect(area.y).toBe(area.x);
+
+    const inside = (i: number) => i >= area.x && i < area.x + area.size;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        expect(grid[y][x]).toBe(inside(x) && inside(y) ? false : data[y][x]);
+      }
+    }
+  });
+
+  it("stays clear of the finder patterns and costs about a tenth of the symbol", () => {
+    const { size, logo } = createQrCode(tagged, { logo: true });
+    const symbol = size - 8;
+    const { area } = logo!;
+
+    // finders take 7 modules plus a 1-module separator in from each corner
+    expect(area.x).toBeGreaterThan(4 + 8);
+    expect(area.x + area.size).toBeLessThan(size - 4 - 8);
+    expect((area.size * area.size) / (symbol * symbol)).toBeLessThan(0.11);
+  });
+
+  it("fits the logo inside the cleared square at its own aspect", () => {
+    const { logo } = createQrCode(tagged, { logo: true });
+    const { area, x, y, width, height, href } = logo!;
+
+    expect(href).toMatch(/^data:image\/png;base64,/);
+    expect(x).toBeGreaterThan(area.x);
+    expect(y).toBeGreaterThan(area.y);
+    expect(x + width).toBeLessThan(area.x + area.size);
+    expect(y + height).toBeLessThan(area.y + area.size);
+    expect(width / height).toBeCloseTo(360 / 301);
+  });
+
+  it("leaves a plain code without a logo", () => {
+    expect(createQrCode(url).logo).toBeNull();
+  });
+});
+
+describe("qrCodeSvg with the logo", () => {
+  it("carries the logo inside the file", () => {
+    const qr = createQrCode(url, { logo: true });
+    const svg = qrCodeSvg(qr);
+
+    expect(svg).toContain('xmlns:xlink="http://www.w3.org/1999/xlink"');
+    expect(svg).toContain(
+      `<image x="${qr.logo!.x}" y="${qr.logo!.y}" width="${qr.logo!.width}" height="${qr.logo!.height}" xlink:href="${qr.logo!.href}"/>`,
+    );
+    // drawn last, over the cleared square
+    expect(svg.indexOf("<image")).toBeGreaterThan(svg.indexOf("<path"));
+  });
+
+  it("has no image without a logo", () => {
+    expect(qrCodeSvg(createQrCode(url))).not.toContain("<image");
+  });
+});

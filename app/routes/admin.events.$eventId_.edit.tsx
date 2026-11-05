@@ -29,7 +29,9 @@ import {
   getEventWithCurrentFormVersion,
   updateEvent,
 } from "~/models/event.server";
+import { setImageCrop } from "~/models/image.server";
 import { requireFound } from "~/shared/http.server";
+import { cropColumns } from "~/shared/image-crop";
 import { nullableStringUpdateValue } from "~/utils/nullable-update-field.server";
 
 export async function loader({ params }: Route.LoaderArgs) {
@@ -82,6 +84,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         waitlistMailSubject,
         waitlistMailMessage,
         cover,
+        coverCrop,
         addressId,
         signupForm,
       } = value;
@@ -133,6 +136,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
             image: {
               contentType: cover.type,
               ...(await storeImage(cover, "events")),
+              ...cropColumns(coverCrop ?? null),
             },
           }),
           createdById: user.id,
@@ -141,6 +145,11 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       );
 
       await destroyImages([replacedImageKey]);
+
+      // the current cover, framed anew without a new file
+      if (!cover && coverCrop !== undefined && event.imageId) {
+        await setImageCrop(event.imageId, coverCrop);
+      }
 
       return redirect(`/admin/events/${event.id}`);
     },

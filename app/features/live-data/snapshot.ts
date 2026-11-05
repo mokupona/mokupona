@@ -45,6 +45,12 @@ const imageRow = z.object({
   width: int.nullable(),
   height: int.nullable(),
   blurDataUrl: nullableText,
+  // the admin's framing (app/shared/image-crop.ts); a live site on older
+  // code has none
+  cropX: z.number().nullable().optional(),
+  cropY: z.number().nullable().optional(),
+  cropWidth: z.number().nullable().optional(),
+  cropHeight: z.number().nullable().optional(),
   createdAt: dateTime,
   updatedAt: dateTime,
 });
