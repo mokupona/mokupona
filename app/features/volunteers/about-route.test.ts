@@ -12,7 +12,9 @@ import {
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
 import { sendTemplate } from "~/features/mail/mail.server";
 import { getText } from "~/features/site-text/site-text.server";
-import { action } from "~/routes/about";
+import { createBoardMember } from "~/models/board-member.server";
+import { createVolunteer } from "~/models/volunteer.server";
+import { action, loader } from "~/routes/about";
 
 vi.mock("~/features/mail/mail.server", () => ({
   sendTemplate: vi.fn(),
@@ -114,5 +116,32 @@ describe("about page volunteer sign-up", () => {
 
     expect(result.init?.status).toBe(500);
     expect(JSON.stringify(result.data)).toContain(VOLUNTEER_INBOX);
+  });
+});
+
+describe("about page people", () => {
+  it("shows board members' and volunteers' bios from their Markdown", async () => {
+    const board = await createBoardMember({
+      name: `Board ${crypto.randomUUID()}`,
+      position: "President",
+      bio: "Runs the **kitchen**.",
+    });
+    const volunteer = await createVolunteer({
+      name: `Volunteer ${crypto.randomUUID()}`,
+      role: "host",
+      bio: "- greets guests\n- pours wine",
+    });
+
+    const { boardMembers, volunteers } = await loader();
+
+    expect(boardMembers.find((person) => person.id === board.id)).toMatchObject(
+      {
+        subtitle: "President",
+        bioHtml: "<p>Runs the <strong>kitchen</strong>.</p>",
+      },
+    );
+    expect(
+      volunteers.find((person) => person.id === volunteer.id)?.bioHtml,
+    ).toBe("<ul>\n<li>greets guests</li>\n<li>pours wine</li>\n</ul>");
   });
 });

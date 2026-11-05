@@ -34,6 +34,7 @@ import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server"
 import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import type { ImageDisplaySource } from "~/shared/image";
+import { MARKDOWN_HINT } from "~/shared/markdown-hint";
 
 type FieldsetOf<Schema extends z.ZodType> = {
   [K in keyof z.input<Schema>]-?: FieldMetadata<z.input<Schema>[K]>;
@@ -56,10 +57,6 @@ type AdminEventFormProps = {
   /** The saved cover on edit; absent when creating. */
   currentImage?: ImageDisplaySource | null;
 };
-
-// the event texts and signup messages are Markdown (app/shared/markdown.server.ts)
-const MARKDOWN_HINT =
-  "Markdown works here: [link text](https://…), **bold**, *italic*, and lines starting with - for a list.";
 
 const SECTIONS = [
   { id: "section-basics", label: "Basics" },

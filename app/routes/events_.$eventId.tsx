@@ -61,6 +61,7 @@ import {
 } from "~/shared/http.server";
 import { getImageUrl } from "~/shared/image";
 import { withOpenGraphUrls } from "~/shared/meta";
+import { toPerson } from "~/shared/people.server";
 import { getImageConfig } from "~/shared/root-data";
 import { redirectWithToast } from "~/utils/toast.server";
 
@@ -95,10 +96,9 @@ export async function loader({ params }: Route.LoaderArgs) {
     // a snapshot for the page; the action decides again under a lock
     seatsLeft: seats ? seatsLeft(event.slots, seats.confirmed) : null,
     gallery,
-    volunteers: volunteers.map(({ role, ...volunteer }) => ({
-      ...volunteer,
-      subtitle: role,
-    })),
+    volunteers: volunteers.map((volunteer) =>
+      toPerson(volunteer, volunteer.role),
+    ),
   };
 }
 

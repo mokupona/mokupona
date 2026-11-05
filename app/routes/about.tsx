@@ -43,6 +43,7 @@ import { cn } from "~/lib/utils";
 import { listBoardMembers } from "~/models/board-member.server";
 import { listVolunteers } from "~/models/volunteer.server";
 import { getClientIPAddress } from "~/shared/http.server";
+import { toPerson } from "~/shared/people.server";
 
 const TOKI_PONA_URL = "https://tokipona.org";
 
@@ -53,14 +54,12 @@ export async function loader() {
   ]);
 
   return {
-    boardMembers: boardMembers.map(({ position, ...member }) => ({
-      ...member,
-      subtitle: position,
-    })),
-    volunteers: volunteers.map(({ role, ...volunteer }) => ({
-      ...volunteer,
-      subtitle: role,
-    })),
+    boardMembers: boardMembers.map((member) =>
+      toPerson(member, member.position),
+    ),
+    volunteers: volunteers.map((volunteer) =>
+      toPerson(volunteer, volunteer.role),
+    ),
   };
 }
 
