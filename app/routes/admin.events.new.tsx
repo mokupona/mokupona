@@ -1,5 +1,3 @@
-import { redirect } from "react-router";
-
 import type { Route } from "./+types/admin.events.new";
 
 import { userContext } from "~/features/auth/middleware.server";
@@ -17,6 +15,7 @@ import {
 import { requestLogger } from "~/logger/request-context.server";
 import { getAddresses } from "~/models/address.server";
 import { createEvent } from "~/models/event.server";
+import { redirectWithToast } from "~/utils/toast.server";
 
 export async function loader() {
   const addresses = await getAddresses();
@@ -83,7 +82,11 @@ export async function action({ request, context }: Route.ActionArgs) {
         builderRowsToDescriptors(signupForm),
       );
 
-      return redirect(`/admin/events/${event.id}`);
+      return redirectWithToast(`/admin/events/${event.id}`, {
+        title: "Event created",
+        description: "Its QR code is ready to copy or download.",
+        type: "success",
+      });
     },
   });
 }
