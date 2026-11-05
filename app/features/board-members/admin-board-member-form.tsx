@@ -15,6 +15,7 @@ import { MemberSchema } from "./schema";
 import { Field, fileFieldClassName, TextareaField } from "~/components/forms";
 import { Button } from "~/components/ui/button";
 import { VALID_IMAGE_TYPES } from "~/shared/image";
+import { MARKDOWN_HINT } from "~/shared/markdown-hint";
 
 type AdminBoardMemberFormProps = {
   lastResult?: SubmissionResult;
@@ -71,7 +72,7 @@ export function AdminBoardMemberForm({
 
         <TextareaField
           labelProps={{ children: "Bio" }}
-          description="A few lines shown under their portrait on the about page. Optional."
+          description={`A few lines shown under their portrait on the about page. Optional. ${MARKDOWN_HINT}`}
           textareaProps={{ ...getTextareaProps(fields.bio), rows: 4 }}
           errors={fields.bio.errors}
         />

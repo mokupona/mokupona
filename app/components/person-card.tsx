@@ -1,3 +1,4 @@
+import { MarkdownText } from "~/components/markdown-text";
 import { OptimizedImage } from "~/components/optimized-image";
 import { cn } from "~/lib/utils";
 import type { ImageMetadata } from "~/models/image.server";
@@ -10,7 +11,8 @@ export interface Person {
   name: string;
   /** the line under the name — a board position or a volunteer's role */
   subtitle: string | null;
-  bio: string | null;
+  /** the bio's Markdown as html (app/shared/people.server.ts); null for none */
+  bioHtml: string | null;
   image: ImageMetadata | null;
 }
 
@@ -86,10 +88,11 @@ function PersonCard({
             {person.subtitle}
           </p>
         ) : null}
-        {showBio && person.bio ? (
-          <p className="text-foreground/80 mt-2 text-sm font-light whitespace-pre-line">
-            {person.bio}
-          </p>
+        {showBio && person.bioHtml ? (
+          <MarkdownText
+            html={person.bioHtml}
+            className="text-foreground/80 mt-2 space-y-2 text-sm font-light"
+          />
         ) : null}
       </div>
     </li>
