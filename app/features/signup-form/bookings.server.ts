@@ -6,6 +6,7 @@ import {
   type BookingSummary,
   type SummaryRow,
 } from "./booking-summary";
+import { toSentSignupMail, type SentSignupMail } from "./signup-mails";
 import { toSignupStatus, type SignupStatus } from "./signup-status";
 
 import { parseStoredFormSchemaOrLog } from "~/features/forms/serialization.server";
@@ -31,6 +32,13 @@ export interface SignupBooking {
   secondHalfPaid: boolean;
   /** Admin bookkeeping: free text, never shown to the guest. */
   adminNote: string;
+  /**
+   * False when the site didn't keep track of this signup's mails (it's from
+   * before that, or older still): no record doesn't mean no mail.
+   */
+  mailsTracked: boolean;
+  /** The mails that went out about this signup, oldest first. */
+  mails: SentSignupMail[];
   booking: BookingSummary;
 }
 
@@ -70,6 +78,8 @@ export async function getSignupBookingsForEvent(
         firstHalfPaid: submission.firstHalfPaid,
         secondHalfPaid: submission.secondHalfPaid,
         adminNote: submission.adminNote,
+        mailsTracked: submission.mailsTracked,
+        mails: submission.mails.flatMap(toSentSignupMail),
         booking: summarizeBooking(formFields, answers, prices, t),
       },
     ];
@@ -85,6 +95,8 @@ export async function getSignupBookingsForEvent(
     firstHalfPaid: false,
     secondHalfPaid: false,
     adminNote: "",
+    mailsTracked: false,
+    mails: [],
     booking: legacyBooking(row, prices, t),
   }));
 

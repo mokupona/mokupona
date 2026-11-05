@@ -2,7 +2,7 @@ import type { MailBody } from "./compose";
 import { createCaptureProvider } from "./providers/capture.server";
 import { createConsoleProvider } from "./providers/console.server";
 import { createResendProvider } from "./providers/resend.server";
-import { mailTemplates } from "./templates";
+import { GUEST_MAIL_TEMPLATES, mailTemplates, teamCopy } from "./templates";
 import type { MailTemplateName, MailTemplateProps } from "./templates";
 import type { MailProvider } from "./types";
 
@@ -43,6 +43,20 @@ const provider = singleton("mail-provider", () => {
   return instance;
 });
 
+export const DEFAULT_GUEST_MAIL_COPY_TO = "mokuponadinnerclub@gmail.com";
+
+/**
+ * Where the team gets a copy of every mail to a guest. `GUEST_MAIL_COPY_TO`
+ * changes the address; set to an empty string, it turns the copies off.
+ */
+export function guestMailCopyTo(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const configured = env.GUEST_MAIL_COPY_TO;
+  if (configured === undefined) return DEFAULT_GUEST_MAIL_COPY_TO;
+  return configured.trim() || null;
+}
+
 export async function sendTemplate<Name extends MailTemplateName>(
   name: Name,
   to: string,
@@ -54,8 +68,11 @@ export async function sendTemplate<Name extends MailTemplateName>(
     t: Text,
   ) => MailBody;
 
+  let body: MailBody;
+  let t: Text;
   try {
-    const body = render(props, await getText());
+    t = await getText();
+    body = render(props, t);
     await provider.send({
       to,
       ...(from && { from }),
@@ -71,4 +88,45 @@ export async function sendTemplate<Name extends MailTemplateName>(
   }
 
   requestLogger.info({ template: name, email: to }, "Sent mail");
+
+  if (GUEST_MAIL_TEMPLATES.has(name)) {
+    await sendTeamCopy({ template: name, to, from, body, t });
+  }
+}
+
+/**
+ * Sends the team inbox what a guest just got. The guest's mail is out
+ * either way, so a copy that fails is logged, not thrown.
+ */
+async function sendTeamCopy({
+  template,
+  to,
+  from,
+  body,
+  t,
+}: {
+  template: MailTemplateName;
+  to: string;
+  from?: string;
+  body: MailBody;
+  t: Text;
+}): Promise<void> {
+  const copyTo = guestMailCopyTo();
+  if (!copyTo || copyTo.toLowerCase() === to.trim().toLowerCase()) return;
+
+  try {
+    await provider.send({
+      to: copyTo,
+      ...(from && { from }),
+      ...teamCopy(body, { to }, t),
+    });
+  } catch (error) {
+    requestLogger.error(
+      { template, email: to, error },
+      "Failed to send the team's copy of a guest mail",
+    );
+    return;
+  }
+
+  requestLogger.info({ template, email: to }, "Sent the team a copy");
 }

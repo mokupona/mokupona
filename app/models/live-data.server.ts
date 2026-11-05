@@ -378,6 +378,9 @@ export async function replaceLiveDataTables(
           data: data.map((row) => ({
             ...row,
             answers: row.answers as Prisma.InputJsonValue,
+            // the record of what the source site mailed stays there, so
+            // this site can't tell who got their confirmation
+            mailsTracked: false,
           })),
         }),
       );
