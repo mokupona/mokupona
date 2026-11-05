@@ -9,6 +9,7 @@ import {
 import { createEvent } from "./event.server";
 import {
   deleteNonAdminUserById,
+  getLinkedAccountId,
   grantAdminRoleByEmail,
   listAdmins,
   revokeAdminRoleByEmail,
@@ -67,6 +68,37 @@ async function roleOf(id: string) {
   });
   return user.role.name;
 }
+
+describe("getLinkedAccountId", () => {
+  it("returns the account row id for the provider, not the provider's id", async () => {
+    const user = await createTestUser("user");
+    const google = await prisma.account.create({
+      data: { userId: user.id, providerId: "google", accountId: "google-sub" },
+    });
+
+    await expect(getLinkedAccountId(user.id, "google")).resolves.toBe(
+      google.id,
+    );
+  });
+
+  it("returns null when the provider is not linked", async () => {
+    const user = await createTestUser("user");
+
+    await expect(getLinkedAccountId(user.id, "google")).resolves.toBeNull();
+  });
+
+  it("ignores another user's account for the same provider", async () => {
+    const [user, other] = await Promise.all([
+      createTestUser("user"),
+      createTestUser("user"),
+    ]);
+    await prisma.account.create({
+      data: { userId: other.id, providerId: "google", accountId: "other-sub" },
+    });
+
+    await expect(getLinkedAccountId(user.id, "google")).resolves.toBeNull();
+  });
+});
 
 describe("listAdmins", () => {
   it("lists admins and nobody else", async () => {

@@ -44,7 +44,7 @@
     "@react-router/serve": "8.3.0",
     "@remix-run/file-storage": "^0.13.8",
     "@remix-run/form-data-parser": "^0.17.7",
-    "better-auth": "~1.6.34",
+    "better-auth": "~1.7.17",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
