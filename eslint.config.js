@@ -128,6 +128,8 @@ export default [
       "app/features/**/admin-*",
       "app/features/live-data/**",
       "app/features/site-text/**",
+      // the statistics report's labels, which only /admin/stats shows
+      "app/features/stats/report.ts",
       // copy that only the admin area shows: role pickers, the auth
       // switches, the event cover editor, and the validation of event,
       // location, board-member, volunteer and signup-form-builder forms
