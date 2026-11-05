@@ -1,7 +1,5 @@
 import type { Route } from "./+types/_index";
 
-import type { RouteHandle } from "~/root";
-
 import {
   TextSectionBlockView,
   type TextSectionBlockType,
@@ -19,6 +17,7 @@ import { toEventCardModel } from "~/features/events/view-models.server";
 import { textFromMatches } from "~/features/site-text/meta";
 import { useText } from "~/features/site-text/site-text-context";
 import { getEventsWithAddress } from "~/models/event.server";
+import type { RouteHandle } from "~/root";
 import { getImageUrl } from "~/shared/image";
 import { withOpenGraphUrls } from "~/shared/meta";
 import { getImageConfig } from "~/shared/root-data";
@@ -97,8 +96,9 @@ export default function Index({ loaderData }: Route.ComponentProps) {
   const pastDinners = orderedPast.slice(0, PAST_DINNERS_ON_LANDING);
 
   return (
-    // text sits over the glyph backdrop, so give it a halo of frosted paper
-    <main className="[&_:is(h1,h2,h3,p)]:text-halo [&_a[href^='#']]:text-halo">
+    // the root layout gives text its halo; the in-page anchor links (the
+    // title card's scroll cue) sit straight on the glyphs too
+    <main className="[&_a[href^='#']]:text-halo">
       {/* no header at the top of this page (it slides in on scroll), so the
           title card gets the whole first screen */}
       <TitleCardBlockView blockData={titleCardData} className="min-h-svh" />

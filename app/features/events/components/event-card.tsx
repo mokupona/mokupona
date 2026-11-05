@@ -33,7 +33,7 @@ export function FeaturedEventCard({
     // No panel: the photograph and the type sit straight on the paper, and
     // the column gap does the separating a card fill used to do.
     <article className="flex flex-col gap-6 lg:flex-row lg:gap-10">
-      <div className="relative lg:w-3/5 lg:shrink-0">
+      <div className="paper-photo lg:w-3/5 lg:shrink-0">
         <CoverImage
           image={event.image}
           alt=""
@@ -41,13 +41,21 @@ export function FeaturedEventCard({
           className="w-full"
         />
         {isNext ? (
-          <Badge pill className="absolute top-0 left-0">
-            {t("events.card.nextBadge")}
-          </Badge>
+          // a torn paper banner stuck on the photo's corner
+          <div className="absolute top-3 left-3 -rotate-2">
+            <Badge pill className="paper-torn border-0 bg-transparent">
+              {t("events.card.nextBadge")}
+            </Badge>
+          </div>
         ) : null}
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-4">
+      {/* one halo for the whole text column, like the landing page's other
+          text blocks, rather than a patch per line */}
+      <div
+        data-halo
+        className="flex min-w-0 flex-1 flex-col justify-center gap-4"
+      >
         <EventDateHeading date={event.date} />
 
         <h2 className="line-clamp-2 text-2xl leading-tight font-light tracking-tight lg:text-3xl">
@@ -92,14 +100,14 @@ export function CompactEventCard({ event }: { event: EventCardModel }) {
       to={hasGallery ? `/events/${event.id}/gallery` : `/events/${event.id}`}
       className="group flex flex-col gap-2"
     >
-      {/* Dimming the whole card washed out on the light ground, so the
-          rest-state treatment sits on the image alone. */}
-      <div className="overflow-hidden">
+      {/* torn paper like the rest of the photos; it stays put on hover, the
+          title's underline is the hover cue */}
+      <div className="paper-photo">
         <CoverImage
           image={event.image}
           alt=""
           sizes="(min-width: 768px) 300px, 45vw"
-          className="w-full transition duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          className="w-full"
         />
       </div>
       <span className="text-muted-foreground flex items-center gap-2 text-xs">
