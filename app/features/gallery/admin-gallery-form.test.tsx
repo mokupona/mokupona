@@ -128,3 +128,61 @@ describe("admin gallery upload form", () => {
     expect(caption().value).toBe("A long table");
   });
 });
+
+describe("admin gallery ordering", () => {
+  function renderOrdering(entries: GalleryEntryWithReuse[]) {
+    const submitted: string[][] = [];
+
+    const Stub = createRoutesStub([
+      {
+        path: "/",
+        Component: () => <AdminGalleryPage {...propsFor(entries)} />,
+        async action({ request }) {
+          const body = await request.formData();
+          expect(body.get("intent")).toBe("reorder");
+          expect(body.get("eventId")).toBe("event-1");
+          submitted.push(body.getAll("order").map(String));
+          return null;
+        },
+      },
+    ]);
+    render(<Stub />);
+
+    const positions = () =>
+      screen
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("img")?.getAttribute("alt"));
+
+    return { submitted, positions };
+  }
+
+  function named(id: string) {
+    return { ...entry(id), altText: id };
+  }
+
+  it("moves a photo one place later and saves the whole order", async () => {
+    const { submitted, positions } = renderOrdering([
+      named("one"),
+      named("two"),
+      named("three"),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Move later" })[0]);
+
+    expect(positions()).toEqual(["two", "one", "three"]);
+    await vi.waitFor(() =>
+      expect(submitted).toEqual([["two", "one", "three"]]),
+    );
+  });
+
+  it("cannot move the first photo earlier or the last one later", () => {
+    renderOrdering([named("one"), named("two")]);
+
+    const earlier = screen.getAllByRole("button", { name: "Move earlier" });
+    const later = screen.getAllByRole("button", { name: "Move later" });
+
+    expect(earlier[0]).toBeDisabled();
+    expect(later[1]).toBeDisabled();
+    expect(earlier[1]).toBeEnabled();
+  });
+});

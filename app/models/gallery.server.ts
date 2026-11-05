@@ -235,6 +235,37 @@ export async function removeGalleryEntry(
   });
 }
 
+/**
+ * Rewrites one event's display order to `orderedIds`. The list must name
+ * exactly the event's current entries, once each: anything else (a stale tab
+ * that missed an upload or delete, an id from another event) leaves the order
+ * alone and returns false.
+ */
+export async function reorderGalleryEntries(
+  eventId: string,
+  orderedIds: string[],
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.eventGalleryImage.findMany({
+      where: { eventId },
+      select: { id: true },
+    });
+
+    const requested = new Set(orderedIds);
+    const matches =
+      requested.size === orderedIds.length &&
+      current.length === orderedIds.length &&
+      current.every((entry) => requested.has(entry.id));
+    if (!matches) return false;
+
+    for (const [position, id] of orderedIds.entries()) {
+      await tx.eventGalleryImage.update({ where: { id }, data: { position } });
+    }
+
+    return true;
+  });
+}
+
 /** An event as the admin gallery's picker lists it. */
 export interface GalleryPickerEvent {
   id: string;

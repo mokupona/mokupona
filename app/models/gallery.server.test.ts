@@ -16,6 +16,7 @@ import {
   getGalleryEntriesForEvent,
   getGalleryEntriesForEventWithReuse,
   removeGalleryEntry,
+  reorderGalleryEntries,
   type GalleryImageCreateData,
 } from "./gallery.server";
 
@@ -234,6 +235,59 @@ describe("removeGalleryEntry", () => {
     await expect(
       removeGalleryEntry(event.id, "does-not-exist"),
     ).resolves.toBeNull();
+  });
+});
+
+describe("reorderGalleryEntries", () => {
+  async function eventWithThree() {
+    const event = await createTestEvent();
+    await createGalleryImagesForEvent(event.id, [
+      buildGalleryImage(),
+      buildGalleryImage(),
+      buildGalleryImage(),
+    ]);
+    const ids = (await getGalleryEntriesForEvent(event.id)).map(
+      (entry) => entry.id,
+    );
+    return { event, ids };
+  }
+
+  it("hangs the entries in the order given", async () => {
+    const { event, ids } = await eventWithThree();
+    const [a, b, c] = ids;
+
+    expect(await reorderGalleryEntries(event.id, [c, a, b])).toBe(true);
+
+    const entries = await getGalleryEntriesForEvent(event.id);
+    expect(entries.map((entry) => entry.id)).toEqual([c, a, b]);
+    expect(entries.map((entry) => entry.position)).toEqual([0, 1, 2]);
+  });
+
+  it("leaves the order alone when the list misses an entry", async () => {
+    const { event, ids } = await eventWithThree();
+    const [a, b, c] = ids;
+
+    expect(await reorderGalleryEntries(event.id, [c, a])).toBe(false);
+    expect(await reorderGalleryEntries(event.id, [c, a, a])).toBe(false);
+
+    const entries = await getGalleryEntriesForEvent(event.id);
+    expect(entries.map((entry) => entry.id)).toEqual([a, b, c]);
+  });
+
+  it("does not move another event's entries", async () => {
+    const first = await eventWithThree();
+    const second = await eventWithThree();
+
+    expect(
+      await reorderGalleryEntries(first.event.id, [
+        second.ids[2],
+        second.ids[1],
+        second.ids[0],
+      ]),
+    ).toBe(false);
+
+    const entries = await getGalleryEntriesForEvent(second.event.id);
+    expect(entries.map((entry) => entry.id)).toEqual(second.ids);
   });
 });
 

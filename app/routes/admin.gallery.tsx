@@ -1,7 +1,13 @@
 import type { SubmissionResult } from "@conform-to/react";
-import { ImageIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  GripVerticalIcon,
+  ImageIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Form, redirect, useSubmit } from "react-router";
+import { Form, redirect, useFetcher, useSubmit } from "react-router";
 import { z } from "zod";
 
 import type { Route } from "./+types/admin.gallery";
@@ -37,6 +43,7 @@ import {
   getGalleryEntriesForEventWithReuse,
   getGalleryPickerEvents,
   removeGalleryEntry,
+  reorderGalleryEntries,
   type GalleryEventLabel,
 } from "~/models/gallery.server";
 import { requireFound, unknownIntent } from "~/shared/http.server";
@@ -203,6 +210,22 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect(galleryPathFor(eventId));
   }
 
+  if (intent === "reorder") {
+    const eventId = formData.get("eventId");
+    if (typeof eventId !== "string" || !eventId) throw unknownIntent();
+
+    const order = formData
+      .getAll("order")
+      .filter((value): value is string => typeof value === "string");
+
+    // A list that no longer matches the gallery (another tab uploaded or
+    // deleted meanwhile) is dropped; the revalidation that follows every
+    // action puts the real order back on screen.
+    await reorderGalleryEntries(eventId, order);
+
+    return null;
+  }
+
   throw unknownIntent();
 }
 
@@ -302,6 +325,8 @@ function EventGalleryManager({
 
   const imageErrors = actionData?.error?.images;
 
+  const { orderedEntries, moveBy, drag } = useGalleryOrder(event.id, entries);
+
   return (
     <>
       <section className="flex flex-col gap-4">
@@ -356,12 +381,20 @@ function EventGalleryManager({
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">
-          In this gallery{" "}
-          <span className="text-muted-foreground font-normal">
-            ({entries.length})
-          </span>
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold">
+            In this gallery{" "}
+            <span className="text-muted-foreground font-normal">
+              ({entries.length})
+            </span>
+          </h2>
+          {entries.length > 1 ? (
+            <p className="text-muted-foreground mt-1 text-sm">
+              Drag photos, or use the arrows, to change their order. The public
+              gallery shows them in this order.
+            </p>
+          ) : null}
+        </div>
 
         {entries.length === 0 ? (
           <AdminEmptyState
@@ -371,15 +404,31 @@ function EventGalleryManager({
           />
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {entries.map((entry) => (
-              <li key={entry.id}>
+            {orderedEntries.map((entry, index) => (
+              <li
+                key={entry.id}
+                {...drag.itemProps(entry.id)}
+                className={cn(
+                  "cursor-grab active:cursor-grabbing [&_img]:pointer-events-none",
+                  drag.draggingId === entry.id && "opacity-50",
+                )}
+              >
                 <Card className="flex h-full flex-col overflow-hidden">
-                  <OptimizedImage
-                    image={entry.image}
-                    width={480}
-                    height={320}
-                    alt={entry.altText ?? event.title}
-                  />
+                  <div className="relative">
+                    <OptimizedImage
+                      image={entry.image}
+                      width={480}
+                      height={320}
+                      alt={entry.altText ?? event.title}
+                    />
+                    <span className="bg-background/85 text-foreground absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold">
+                      <GripVerticalIcon
+                        aria-hidden
+                        className="text-muted-foreground size-3.5"
+                      />
+                      {index + 1}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-3 p-4">
                     <p className="min-w-0 flex-1 truncate text-sm">
                       {entry.caption ?? (
@@ -388,6 +437,33 @@ function EventGalleryManager({
                         </span>
                       )}
                     </p>
+
+                    {orderedEntries.length > 1 ? (
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Move earlier"
+                          disabled={index === 0}
+                          onClick={() => moveBy(entry.id, -1)}
+                          className="-my-2 size-11 sm:my-0 sm:size-7"
+                        >
+                          <ArrowLeftIcon className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Move later"
+                          disabled={index === orderedEntries.length - 1}
+                          onClick={() => moveBy(entry.id, 1)}
+                          className="-my-2 size-11 sm:my-0 sm:size-7"
+                        >
+                          <ArrowRightIcon className="size-4" />
+                        </Button>
+                      </div>
+                    ) : null}
 
                     <ImageFramingDialog
                       image={entry.image}
@@ -476,6 +552,108 @@ function EventGalleryManager({
       </section>
     </>
   );
+}
+
+type GalleryEntries = Route.ComponentProps["loaderData"]["entries"];
+
+function moveTo(order: string[], id: string, toIndex: number): string[] {
+  const next = order.filter((other) => other !== id);
+  next.splice(toIndex, 0, id);
+  return next;
+}
+
+/**
+ * The order the admin is arranging, shown optimistically and saved through a
+ * fetcher after every move. A drag rearranges live as it passes over other
+ * photos and saves once, on drop; a drag that is cancelled (Escape, or a drop
+ * outside the list) snaps back.
+ */
+function useGalleryOrder(eventId: string, entries: GalleryEntries) {
+  const fetcher = useFetcher();
+
+  const serverOrder = entries.map((entry) => entry.id);
+  const serverKey = serverOrder.join(",");
+  const [order, setOrder] = useState(serverOrder);
+  const [syncedKey, setSyncedKey] = useState(serverKey);
+
+  // whatever the server last said wins: an upload, a delete, or the saved
+  // order coming back from revalidation
+  if (serverKey !== syncedKey) {
+    setSyncedKey(serverKey);
+    setOrder(serverOrder);
+  }
+
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const orderBeforeDrag = useRef<string[]>([]);
+  const latestOrder = useRef(order);
+  useEffect(() => {
+    latestOrder.current = order;
+  }, [order]);
+
+  function save(next: string[]) {
+    setOrder(next);
+
+    const body = new FormData();
+    body.set("intent", "reorder");
+    body.set("eventId", eventId);
+    for (const id of next) body.append("order", id);
+    void fetcher.submit(body, { method: "POST" });
+  }
+
+  function moveBy(id: string, delta: number) {
+    const from = order.indexOf(id);
+    const to = from + delta;
+    if (from === -1 || to < 0 || to >= order.length) return;
+    save(moveTo(order, id, to));
+  }
+
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const orderedEntries = order.flatMap((id) => {
+    const entry = byId.get(id);
+    return entry ? [entry] : [];
+  });
+
+  const drag = {
+    draggingId,
+    itemProps(id: string): React.LiHTMLAttributes<HTMLLIElement> {
+      return {
+        draggable: true,
+        onDragStart(dragEvent) {
+          orderBeforeDrag.current = order;
+          setDraggingId(id);
+          dragEvent.dataTransfer.effectAllowed = "move";
+          dragEvent.dataTransfer.setData("text/plain", id);
+        },
+        onDragOver(dragEvent) {
+          if (!draggingId) return;
+          dragEvent.preventDefault();
+          dragEvent.dataTransfer.dropEffect = "move";
+          if (draggingId !== id) {
+            setOrder((current) =>
+              moveTo(current, draggingId, current.indexOf(id)),
+            );
+          }
+        },
+        onDrop(dragEvent) {
+          dragEvent.preventDefault();
+        },
+        onDragEnd(dragEvent) {
+          setDraggingId(null);
+          const before = orderBeforeDrag.current;
+
+          if (dragEvent.dataTransfer.dropEffect === "none") {
+            setOrder(before);
+            return;
+          }
+
+          const after = latestOrder.current;
+          if (after.join(",") !== before.join(",")) save(after);
+        },
+      };
+    },
+  };
+
+  return { orderedEntries, moveBy, drag };
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
