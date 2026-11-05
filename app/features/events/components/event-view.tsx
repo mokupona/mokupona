@@ -44,47 +44,52 @@ export function EventStory({ event }: EventViewProps) {
         />
       </div>
 
-      <div className="flex flex-col gap-3">
-        <EventDateHeading date={event.date} />
-        <h1 className={pageTitleClassName}>{event.title}</h1>
+      {/* one halo for everything under the photo, like the landing page's
+          next-dinner column, rather than a patch per line with glyphs
+          showing in the gaps (the date line and the menu toggles had none) */}
+      <div data-halo className="flex flex-col gap-5 md:gap-6">
+        <div className="flex flex-col gap-3">
+          <EventDateHeading date={event.date} />
+          <h1 className={pageTitleClassName}>{event.title}</h1>
+        </div>
+
+        <MarkdownText
+          html={event.descriptionHtml}
+          className="text-foreground/80 text-base font-light md:text-lg"
+        />
+
+        {event.menuHtml || event.donationHtml ? (
+          <Accordion defaultValue={["menu"]} className="mt-2 border-t">
+            {event.menuHtml ? (
+              <AccordionItem value="menu">
+                <AccordionTrigger className="text-primary">
+                  {t("events.detail.menu")}
+                </AccordionTrigger>
+                <AccordionContent className="pb-6">
+                  <MarkdownText
+                    html={event.menuHtml}
+                    className="text-foreground/80 text-base font-light"
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+
+            {event.donationHtml ? (
+              <AccordionItem value="donation">
+                <AccordionTrigger className="text-primary">
+                  {t("events.detail.donation")}
+                </AccordionTrigger>
+                <AccordionContent className="pb-6">
+                  <MarkdownText
+                    html={event.donationHtml}
+                    className="text-foreground/80 text-base font-light"
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            ) : null}
+          </Accordion>
+        ) : null}
       </div>
-
-      <MarkdownText
-        html={event.descriptionHtml}
-        className="text-foreground/80 text-base font-light md:text-lg"
-      />
-
-      {event.menuHtml || event.donationHtml ? (
-        <Accordion defaultValue={["menu"]} className="mt-2 border-t">
-          {event.menuHtml ? (
-            <AccordionItem value="menu">
-              <AccordionTrigger className="text-primary">
-                {t("events.detail.menu")}
-              </AccordionTrigger>
-              <AccordionContent className="pb-6">
-                <MarkdownText
-                  html={event.menuHtml}
-                  className="text-foreground/80 text-base font-light"
-                />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {event.donationHtml ? (
-            <AccordionItem value="donation">
-              <AccordionTrigger className="text-primary">
-                {t("events.detail.donation")}
-              </AccordionTrigger>
-              <AccordionContent className="pb-6">
-                <MarkdownText
-                  html={event.donationHtml}
-                  className="text-foreground/80 text-base font-light"
-                />
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-        </Accordion>
-      ) : null}
     </div>
   );
 }

@@ -43,6 +43,8 @@ export function BackLink({
     <Link
       to={to}
       prefetch={prefetch}
+      // sits on the glyph wallpaper like the text around it
+      data-halo
       className={cn(
         "text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-2 text-sm transition-colors",
         className,
@@ -93,12 +95,16 @@ export function Eyebrow({
   tone,
   className,
   children,
-}: VariantProps<typeof eyebrowVariants> & {
-  className?: string;
-  children: ReactNode;
-}) {
+  ...rest
+}: VariantProps<typeof eyebrowVariants> &
+  Omit<ComponentProps<"span">, "children"> & {
+    children: ReactNode;
+  }) {
   return (
-    <span className={cn(eyebrowVariants({ variant, tone }), className)}>
+    <span
+      className={cn(eyebrowVariants({ variant, tone }), className)}
+      {...rest}
+    >
       {children}
     </span>
   );
@@ -119,7 +125,9 @@ export function SectionDivider({
       {handwritten ? (
         <HandwrittenHeading name={handwritten} />
       ) : (
-        <Eyebrow variant="tracked" tone="label">
+        // a halo like the text around it; the drawn headings above read
+        // fine on the glyphs as they are
+        <Eyebrow variant="tracked" tone="label" data-halo>
           {children}
         </Eyebrow>
       )}
