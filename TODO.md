@@ -52,7 +52,8 @@ Already exists (`app/routes/admin*.tsx`): dinners CRUD, locations, board members
 
 ## 7. About page — volunteers, board members, who we are
 
-- [ ] `app/routes/about.tsx` already exists — check current content before rewriting
+- [x] 2026-11-05 About page rewritten as a story (how it started, why we do it, the name / toki pona, what we do as a non-profit), then "meet the team" (board + volunteers) and a closing "become a volunteer"; all copy editable under Admin → Texts → About
+- [x] 2026-11-05 Volunteer sign-up pop-up on the About page emails contact@mokupona.ch, with the visitor as reply-to
 - [x] 2026-10-07 Board members (the hall of fame) show on the About page with photo, name, position and an optional bio — all editable at `/admin/board-members`
 - [x] 2026-11-04 Volunteers modeled (`Volunteer`: name, optional role/bio/photo) and managed at `/admin/volunteers`; shown in an "our volunteers" section on the About page, and credited per event (`/admin/events/:id/volunteers`) at the bottom of past event pages
 

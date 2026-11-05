@@ -5,6 +5,8 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  /** Where a reply goes when that isn't the sender, e.g. a form's visitor. */
+  replyTo?: string;
 }
 
 export interface MailProvider {

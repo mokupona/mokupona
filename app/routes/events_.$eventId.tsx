@@ -351,11 +351,15 @@ export default function EventPage({
           // stacking above it on mobile and beside it from lg up
           <aside
             id="sign-up"
-            className="flex flex-col gap-4 border-t pt-8 lg:sticky lg:top-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"
+            className="border-t pt-8 lg:sticky lg:top-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8"
           >
-            <EventFactList event={event} seatsLeft={seatsLeft} />
+            {/* one halo behind the facts and the whole form, so the glyphs
+                don't show between the fields or through the open inputs. It
+                sits on a wrapper: the halo positions its element relative,
+                which would undo the aside's sticky. */}
+            <div data-halo className="flex flex-col gap-4">
+              <EventFactList event={event} seatsLeft={seatsLeft} />
 
-            <>
               <div aria-hidden className="bg-border h-px" />
 
               <h2 className="text-xl font-light">{t("signup.heading")}</h2>
@@ -367,7 +371,7 @@ export default function EventPage({
                 seatsLeft={seatsLeft}
                 lastResult={actionData}
               />
-            </>
+            </div>
           </aside>
         ) : null}
       </div>

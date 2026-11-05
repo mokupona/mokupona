@@ -7,6 +7,7 @@ export function createConsoleProvider(): MailProvider {
         "📬 mail (console provider)",
         `To:      ${message.to}`,
         ...(message.from ? [`From:    ${message.from}`] : []),
+        ...(message.replyTo ? [`Reply-To: ${message.replyTo}`] : []),
         `Subject: ${message.subject}`,
         "",
         message.text,
