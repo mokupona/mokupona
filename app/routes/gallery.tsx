@@ -1,22 +1,19 @@
-import { Link } from "react-router";
-
 import type { Route } from "./+types/gallery";
 
-import { CoverImage } from "~/components/cover-image";
 import { RouteErrorContent } from "~/components/route-error-content";
 import {
   Eyebrow,
   PageContainer,
   pageTitleClassName,
 } from "~/components/section";
-import { formatEventMonthYear } from "~/features/events/date-format";
-import { listGalleryAlbums } from "~/features/gallery/gallery.server";
-import type { GalleryAlbumModel } from "~/features/gallery/view-models";
+import { listGalleryImages } from "~/features/gallery/gallery.server";
+import { MosaicGallery } from "~/features/gallery/layouts/mosaic";
 import { textFromMatches } from "~/features/site-text/meta";
 import { useText } from "~/features/site-text/site-text-context";
 
 export async function loader() {
-  return { albums: await listGalleryAlbums() };
+  // one roll of every photo from every past dinner, newest dinner first
+  return { images: await listGalleryImages() };
 }
 
 export const meta: Route.MetaFunction = ({ matches }) => [
@@ -24,7 +21,7 @@ export const meta: Route.MetaFunction = ({ matches }) => [
 ];
 
 export default function GalleryPage({ loaderData }: Route.ComponentProps) {
-  const { albums } = loaderData;
+  const { images } = loaderData;
   const t = useText();
 
   return (
@@ -39,61 +36,14 @@ export default function GalleryPage({ loaderData }: Route.ComponentProps) {
         </p>
       </div>
 
-      {albums.length > 0 ? (
-        <ul className="grid grid-cols-1 gap-x-5 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
-          {albums.map((album) => (
-            <AlbumCard key={album.id} album={album} />
-          ))}
-        </ul>
+      {images.length > 0 ? (
+        <MosaicGallery images={images} variant="page" />
       ) : (
         <p className="text-muted-foreground max-w-md text-base font-light whitespace-pre-line md:text-lg">
           {t("gallery.empty")}
         </p>
       )}
     </PageContainer>
-  );
-}
-
-function AlbumCard({ album }: { album: GalleryAlbumModel }) {
-  const t = useText();
-  const date = new Date(album.date);
-
-  return (
-    <li>
-      <Link
-        to={`/events/${album.id}/gallery`}
-        className="group flex flex-col gap-3"
-      >
-        <div className="paper-photo">
-          <CoverImage
-            image={album.cover}
-            alt={album.coverAlt}
-            sizes="(min-width: 1024px) 380px, (min-width: 640px) 45vw, 90vw"
-            className="w-full"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground flex items-center gap-2 text-xs">
-            <time dateTime={date.toISOString()} suppressHydrationWarning>
-              {formatEventMonthYear(date)}
-            </time>
-            <span aria-hidden="true">·</span>
-            <span>
-              {t(
-                album.imageCount === 1
-                  ? "site.photoCount.one"
-                  : "site.photoCount.other",
-                { count: album.imageCount },
-              )}
-            </span>
-          </span>
-          <h2 className="text-lg leading-tight font-light group-hover:underline md:text-xl">
-            {album.title}
-          </h2>
-        </div>
-      </Link>
-    </li>
   );
 }
 

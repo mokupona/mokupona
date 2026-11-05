@@ -10,19 +10,19 @@ export const galleryTexts = defineTexts("gallery", {
   intro: {
     label: "Intro",
     default:
-      "plates, hands, half-finished glasses — everything we managed to photograph before it was eaten. one room per event.",
+      "plates, hands, half-finished glasses — everything we managed to photograph before it was eaten.",
     kind: "paragraph",
   },
   empty: {
-    label: "No albums yet",
+    label: "No photos yet",
     default:
-      "no photographs yet. the first album appears once an event has been eaten and someone remembers to bring a camera.",
+      "no photographs yet. the first ones appear once an event has been eaten and someone remembers to bring a camera.",
     kind: "paragraph",
   },
 
   "album.back": {
     label: "Back link on an event's album",
-    default: "all galleries",
+    default: "gallery",
   },
   "album.metaTitle": {
     label: "Browser tab title of an event's album",

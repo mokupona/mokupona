@@ -4,7 +4,7 @@ import { createRoutesStub } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GalleryEntryWithReuse } from "~/models/gallery.server";
-import AdminEventGalleryPage from "~/routes/admin.events.$eventId_.gallery";
+import AdminGalleryPage from "~/routes/admin.gallery";
 import type { ImageProviderConfig } from "~/shared/image";
 
 // the entry cards render OptimizedImage, which reads delivery config from the
@@ -35,11 +35,19 @@ function entry(id: string): GalleryEntryWithReuse {
   };
 }
 
-type PageProps = Parameters<typeof AdminEventGalleryPage>[0];
+type PageProps = Parameters<typeof AdminGalleryPage>[0];
 
 function propsFor(entries: GalleryEntryWithReuse[]) {
   return {
     loaderData: {
+      events: [
+        {
+          id: "event-1",
+          title: "nine courses",
+          date: new Date(),
+          imageCount: entries.length,
+        },
+      ],
       event: { id: "event-1", title: "nine courses" },
       entries,
       maxFiles: 12,
@@ -59,7 +67,7 @@ function renderGallery(entries: GalleryEntryWithReuse[]) {
   function Page() {
     const [current, setCurrent] = useState(entries);
     settle = setCurrent;
-    return <AdminEventGalleryPage {...propsFor(current)} />;
+    return <AdminGalleryPage {...propsFor(current)} />;
   }
 
   const Stub = createRoutesStub([{ path: "/", Component: Page }]);
@@ -81,7 +89,7 @@ function fill(photos: HTMLInputElement, caption: HTMLInputElement) {
   fireEvent.change(caption, { target: { value: "A long table" } });
 }
 
-describe("admin event gallery upload form", () => {
+describe("admin gallery upload form", () => {
   // happy-dom's form.reset() leaves input.files alone, so the caption stands
   // in for the whole form here; the browser clears both in one call
   it("drops what was submitted once the photos are in the gallery", () => {
@@ -118,5 +126,63 @@ describe("admin event gallery upload form", () => {
 
     expect(photos().files).toHaveLength(1);
     expect(caption().value).toBe("A long table");
+  });
+});
+
+describe("admin gallery ordering", () => {
+  function renderOrdering(entries: GalleryEntryWithReuse[]) {
+    const submitted: string[][] = [];
+
+    const Stub = createRoutesStub([
+      {
+        path: "/",
+        Component: () => <AdminGalleryPage {...propsFor(entries)} />,
+        async action({ request }) {
+          const body = await request.formData();
+          expect(body.get("intent")).toBe("reorder");
+          expect(body.get("eventId")).toBe("event-1");
+          submitted.push(body.getAll("order").map(String));
+          return null;
+        },
+      },
+    ]);
+    render(<Stub />);
+
+    const positions = () =>
+      screen
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("img")?.getAttribute("alt"));
+
+    return { submitted, positions };
+  }
+
+  function named(id: string) {
+    return { ...entry(id), altText: id };
+  }
+
+  it("moves a photo one place later and saves the whole order", async () => {
+    const { submitted, positions } = renderOrdering([
+      named("one"),
+      named("two"),
+      named("three"),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Move later" })[0]);
+
+    expect(positions()).toEqual(["two", "one", "three"]);
+    await vi.waitFor(() =>
+      expect(submitted).toEqual([["two", "one", "three"]]),
+    );
+  });
+
+  it("cannot move the first photo earlier or the last one later", () => {
+    renderOrdering([named("one"), named("two")]);
+
+    const earlier = screen.getAllByRole("button", { name: "Move earlier" });
+    const later = screen.getAllByRole("button", { name: "Move later" });
+
+    expect(earlier[0]).toBeDisabled();
+    expect(later[1]).toBeDisabled();
+    expect(earlier[1]).toBeEnabled();
   });
 });

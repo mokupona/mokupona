@@ -194,7 +194,7 @@ describe("mosaic layout", () => {
 
     const caption = container.querySelector("figcaption");
     expect(caption).not.toHaveClass("hidden");
-    expect(caption).toHaveClass("md:absolute", "md:opacity-0");
+    expect(caption).toHaveClass("md:absolute!", "md:opacity-0");
     expect(caption).toHaveTextContent("the last course, half eaten");
     // the overlay is faded out at rest, not hidden from assistive tech
     expect(caption?.closest("[aria-hidden]")).toBeNull();
@@ -206,7 +206,7 @@ describe("mosaic layout", () => {
     });
 
     const caption = container.querySelector("figcaption");
-    expect(caption).toHaveClass("md:absolute", "md:inset-0");
+    expect(caption).toHaveClass("md:absolute!", "md:inset-0");
     expect(caption).not.toHaveAttribute("tabindex");
   });
 

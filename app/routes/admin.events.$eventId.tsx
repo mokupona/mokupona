@@ -135,7 +135,7 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
             Volunteers
           </Link>
           <Link
-            to="gallery"
+            to={`/admin/gallery?event=${encodeURIComponent(event.id)}`}
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >
             Gallery

@@ -7,7 +7,7 @@ import { buildEventData } from "../../../test/factories";
 import { createEvent } from "~/models/event.server";
 import type * as GalleryServer from "~/models/gallery.server";
 import { getGalleryEntriesForEvent } from "~/models/gallery.server";
-import { action } from "~/routes/admin.events.$eventId_.gallery";
+import { action } from "~/routes/admin.gallery";
 
 const mocks = vi.hoisted(() => ({
   storeImages: vi.fn(),
@@ -46,15 +46,16 @@ function unstored(message: string): PromiseSettledResult<never> {
 async function upload(eventId: string, files: File[]) {
   const body = new FormData();
   body.append("intent", "upload");
+  body.append("eventId", eventId);
   body.append("caption", "A long table");
   for (const file of files) body.append("images", file);
 
   return action({
-    params: { eventId },
-    request: new Request(
-      `http://localhost:3000/admin/events/${eventId}/gallery`,
-      { method: "POST", body },
-    ),
+    params: {},
+    request: new Request("http://localhost:3000/admin/gallery", {
+      method: "POST",
+      body,
+    }),
     context: new RouterContextProvider(),
   } as unknown as Parameters<typeof action>[0]);
 }
@@ -70,7 +71,7 @@ beforeEach(() => {
   mocks.createGalleryImagesForEvent.mockReset();
 });
 
-describe("admin event gallery upload", () => {
+describe("admin gallery upload", () => {
   it("keeps the photos that stored and names the ones that did not", async () => {
     const { createGalleryImagesForEvent } = await vi.importActual<
       typeof GalleryServer
@@ -160,7 +161,7 @@ describe("admin event gallery upload", () => {
     expect(result).toBeInstanceOf(Response);
     expect((result as Response).status).toBe(302);
     expect((result as Response).headers.get("location")).toBe(
-      `/admin/events/${eventId}/gallery`,
+      `/admin/gallery?event=${eventId}`,
     );
   });
 });

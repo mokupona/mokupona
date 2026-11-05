@@ -15,6 +15,7 @@ const TABS = [
   { to: "/admin/stats", label: "stats" },
   { to: "/admin/events", label: "events", countKey: "events" },
   { to: "/admin/locations", label: "locations", countKey: "locations" },
+  { to: "/admin/gallery", label: "gallery" },
   { to: "/admin/board-members", label: "board", countKey: "board" },
   { to: "/admin/texts", label: "texts" },
   { to: "/admin/volunteers", label: "volunteers", countKey: "volunteers" },
