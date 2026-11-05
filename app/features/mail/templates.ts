@@ -231,6 +231,20 @@ export const mailTemplates = {
   signupConfirmation,
 
   friendSignup,
+
+  volunteerInterest: (
+    { name, email, message }: { name: string; email: string; message?: string },
+    t: Text,
+  ) =>
+    compose(
+      t("emails.volunteer.subject", { name }).replace(/\s+/g, " ").trim(),
+      [
+        paragraph(t("emails.volunteer.body", { name, email })),
+        ...(message ? [paragraph(message)] : []),
+        note(t("emails.volunteer.note")),
+      ],
+      options(t),
+    ),
 } satisfies Record<string, (props: never, t: Text) => MailBody>;
 
 type MailTemplates = typeof mailTemplates;

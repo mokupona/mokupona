@@ -229,4 +229,20 @@ export const emailTexts = defineTexts("emails", {
     label: "Event signup: small print",
     default: "If you didn't sign up for this event, you can ignore this email.",
   },
+  "volunteer.subject": {
+    label: "Volunteer sign-up (to us): subject",
+    default: "New volunteer: {name}",
+    vars: { name: "the volunteer's name" },
+    hint: "Sent to contact@mokupona.ch when someone uses the sign-up form on the about page.",
+  },
+  "volunteer.body": {
+    label: "Volunteer sign-up (to us): text",
+    default: "{name} ({email}) signed up as a volunteer on the about page.",
+    kind: "paragraph",
+    vars: { name: "the volunteer's name", email: "their email address" },
+  },
+  "volunteer.note": {
+    label: "Volunteer sign-up (to us): small print",
+    default: "Reply to this email to answer them directly.",
+  },
 });
