@@ -97,6 +97,15 @@ function readFormErrors(result: Awaited<ReturnType<typeof action>>) {
 }
 
 describe("event signup action", () => {
+  it("treats a draft as a missing event and stores nothing", async () => {
+    const { eventId, versionId } = await createTestEvent({ published: false });
+
+    await expect(
+      submit(eventId, fromBrowser(answers(versionId))),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(await storedFor(versionId)).toHaveLength(0);
+  });
+
   it("stores a submission carrying a freshly minted stamp", async () => {
     const { eventId, versionId } = await createTestEvent();
 
@@ -116,7 +125,7 @@ describe("event signup action", () => {
     const { eventId, versionId } = await createTestEvent({
       title: "Winter table",
       price: 45,
-      studentPrice: 30,
+      studentDiscount: 15,
       confirmedMailSubject: "See you at {event}",
     });
 

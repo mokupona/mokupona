@@ -16,11 +16,13 @@ function overTheWire(value: unknown) {
 }
 
 describe("liveDataTablesSchema", () => {
-  it("reads the event's student price and signup mail copy", () => {
+  it("reads the event's discounts, visibility and signup mail copy", () => {
     const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
 
     expect(parsed.events[0]).toMatchObject({
-      studentPrice: 20,
+      published: true,
+      studentDiscount: 10,
+      vegetarianDiscount: 5,
       confirmedMailSubject: "See you at {event}",
       confirmedMailMessage: null,
     });
@@ -29,7 +31,9 @@ describe("liveDataTablesSchema", () => {
   it("accepts events from a live site that predates those columns", () => {
     const tables = overTheWire(liveDataFixture());
     for (const event of tables.events) {
-      delete event.studentPrice;
+      delete event.published;
+      delete event.studentDiscount;
+      delete event.vegetarianDiscount;
       delete event.confirmedMailSubject;
       delete event.confirmedMailMessage;
       delete event.waitlistMailSubject;
@@ -39,12 +43,33 @@ describe("liveDataTablesSchema", () => {
     const parsed = liveDataTablesSchema.parse(tables);
 
     expect(parsed.events[0]).toMatchObject({
-      studentPrice: null,
+      published: true,
+      studentDiscount: null,
+      vegetarianDiscount: null,
       confirmedMailSubject: null,
       confirmedMailMessage: null,
       waitlistMailSubject: null,
       waitlistMailMessage: null,
     });
+  });
+});
+
+describe("liveDataTablesSchema events from before the discounts", () => {
+  it("turns an old student price into the same student discount", () => {
+    const tables = overTheWire(liveDataFixture());
+    const [event] = tables.events;
+    delete event.studentDiscount;
+    delete event.vegetarianDiscount;
+    event.price = 45;
+    event.studentPrice = 30;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.events[0]).toMatchObject({
+      studentDiscount: 15,
+      vegetarianDiscount: null,
+    });
+    expect(parsed.events[0]).not.toHaveProperty("studentPrice");
   });
 });
 

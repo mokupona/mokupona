@@ -216,6 +216,21 @@ describe("loadStatsReport", () => {
     expect(ids).not.toContain(old);
   });
 
+  it("doesn't list an upcoming draft nobody can see yet", async () => {
+    const draft = await makeEvent(
+      "Secret dinner",
+      new Date("2026-12-24T18:00:00Z"),
+    );
+    await prisma.event.update({
+      where: { id: draft },
+      data: { published: false },
+    });
+
+    const report = await loadStatsReport(30, now);
+
+    expect(report.events.map((event) => event.id)).not.toContain(draft);
+  });
+
   it("breaks visits down by source, device and outbound link", async () => {
     await hits(
       { visitor: "a", source: "instagram", device: "mobile" },

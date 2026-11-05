@@ -19,13 +19,15 @@ export function ImageBlockView({ blockData, className }: ImageBlockViewProps) {
 
   return (
     <PageContainer as="div">
-      <OptimizedImage
-        image={{ storageKey: src, blurDataUrl }}
-        width={width ?? 1080}
-        height={height ?? 382}
-        alt={alt ?? ""}
-        className={cn(imageClasses, className)}
-      />
+      <div className="paper-photo">
+        <OptimizedImage
+          image={{ storageKey: src, blurDataUrl }}
+          width={width ?? 1080}
+          height={height ?? 382}
+          alt={alt ?? ""}
+          className={cn(imageClasses, className)}
+        />
+      </div>
     </PageContainer>
   );
 }

@@ -6,10 +6,13 @@ export function createStatHit(data: Prisma.StatHitCreateInput) {
   return prisma.statHit.create({ data, select: { id: true } });
 }
 
-/** Whether a page view's event exists, so made-up ids aren't counted. */
+/**
+ * Whether a page view's event is one visitors can see, so made-up ids and
+ * drafts (only the admin area shows those) aren't counted.
+ */
 export async function statEventExists(eventId: string) {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, published: true },
     select: { id: true },
   });
   return event !== null;
@@ -142,11 +145,15 @@ export async function countOutboundClicks({ from, to }: DayRange) {
 
 /**
  * The events the report names: those with hits in the range, plus every
- * upcoming one, so a fresh event shows up before anyone has looked at it.
+ * published upcoming one, so a fresh event shows up before anyone has
+ * looked at it. A draft only appears once it has hits (from before it was
+ * taken back to draft).
  */
 export function getStatEvents(ids: string[], now: Date) {
   return prisma.event.findMany({
-    where: { OR: [{ id: { in: ids } }, { date: { gte: now } }] },
+    where: {
+      OR: [{ id: { in: ids } }, { date: { gte: now }, published: true }],
+    },
     select: { id: true, title: true, date: true },
     orderBy: { date: "desc" },
   });

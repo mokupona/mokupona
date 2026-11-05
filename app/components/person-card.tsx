@@ -59,9 +59,9 @@ function PersonCard({
 }) {
   return (
     <li className="flex flex-col gap-3">
-      {/* the sage fill is the placeholder's own backdrop, not a card, so it
-          only appears when there is no portrait to show */}
-      <div className={person.image ? "overflow-hidden" : "bg-sage/40"}>
+      {/* torn paper like the other photos; the sage fill is the
+          placeholder's own backdrop, so it only shows without a portrait */}
+      <div className="paper-photo">
         {person.image ? (
           <OptimizedImage
             image={person.image}
@@ -107,7 +107,7 @@ function PortraitPlaceholder({ name }: { name: string }) {
 
   return (
     <div
-      className="text-ink/60 flex aspect-square items-center justify-center text-3xl font-light"
+      className="bg-sage/40 text-ink/60 flex aspect-square items-center justify-center text-3xl font-light"
       aria-hidden="true"
     >
       {initials}

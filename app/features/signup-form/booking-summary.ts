@@ -6,9 +6,10 @@ import type { Text } from "~/features/site-text/text";
 
 const FRIENDS_LIST_NAME = "friends";
 const NAME_FIELD = "name";
-// a guest who ticks this checkbox pays the event's student price, if it has one
+// a guest who ticks this checkbox gets the event's student discount, if any
 const STUDENT_FIELD = "student";
-// ticked by a guest who eats vegetarian (the checkbox reads "Vegan / Vegetarian")
+// ticked by a guest who eats vegetarian (the checkbox reads "Vegan / Vegetarian");
+// they get the event's vegetarian discount, if any
 const VEGETARIAN_FIELD = "vegetarian";
 /**
  * Optional, inside the friends list: where to send the friend a note that the
@@ -43,7 +44,33 @@ export interface BookingSummary {
 
 export interface BookingPrices {
   price: number;
-  studentPrice: number | null;
+  /** CHF off for a student; null when the event has no student discount. */
+  studentDiscount: number | null;
+  /** CHF off for a vegetarian; null when the event has none. */
+  vegetarianDiscount: number | null;
+}
+
+/** An event's pricing, as the booking reads it. */
+export function bookingPrices(event: BookingPrices): BookingPrices {
+  return {
+    price: event.price,
+    studentDiscount: event.studentDiscount,
+    vegetarianDiscount: event.vegetarianDiscount,
+  };
+}
+
+/**
+ * What one guest pays: the full price minus every discount they qualify for.
+ * The discounts stack, and the result never drops below zero.
+ */
+export function guestPrice(
+  prices: BookingPrices,
+  guest: { isStudent: boolean; vegetarian: boolean | null },
+): number {
+  let amount = prices.price;
+  if (guest.isStudent) amount -= prices.studentDiscount ?? 0;
+  if (guest.vegetarian === true) amount -= prices.vegetarianDiscount ?? 0;
+  return Math.max(0, amount);
 }
 
 /**
@@ -118,14 +145,13 @@ function toGuest(
     (field) => field.data.name === VEGETARIAN_FIELD,
   );
 
+  const vegetarian = asksVegetarian ? answers[VEGETARIAN_FIELD] === true : null;
+
   return {
     name: typeof name === "string" && name.trim() ? name.trim() : fallbackName,
     isStudent,
-    vegetarian: asksVegetarian ? answers[VEGETARIAN_FIELD] === true : null,
-    price:
-      isStudent && prices.studentPrice !== null
-        ? prices.studentPrice
-        : prices.price,
+    vegetarian,
+    price: guestPrice(prices, { isStudent, vegetarian }),
     email:
       typeof friendEmail === "string" && friendEmail.trim()
         ? friendEmail.trim()

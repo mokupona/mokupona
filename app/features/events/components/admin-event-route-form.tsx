@@ -23,6 +23,7 @@ type AdminEventRouteFormProps = {
   defaultValue?: DefaultValue<z.input<typeof EventEditSchema>>;
   addressOptions: AddressOptionModel[];
   submitText: string;
+  draftText?: string;
   pageTitle: string;
   cancelHref: string;
   lockFieldKeys?: boolean;
@@ -36,6 +37,7 @@ export function AdminEventRouteForm({
   defaultValue,
   addressOptions,
   submitText,
+  draftText,
   pageTitle,
   cancelHref,
   lockFieldKeys,
@@ -67,6 +69,7 @@ export function AdminEventRouteForm({
           fields={fields}
           addressOptions={addressOptions}
           submitText={submitText}
+          draftText={draftText}
           pageTitle={pageTitle}
           cancelHref={cancelHref}
           lockFieldKeys={lockFieldKeys}

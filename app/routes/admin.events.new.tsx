@@ -30,7 +30,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   return withParsedImageForm(request, {
     fieldName: "cover",
     schema: EventSchema,
-    async onSuccess({ value }) {
+    async onSuccess({ value, formData }) {
       const {
         title,
         description,
@@ -39,7 +39,8 @@ export async function action({ request, context }: Route.ActionArgs) {
         date,
         slots,
         price,
-        studentPrice,
+        studentDiscount,
+        vegetarianDiscount,
         discounts,
         confirmedMailSubject,
         confirmedMailMessage,
@@ -50,6 +51,9 @@ export async function action({ request, context }: Route.ActionArgs) {
         addressId,
         signupForm,
       } = value;
+
+      // only the "Publish" button makes the event public straight away
+      const published = formData.get("intent") === "publish";
 
       const changedKeys = syncChangedFieldKeys(signupForm);
       if (changedKeys.length > 0) {
@@ -68,7 +72,9 @@ export async function action({ request, context }: Route.ActionArgs) {
           date: toUtcEventDate(date),
           slots,
           price,
-          studentPrice,
+          studentDiscount,
+          vegetarianDiscount,
+          published,
           discounts,
           confirmedMailSubject,
           confirmedMailMessage,
@@ -85,11 +91,21 @@ export async function action({ request, context }: Route.ActionArgs) {
         builderRowsToDescriptors(signupForm),
       );
 
-      return redirectWithToast(`/admin/events/${event.id}`, {
-        title: "Event created",
-        description: "Its QR code is ready to copy or download.",
-        type: "success",
-      });
+      return redirectWithToast(
+        `/admin/events/${event.id}`,
+        published
+          ? {
+              title: "Event published",
+              description: "Its QR code is ready to copy or download.",
+              type: "success",
+            }
+          : {
+              title: "Draft saved",
+              description:
+                "Only admins can see it. Publish it from this page when it's ready.",
+              type: "success",
+            },
+      );
     },
   });
 }
@@ -111,7 +127,8 @@ export default function AdminEventNewPage({
       lastResult={actionData}
       defaultValue={{ signupForm: defaultBuilderRows() }}
       addressOptions={addressOptions}
-      submitText="Save event"
+      submitText="Publish"
+      draftText="Save as draft"
       pageTitle="New event"
       cancelHref="/admin/events"
     />

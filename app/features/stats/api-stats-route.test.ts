@@ -139,6 +139,18 @@ describe("POST /api/stats", () => {
     expect(await prisma.statHit.count()).toBe(0);
   });
 
+  it("ignores a draft's page, which only the admin area shows", async () => {
+    const eventId = await makeEvent();
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { published: false },
+    });
+
+    await beacon({ kind: "pageview", path: `/events/${eventId}` });
+
+    expect(await prisma.statHit.count()).toBe(0);
+  });
+
   it("ignores bots", async () => {
     await beacon(
       { kind: "pageview", path: "/" },

@@ -32,7 +32,7 @@ describe("admin event uploads", () => {
   }
 
   function saveEditAndFetch(id: string) {
-    cy.findByRole("button", { name: /save event/i }).click();
+    cy.findByRole("button", { name: /^(publish|save event)$/i }).click();
     cy.location("pathname").should("eq", `/admin/events/${id}`);
 
     return runUploadDbCommand<EventRecord>("get-event", { id });
@@ -40,7 +40,7 @@ describe("admin event uploads", () => {
 
   function submitOversizedCoverExpectingError(pathname: string) {
     uploadEventCover(oversizedZodUpload(), { crop: false });
-    cy.findByRole("button", { name: /save event/i }).click();
+    cy.findByRole("button", { name: /^(publish|save event)$/i }).click();
 
     cy.findByText(FILE_TOO_LARGE_ERROR).should("be.visible");
     cy.location("pathname").should("eq", pathname);

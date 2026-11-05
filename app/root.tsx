@@ -17,6 +17,7 @@ import { Toaster } from "./components/ui/sonner";
 import { SitelenBackdrop } from "./features/sitelen/sitelen-backdrop";
 import { StatsTracker } from "./features/stats/stats-tracker";
 import { useToast } from "./hooks/useToast";
+import { cn } from "./lib/utils";
 import { combineHeaders, getDomainUrl } from "./shared/http.server";
 import { getToast } from "./utils/toast.server";
 
@@ -137,13 +138,23 @@ function Document({
   const glyphs =
     [...handles].reverse().find((handle) => handle.glyphs)?.glyphs ?? "faint";
   const hideHeaderAtTop = handles.some((handle) => handle.hideHeaderAtTop);
+  // text sits over the glyph wallpaper, so it gets a halo of frosted paper
+  // unless there is no wallpaper or a route opts out (the admin area, whose
+  // text sits in cards)
+  const textHalo =
+    glyphs !== "none" && !handles.some((handle) => handle.textHalo === false);
 
   return (
     // The paper background lives here as well as on body. The glyph wallpaper
     // is a fixed layer rendered first, and nav, content and footer are
     // `relative` so they paint over it — no negative z-index, which iOS
     // Safari renders unreliably.
-    <div className="bg-background isolate flex min-h-full flex-col">
+    <div
+      className={cn(
+        "bg-background isolate flex min-h-full flex-col",
+        textHalo && TEXT_HALO_SCOPE,
+      )}
+    >
       {glyphs === "none" ? null : (
         <SitelenBackdrop faint={glyphs === "faint"} />
       )}
@@ -165,7 +176,19 @@ export type RouteHandle = {
   glyphs?: "full" | "faint" | "none";
   /** start with no header and slide it in on scroll (see SiteNav) */
   hideHeaderAtTop?: boolean;
+  /** false turns off the text halo for this route and everything under it */
+  textHalo?: boolean;
 };
+
+/**
+ * Gives every block of text a halo (see the text-halo utility in
+ * tailwind.css): headings, paragraphs, labels and the like, plus anything
+ * marked `data-halo`, which gets one halo for the whole block instead of one
+ * per line inside it. Positioned and screen-reader-only elements are left
+ * alone, since the halo makes its element `position: relative`.
+ */
+const TEXT_HALO_SCOPE =
+  "[&_:is(h1,h2,h3,h4,h5,h6,p,blockquote,figcaption,dt,dd,label,[data-halo]):not(.sr-only,.absolute,.fixed,.sticky,[data-halo]_*)]:text-halo";
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return <RouteErrorContent error={error} />;

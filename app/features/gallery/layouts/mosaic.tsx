@@ -108,7 +108,7 @@ function MosaicTile({
       <button
         type="button"
         onClick={() => onOpen(image.id)}
-        className="focus-visible:ring-ring block w-full focus-visible:ring-2 focus-visible:outline-hidden"
+        className="paper-photo focus-visible:ring-ring block w-full focus-visible:ring-2 focus-visible:outline-hidden"
       >
         <OptimizedImage
           image={image.image}

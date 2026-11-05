@@ -22,9 +22,10 @@ import {
   userContext,
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
-import type {
-  BookingGuest,
-  SummaryRow,
+import {
+  bookingPrices,
+  type BookingGuest,
+  type SummaryRow,
 } from "~/features/signup-form/booking-summary";
 import {
   getSignupBookingsForEvent,
@@ -104,7 +105,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
 
   const event = await getEventById(eventId).then(requireFound);
-  const prices = { price: event.price, studentPrice: event.studentPrice };
+  const prices = bookingPrices(event);
   const t = await getText();
 
   const [bookings, seats] = await Promise.all([

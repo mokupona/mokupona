@@ -35,12 +35,14 @@ export function EventStory({ event }: EventViewProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-5 md:gap-6">
-      <CoverImage
-        image={event.image}
-        alt=""
-        sizes="(min-width: 1024px) 520px, 100vw"
-        className="w-full"
-      />
+      <div className="paper-photo">
+        <CoverImage
+          image={event.image}
+          alt=""
+          sizes="(min-width: 1024px) 520px, 100vw"
+          className="w-full"
+        />
+      </div>
 
       <div className="flex flex-col gap-3">
         <EventDateHeading date={event.date} />
@@ -95,7 +97,7 @@ export function EventFactList({
   const eventDate = new Date(event.date);
 
   return (
-    <div className="text-foreground/80 flex flex-col gap-3 text-sm">
+    <div data-halo className="text-foreground/80 flex flex-col gap-3 text-sm">
       <span className="flex items-center gap-2">
         <CalendarIcon className="text-muted-foreground size-4" />
         <time dateTime={eventDate.toISOString()} suppressHydrationWarning>
@@ -106,7 +108,11 @@ export function EventFactList({
       <EventLocationFact addressLine={event.addressLine} />
 
       <div className="flex items-center justify-between">
-        <EventPriceFact price={event.price} studentPrice={event.studentPrice} />
+        <EventPriceFact
+          price={event.price}
+          studentDiscount={event.studentDiscount}
+          vegetarianDiscount={event.vegetarianDiscount}
+        />
 
         <Popover>
           <PopoverTrigger>

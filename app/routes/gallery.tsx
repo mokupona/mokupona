@@ -64,12 +64,12 @@ function AlbumCard({ album }: { album: GalleryAlbumModel }) {
         to={`/events/${album.id}/gallery`}
         className="group flex flex-col gap-3"
       >
-        <div className="overflow-hidden">
+        <div className="paper-photo">
           <CoverImage
             image={album.cover}
             alt={album.coverAlt}
             sizes="(min-width: 1024px) 380px, (min-width: 640px) 45vw, 90vw"
-            className="w-full transition duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            className="w-full"
           />
         </div>
 

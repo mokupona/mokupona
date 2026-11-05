@@ -12,6 +12,8 @@ export interface EventSummaryModel {
   image: ImageMetadata | null;
   price: number;
   slots: number;
+  /** false for a draft, which only the admin area shows. */
+  published: boolean;
 }
 
 export interface EventCardModel extends EventSummaryModel {
@@ -26,7 +28,9 @@ export interface EventCardModel extends EventSummaryModel {
  * optional text that's missing or blank is null.
  */
 export interface EventDetailModel extends EventSummaryModel {
-  studentPrice: number | null;
+  /** CHF off for students / vegetarians; null when there is none. Stackable. */
+  studentDiscount: number | null;
+  vegetarianDiscount: number | null;
   descriptionHtml: string;
   menuHtml: string | null;
   donationHtml: string | null;

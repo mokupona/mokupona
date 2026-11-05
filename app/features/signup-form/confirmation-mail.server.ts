@@ -1,4 +1,8 @@
-import { summarizeBooking, type BookingSummary } from "./booking-summary";
+import {
+  bookingPrices,
+  summarizeBooking,
+  type BookingSummary,
+} from "./booking-summary";
 import type { SignupMailKind } from "./confirmation-mail";
 
 import type { FieldDescriptor } from "~/features/forms/fields";
@@ -25,7 +29,8 @@ type SignupMailEvent = Pick<
   | "title"
   | "date"
   | "price"
-  | "studentPrice"
+  | "studentDiscount"
+  | "vegetarianDiscount"
   | "confirmedMailSubject"
   | "confirmedMailMessage"
   | "waitlistMailSubject"
@@ -69,7 +74,7 @@ export async function sendSignupConfirmation({
   const booking = summarizeBooking(
     formFields,
     answers,
-    { price: event.price, studentPrice: event.studentPrice },
+    bookingPrices(event),
     t,
   );
 

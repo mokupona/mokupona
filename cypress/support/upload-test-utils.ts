@@ -258,7 +258,7 @@ export function createEventViaAdminForm(
 export function saveEventAndCaptureId(
   title: string,
 ): Cypress.Chainable<string> {
-  cy.findByRole("button", { name: /save event/i }).click();
+  cy.findByRole("button", { name: /^(publish|save event)$/i }).click();
   cy.findByRole("heading", { name: title }).should("be.visible");
 
   return cy

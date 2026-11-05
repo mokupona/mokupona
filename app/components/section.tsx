@@ -144,6 +144,8 @@ export function SecondaryCTA({
   return (
     <Link
       to={to}
+      // sits on the glyph wallpaper like the text around it
+      data-halo
       className={cn(
         "border-foreground/40 hover:border-foreground w-fit border-b pb-1 text-base transition-colors",
         className,

@@ -37,21 +37,37 @@ export function EventLocationFact({ addressLine }: { addressLine: string }) {
 
 export function EventPriceFact({
   price,
-  studentPrice = null,
+  studentDiscount = null,
+  vegetarianDiscount = null,
 }: {
   price: number;
-  studentPrice?: number | null;
+  /** CHF off for students; omitted or null where there is none. */
+  studentDiscount?: number | null;
+  /** CHF off for vegetarians; omitted or null where there is none. */
+  vegetarianDiscount?: number | null;
 }) {
   const t = useText();
+  const hasStudent = studentDiscount !== null && studentDiscount > 0;
+  const hasVegetarian = vegetarianDiscount !== null && vegetarianDiscount > 0;
 
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex flex-wrap items-center gap-x-2">
       <CreditCardIcon className="text-muted-foreground size-4" />
       <span className="sr-only">{t("events.facts.priceLabel")}</span>
       {t("events.facts.price", { price })}
-      {studentPrice !== null ? (
+      {hasStudent ? (
         <span className="text-muted-foreground">
-          {t("events.facts.studentPrice", { price: studentPrice })}
+          {t("events.facts.studentDiscount", { amount: studentDiscount })}
+        </span>
+      ) : null}
+      {hasVegetarian ? (
+        <span className="text-muted-foreground">
+          {t("events.facts.vegetarianDiscount", { amount: vegetarianDiscount })}
+        </span>
+      ) : null}
+      {hasStudent && hasVegetarian ? (
+        <span className="text-muted-foreground">
+          {t("events.facts.discountsStack")}
         </span>
       ) : null}
     </span>

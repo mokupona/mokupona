@@ -15,7 +15,7 @@ async function eventWithPrices() {
   const event = await createEvent({
     ...(await buildEventData()),
     price: 45,
-    studentPrice: 30,
+    studentDiscount: 15,
   });
   const version = await getCurrentFormVersion(event.formId);
   return { eventId: event.id, versionId: version.id };
@@ -55,7 +55,7 @@ describe("getSignupBookingsForEvent", () => {
 
     const [signup] = await getSignupBookingsForEvent(
       eventId,
-      { price: 45, studentPrice: 30 },
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
       defaultText,
     );
 
@@ -96,7 +96,7 @@ describe("getSignupBookingsForEvent", () => {
 
     const [signup] = await getSignupBookingsForEvent(
       eventId,
-      { price: 45, studentPrice: 30 },
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
       defaultText,
     );
 
