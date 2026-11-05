@@ -2,14 +2,7 @@ import { faker } from "@faker-js/faker";
 
 type TestUser = { email: string };
 
-function setSessionCookie(command: string) {
-  return cy.exec(command).then(({ stdout }) => {
-    const value = stdout
-      .replace(/.*<cookie>(?<cookieValue>.*)<\/cookie>.*/s, "$<cookieValue>")
-      .trim();
-    cy.setCookie("better-auth.session_token", value);
-  });
-}
+const SESSION_COOKIE = "better-auth.session_token";
 
 declare global {
   namespace Cypress {
@@ -25,19 +18,44 @@ declare global {
   }
 }
 
+/** Signs in a brand-new user, so each test gets its own. */
 function login({
   email = faker.internet.email({ provider: "example.com" }),
 }: {
   email?: string;
 } = {}) {
   cy.then((): TestUser => ({ email })).as("user");
-  setSessionCookie(`npx tsx ./cypress/support/create-user.ts "${email}"`);
+  cy.task<string>("createUserSession", email).then((cookie) =>
+    cy.setCookie(SESSION_COOKIE, cookie),
+  );
   return cy.get<TestUser>("@user");
 }
 
+/**
+ * Signs in as the seeded moderator or admin. The session is made once and
+ * reused across tests and specs, and made again only when the server no
+ * longer knows it (a test signed out, or the run outlived it).
+ */
 function loginAsRole(role: "moderator" | "admin" = "moderator") {
-  setSessionCookie(
-    `npx tsx ./cypress/support/create-role-session.ts "${role}"`,
+  cy.session(
+    ["seeded-role", role],
+    () => {
+      cy.task<string>("createRoleSession", role).then((cookie) =>
+        cy.setCookie(SESSION_COOKIE, cookie),
+      );
+    },
+    {
+      cacheAcrossSpecs: true,
+      validate() {
+        cy.request("/api/auth/get-session")
+          .its("body")
+          .should((body: { user?: { email?: string } } | null) => {
+            expect(body?.user?.email, "seeded session still valid").to.equal(
+              `${role}@mokupona.ch`,
+            );
+          });
+      },
+    },
   );
 }
 
@@ -49,17 +67,23 @@ function cleanupUser({ email }: { email?: string } = {}) {
       deleteUserByEmail(email);
     });
   }
-  cy.clearCookie("better-auth.session_token");
+  cy.clearCookie(SESSION_COOKIE);
 }
 
 function deleteUserByEmail(email: string) {
-  cy.exec(`npx tsx ./cypress/support/delete-user.ts "${email}"`);
-  cy.clearCookie("better-auth.session_token");
+  cy.task("deleteUser", email);
+  cy.clearCookie(SESSION_COOKIE);
 }
 
-function visitAndCheck(url: string, waitTime = 1000) {
+/**
+ * Visits a page and waits until React has hydrated it, so the test's first
+ * click lands on a live page rather than the server's HTML. root.tsx marks
+ * <html> once hydrated when the server runs with CYPRESS_SUPPORT=true.
+ */
+function visitAndCheck(url: string) {
   cy.visit(url);
-  cy.location("pathname").should("contain", url).wait(waitTime);
+  cy.location("pathname").should("contain", url);
+  cy.get("html[data-cy-hydrated]");
 }
 
 export const registerCommands = () => {

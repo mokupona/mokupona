@@ -95,20 +95,12 @@ export function oversizedZodUpload() {
   });
 }
 
+/** Creates, reads or deletes a record through the helper process. */
 export function runUploadDbCommand<T>(
   action: UploadDbAction,
   payload?: unknown,
 ) {
-  const encodedPayload = payload
-    ? Cypress.Buffer.from(JSON.stringify(payload)).toString("base64")
-    : "";
-  const payloadArg = encodedPayload ? ` "${encodedPayload}"` : "";
-
-  return cy
-    .exec(
-      `npx cross-env LOG_LEVEL=silent tsx ./cypress/support/upload-test-records.ts "${action}"${payloadArg}`,
-    )
-    .then(({ stdout }) => JSON.parse(stdout) as T) as Cypress.Chainable<T>;
+  return cy.task<T>("records", { action, payload: payload ?? {} });
 }
 
 export function submitMultipartRequest({

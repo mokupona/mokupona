@@ -240,7 +240,7 @@ async function createTestEvent(
     select: { image: { select: { id: true, storageKey: true } } },
   });
 
-  return outputJson<EventResult>(toEventResult(event, cover));
+  return toEventResult(event, cover);
 }
 
 async function getEvent(
@@ -251,11 +251,9 @@ async function getEvent(
     include: { image: { select: { id: true, storageKey: true } } },
   });
 
-  if (!event) {
-    return outputJson<null>(null);
-  }
+  if (!event) return null;
 
-  return outputJson<EventResult>(toEventResult(event, event.image));
+  return toEventResult(event, event.image);
 }
 
 async function deleteEvent(
@@ -270,7 +268,7 @@ async function deleteEvent(
     await deleteEventRecord(event.id);
   }
 
-  return outputJson({ deleted: Boolean(event) });
+  return { deleted: Boolean(event) };
 }
 
 async function getImage(
@@ -281,7 +279,7 @@ async function getImage(
     select: { id: true, contentType: true, storageKey: true },
   });
 
-  return outputJson<ImageResult>(image);
+  return image satisfies ImageResult;
 }
 
 async function deleteImage(
@@ -291,7 +289,7 @@ async function deleteImage(
     where: { id: payload.payload.id },
   });
 
-  return outputJson({ deleted: true, id: payload.payload.id });
+  return { deleted: true, id: payload.payload.id };
 }
 
 async function createLegacyResponse(
@@ -306,7 +304,7 @@ async function createLegacyResponse(
     },
   });
 
-  return outputJson({ id: response.id, name: response.name });
+  return { id: response.id, name: response.name };
 }
 
 async function createBoardMember(
@@ -329,9 +327,7 @@ async function createBoardMember(
     },
   });
 
-  return outputJson<BoardMemberResult>(
-    toBoardMemberResult(boardMember, boardMember.image ? 1 : 0),
-  );
+  return toBoardMemberResult(boardMember, boardMember.image ? 1 : 0);
 }
 
 async function getBoardMember(
@@ -346,17 +342,13 @@ async function getBoardMember(
     },
   });
 
-  if (!boardMember) {
-    return outputJson<null>(null);
-  }
+  if (!boardMember) return null;
 
   const imageCount = await prisma.image.count({
     where: { boardMember: { id: boardMember.id } },
   });
 
-  return outputJson<BoardMemberResult>(
-    toBoardMemberResult(boardMember, imageCount),
-  );
+  return toBoardMemberResult(boardMember, imageCount);
 }
 
 async function getBoardMemberByName(
@@ -372,17 +364,13 @@ async function getBoardMemberByName(
     },
   });
 
-  if (!boardMember) {
-    return outputJson<null>(null);
-  }
+  if (!boardMember) return null;
 
   const imageCount = await prisma.image.count({
     where: { boardMember: { id: boardMember.id } },
   });
 
-  return outputJson<BoardMemberResult>(
-    toBoardMemberResult(boardMember, imageCount),
-  );
+  return toBoardMemberResult(boardMember, imageCount);
 }
 
 async function deleteBoardMember(
@@ -398,38 +386,37 @@ async function deleteBoardMember(
     await deleteBoardMemberRecord(boardMember.id);
   }
 
-  return outputJson({ deleted: Boolean(boardMember), id: payload.payload.id });
+  return { deleted: Boolean(boardMember), id: payload.payload.id };
 }
 
-function parseCommand(): CommandInput {
-  const action = process.argv[2];
-  const payload = process.argv[3]
-    ? JSON.parse(Buffer.from(process.argv[3], "base64").toString("utf8"))
-    : {};
+const RECORD_ACTIONS = [
+  "create-event",
+  "get-event",
+  "delete-event",
+  "get-image",
+  "delete-image",
+  "create-legacy-response",
+  "create-board-member",
+  "get-board-member",
+  "get-board-member-by-name",
+  "delete-board-member",
+] as const satisfies readonly CommandInput["action"][];
 
-  switch (action) {
-    case "create-event":
-    case "get-event":
-    case "delete-event":
-    case "get-image":
-    case "delete-image":
-    case "create-legacy-response":
-    case "create-board-member":
-    case "get-board-member":
-    case "get-board-member-by-name":
-    case "delete-board-member":
-      return { action, payload } as CommandInput;
-    default:
-      throw new Error(`Unsupported upload test action: ${String(action)}`);
+export type RecordAction = (typeof RECORD_ACTIONS)[number];
+
+function parseCommand(action: string, payload: unknown): CommandInput {
+  if (!RECORD_ACTIONS.some((known) => known === action)) {
+    throw new Error(`Unsupported upload test action: ${String(action)}`);
   }
+  return { action, payload: payload ?? {} } as CommandInput;
 }
 
-function outputJson<T>(value: T) {
-  process.stdout.write(JSON.stringify(value));
-}
-
-async function main() {
-  const command = parseCommand();
+/**
+ * Creates, reads or deletes the records the upload specs work with. Returns
+ * what the spec reads back: a record, null, or a small confirmation.
+ */
+export async function runRecordCommand(action: string, payload: unknown) {
+  const command = parseCommand(action, payload);
 
   switch (command.action) {
     case "create-event":
@@ -454,12 +441,3 @@ async function main() {
       return deleteBoardMember(command);
   }
 }
-
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });

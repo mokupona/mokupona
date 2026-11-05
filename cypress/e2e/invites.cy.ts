@@ -7,17 +7,7 @@ function createInviteToken(
   role: "user" | "moderator",
   expired = false,
 ) {
-  return cy
-    .exec(
-      `npx tsx ./cypress/support/create-invite.ts "${email}" "${role}" ${
-        expired ? "expired" : ""
-      }`,
-    )
-    .then(({ stdout }) => {
-      return stdout
-        .replace(/.*<token>(?<token>.*)<\/token>.*/s, "$<token>")
-        .trim();
-    });
+  return cy.task<string>("createInvite", { email, role, expired });
 }
 
 function createAndVisitInvite(
