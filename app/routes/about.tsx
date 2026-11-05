@@ -195,14 +195,9 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
           {t("about.team.heading")}
         </SectionDivider>
 
-        <div className="mb-14 flex max-w-2xl flex-col gap-5">
-          <p className="text-muted-foreground text-base font-light whitespace-pre-line md:text-lg">
-            {t("about.team.body")}
-          </p>
-          <Button className="w-fit" onClick={openSignup}>
-            {t("about.team.button")}
-          </Button>
-        </div>
+        <p className="text-muted-foreground mb-14 max-w-2xl text-base font-light whitespace-pre-line md:text-lg">
+          {t("about.team.body")}
+        </p>
 
         <h2 className="mb-6 text-xl font-light tracking-tight md:text-2xl">
           {t("about.hallOfFame")}
