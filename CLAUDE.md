@@ -86,8 +86,9 @@ smoke tests select elements by role and accessible name.
   `chore/remove-fly-config` or `feat/gallery-lightbox`. Types are `feat`, `fix`,
   `chore`, `docs`, `refactor`, `ci` and `test`. Never use generic or
   auto-generated names such as `claude/<random-words>`, `ccr-<id>`, `dev-2`,
-  `patch-1` or `update`. If a session gives you a generic branch name, ask the
-  user before creating or pushing a specifically named one.
+  `patch-1` or `update`. If a session gives you a generic branch name, don't
+  use it: pick a specific name that follows this rule yourself and push to
+  that. No need to ask the user first.
 - Commit messages: imperative subject line; conventional prefixes
   (`fix:`, `chore:`, `ci:`) are welcome but not required.
 - `main` is protected. `.github/CODEOWNERS` lists `@Apsysikal` and `@MrTarahb`,
