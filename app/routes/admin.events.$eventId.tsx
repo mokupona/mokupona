@@ -3,15 +3,19 @@ import { Form, Link } from "react-router";
 import type { Route } from "./+types/admin.events.$eventId";
 
 import { Button, buttonVariants } from "~/components/ui/button";
+import { AdminEventQrCode } from "~/features/events/components/admin-event-qr-code";
 import { EventView } from "~/features/events/components/event-view";
 import { toEventDetailModel } from "~/features/events/view-models.server";
 import { getEventById } from "~/models/event.server";
-import { requireFound } from "~/shared/http.server";
+import { getDomainUrl, requireFound } from "~/shared/http.server";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, request }: Route.LoaderArgs) {
   const event = requireFound(await getEventById(params.eventId));
 
-  return { event: toEventDetailModel(event) };
+  return {
+    event: toEventDetailModel(event),
+    publicUrl: new URL(`/events/${event.id}`, getDomainUrl(request)).href,
+  };
 }
 
 export const meta: Route.MetaFunction = ({ loaderData }) => {
@@ -23,7 +27,7 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
 };
 
 export default function EventPage({ loaderData }: Route.ComponentProps) {
-  const { event } = loaderData;
+  const { event, publicUrl } = loaderData;
 
   return (
     <main className="flex grow flex-col gap-5">
@@ -64,6 +68,8 @@ export default function EventPage({ loaderData }: Route.ComponentProps) {
           </Form>
         </span>
       </div>
+
+      <AdminEventQrCode url={publicUrl} title={event.title} />
 
       <EventView event={event} />
     </main>
