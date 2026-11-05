@@ -1,5 +1,5 @@
 describe("admin site texts", () => {
-  const INTRO = /moku pona runs on volunteers/i;
+  const INTRO = /we cook themed dinners for around forty people/i;
 
   beforeEach(() => {
     cy.loginAsRole("moderator");
@@ -9,7 +9,9 @@ describe("admin site texts", () => {
     const wording = `we cook, we host, we wash up (${Date.now()})`;
 
     cy.visitAndCheck("/admin/texts");
-    cy.findByPlaceholderText(/search all texts/i).type("runs on volunteers");
+    cy.findByPlaceholderText(/search all texts/i).type(
+      "themed dinners for around forty",
+    );
     cy.findByRole("link", { name: /intro.*about/i }).click();
     cy.location("pathname").should("equal", "/admin/texts/about");
 
