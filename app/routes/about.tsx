@@ -131,7 +131,6 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
   const t = useText();
   const [signupOpen, setSignupOpen] = useState(false);
   const openSignup = () => setSignupOpen(true);
-  const volunteersBody = t("about.volunteers.body");
 
   return (
     <main className="grow pt-14 pb-32 md:pt-20">
@@ -147,24 +146,15 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
         </div>
       </PageContainer>
 
-      <StorySection
-        eyebrow={t("about.story.eyebrow")}
-        headline={t("about.story.headline")}
-      >
+      <StorySection headline={t("about.story.headline")}>
         <Paragraphs text={t("about.story.body")} />
       </StorySection>
 
-      <FeatureSection
-        eyebrow={t("about.why.eyebrow")}
-        headline={t("about.why.headline")}
-      >
+      <FeatureSection headline={t("about.why.headline")}>
         <Paragraphs text={t("about.why.body")} />
       </FeatureSection>
 
-      <StorySection
-        eyebrow={t("about.name.eyebrow")}
-        headline={t("about.name.headline")}
-      >
+      <StorySection headline={t("about.name.headline")}>
         <Paragraphs
           text={t("about.name.body")}
           tags={{
@@ -182,10 +172,7 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
         />
       </StorySection>
 
-      <StorySection
-        eyebrow={t("about.what.eyebrow")}
-        headline={t("about.what.headline")}
-      >
+      <StorySection headline={t("about.what.headline")}>
         <Paragraphs text={t("about.what.body")} />
       </StorySection>
 
@@ -211,21 +198,15 @@ export default function AboutPage({ loaderData }: Route.ComponentProps) {
 
         {volunteers.length > 0 ? (
           <div className="mt-16">
-            <h2 className="mb-3 text-xl font-light tracking-tight md:text-2xl">
+            <h2 className="mb-6 text-xl font-light tracking-tight md:text-2xl">
               {t("about.volunteers.heading")}
             </h2>
-            {volunteersBody ? (
-              <p className="text-muted-foreground mb-8 max-w-2xl text-base font-light whitespace-pre-line md:text-lg">
-                {volunteersBody}
-              </p>
-            ) : null}
             <PersonGrid people={volunteers} />
           </div>
         ) : null}
       </PageContainer>
 
       <FeatureSection
-        eyebrow={t("about.join.eyebrow")}
         headline={t("about.join.headline")}
         className="pb-0 md:pb-0"
       >
@@ -255,23 +236,18 @@ function Paragraphs({ text, tags }: { text: string; tags?: RichTextTags }) {
 
 /** Heading on the left, story on the right — the page's main rhythm. */
 function StorySection({
-  eyebrow,
   headline,
   children,
 }: {
-  eyebrow: string;
   headline: string;
   children: ReactNode;
 }) {
   return (
     <PageContainer as="section">
       <div className="grid items-start gap-3 py-14 md:grid-cols-[1fr_1.2fr] md:gap-12 md:py-24">
-        <div className="flex flex-col gap-3 md:gap-4">
-          <Eyebrow>{eyebrow}</Eyebrow>
-          <h2 className="text-2xl leading-tight font-light tracking-tight md:text-3xl">
-            {headline}
-          </h2>
-        </div>
+        <h2 className="text-2xl leading-tight font-light tracking-tight md:text-3xl">
+          {headline}
+        </h2>
         <div className="text-muted-foreground flex flex-col gap-4 text-base font-light md:text-lg">
           {children}
         </div>
@@ -282,12 +258,10 @@ function StorySection({
 
 /** A single wide column with a larger headline, for the page's big moments. */
 function FeatureSection({
-  eyebrow,
   headline,
   className,
   children,
 }: {
-  eyebrow: string;
   headline: string;
   className?: string;
   children: ReactNode;
@@ -301,7 +275,6 @@ function FeatureSection({
         )}
       >
         <HandDrawnRule className="text-crayon/45 w-32" />
-        <Eyebrow>{eyebrow}</Eyebrow>
         <h2 className="text-3xl leading-tight font-light tracking-tight text-balance md:text-4xl">
           {headline}
         </h2>
