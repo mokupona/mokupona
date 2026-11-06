@@ -22,7 +22,11 @@ export const SIGNUP_MAIL_ORDER_BY = [
   { id: "asc" },
 ] satisfies Prisma.SignupMailOrderByWithRelationInput[];
 
-/** Keeps a record of a mail that went out about a signup. */
+/**
+ * Keeps a record of a mail that went out about a signup. The signup mail
+ * itself (seat confirmed or waiting list) also clears an admin's mark of
+ * whether it went out, so the record speaks from then on.
+ */
 export async function recordSignupMail({
   submissionId,
   kind,
@@ -39,9 +43,21 @@ export async function recordSignupMail({
   /** The admin who sent it; null when it went out on its own at signup. */
   sentById?: string | null;
 }): Promise<void> {
-  await prisma.signupMail.create({
+  const record = prisma.signupMail.create({
     data: { submissionId, kind, recipient, subject, message, sentById },
   });
+  if (kind !== "confirmed" && kind !== "waitlisted") {
+    await record;
+    return;
+  }
+
+  await prisma.$transaction([
+    record,
+    prisma.formSubmission.update({
+      where: { id: submissionId },
+      data: { confirmationMarkedSent: null },
+    }),
+  ]);
 }
 
 /**
@@ -63,6 +79,7 @@ export async function getSignupMailState({
     select: {
       status: true,
       mailsTracked: true,
+      confirmationMarkedSent: true,
       mails: { orderBy: SIGNUP_MAIL_ORDER_BY, select: SIGNUP_MAIL_SELECT },
     },
   });
@@ -71,6 +88,7 @@ export async function getSignupMailState({
   return {
     status: toSignupStatus(submission.status),
     mailsTracked: submission.mailsTracked,
+    markedSent: submission.confirmationMarkedSent,
     mails: submission.mails.flatMap(toSentSignupMail),
   };
 }

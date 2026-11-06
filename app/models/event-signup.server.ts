@@ -5,6 +5,10 @@ import { FormVersionChangedError } from "./form-submission.server";
 import { prisma } from "~/db.server";
 import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import {
+  MAX_DONATION_RAPPEN,
+  type PaymentMethod,
+} from "~/features/signup-form/payments";
+import {
   ACTIVE_SIGNUP_STATUSES,
   decideSignupStatus,
   normalizeSignupEmail,
@@ -182,7 +186,9 @@ export async function updateSignupStatus({
 
     await tx.formSubmission.update({
       where: { id: submissionId },
-      data: { status },
+      // a mark said whether the mail for the old status went out; the new
+      // status calls for another mail
+      data: { status, confirmationMarkedSent: null },
     });
 
     return { previous };
@@ -191,7 +197,8 @@ export async function updateSignupStatus({
 
 /**
  * The admin's own bookkeeping for a signup: which halves of the payment are
- * in, and a note. Touches nothing the guest or the seats depend on.
+ * in and how they came, which mails went out by hand, and a note. Touches
+ * nothing the guest or the seats depend on.
  */
 export async function updateSignupBookkeeping({
   eventId,
@@ -203,6 +210,10 @@ export async function updateSignupBookkeeping({
   data: {
     firstHalfPaid?: boolean;
     secondHalfPaid?: boolean;
+    firstHalfMethod?: PaymentMethod;
+    secondHalfMethod?: PaymentMethod;
+    confirmationMarkedSent?: boolean | null;
+    paymentReminderSent?: boolean;
     adminNote?: string;
   };
 }): Promise<void> {
@@ -222,6 +233,58 @@ export async function updateSignupBookkeeping({
     data,
   });
   if (count === 0) throw new SignupNotFoundError();
+}
+
+/**
+ * The admin's bookkeeping for one person in a signup: whether they've
+ * arrived, and what they gave. `guestIndex` is their place in the booking
+ * (0 is the signer); one past the party is refused like a missing signup.
+ */
+export async function updateSignupGuest({
+  eventId,
+  submissionId,
+  guestIndex,
+  data,
+}: {
+  eventId: string;
+  submissionId: string;
+  guestIndex: number;
+  data: {
+    arrivedAt?: Date | null;
+    donationRappen?: number | null;
+    donationMethod?: PaymentMethod;
+  };
+}): Promise<void> {
+  if (
+    data.donationRappen != null &&
+    (!Number.isInteger(data.donationRappen) ||
+      data.donationRappen < 0 ||
+      data.donationRappen > MAX_DONATION_RAPPEN)
+  ) {
+    throw new RangeError("A donation is a whole number of Rappen in range");
+  }
+
+  const submission = await prisma.formSubmission.findFirst({
+    where: {
+      id: submissionId,
+      formVersion: { form: { event: { id: eventId } } },
+    },
+    select: { seats: true },
+  });
+  if (
+    !submission ||
+    !Number.isInteger(guestIndex) ||
+    guestIndex < 0 ||
+    guestIndex >= submission.seats
+  ) {
+    throw new SignupNotFoundError();
+  }
+
+  await prisma.signupGuest.upsert({
+    where: { submissionId_guestIndex: { submissionId, guestIndex } },
+    create: { submissionId, guestIndex, ...data },
+    update: data,
+  });
 }
 
 export interface SeatCounts {

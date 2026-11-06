@@ -3,6 +3,10 @@ import { z } from "zod";
 import { LIVE_DATA_TABLES, type LiveDataCounts } from "./tables";
 
 import {
+  DEFAULT_TWINT_FEES,
+  toPaymentMethod,
+} from "~/features/signup-form/payments";
+import {
   normalizeSignupEmail,
   partySize,
   toSignupStatus,
@@ -81,6 +85,11 @@ const formSubmissionRow = z
     firstHalfPaid: z.boolean().optional(),
     secondHalfPaid: z.boolean().optional(),
     adminNote: z.string().optional(),
+    // how each half came in and the mails ticked by hand: added later still
+    firstHalfMethod: z.string().optional(),
+    secondHalfMethod: z.string().optional(),
+    confirmationMarkedSent: z.boolean().nullable().optional(),
+    paymentReminderSent: z.boolean().optional(),
     createdAt: dateTime,
   })
   .transform(
@@ -91,6 +100,10 @@ const formSubmissionRow = z
       firstHalfPaid,
       secondHalfPaid,
       adminNote,
+      firstHalfMethod,
+      secondHalfMethod,
+      confirmationMarkedSent,
+      paymentReminderSent,
       ...row
     }) => {
       const answers = Array.isArray(row.answers) ? {} : row.answers;
@@ -106,9 +119,26 @@ const formSubmissionRow = z
         firstHalfPaid: firstHalfPaid ?? false,
         secondHalfPaid: secondHalfPaid ?? false,
         adminNote: adminNote ?? "",
+        firstHalfMethod: toPaymentMethod(firstHalfMethod ?? ""),
+        secondHalfMethod: toPaymentMethod(secondHalfMethod ?? ""),
+        confirmationMarkedSent: confirmationMarkedSent ?? null,
+        paymentReminderSent: paymentReminderSent ?? false,
       };
     },
   );
+
+// the admin's arrivals and donations per person in a signup; a person
+// nobody ticked anything for has no row
+const signupGuestRow = z.object({
+  id,
+  submissionId: id,
+  guestIndex: int.nonnegative(),
+  arrivedAt: dateTime.nullable(),
+  donationRappen: int.nonnegative().nullable(),
+  donationMethod: z.string().transform(toPaymentMethod),
+  createdAt: dateTime,
+  updatedAt: dateTime,
+});
 
 const eventRow = z
   .object({
@@ -133,6 +163,14 @@ const eventRow = z
     confirmedMailMessage: nullableText.default(null),
     waitlistMailSubject: nullableText.default(null),
     waitlistMailMessage: nullableText.default(null),
+    // added later still: a live site on older code has the default fees
+    twintFeePercent: z
+      .number()
+      .nonnegative()
+      .default(DEFAULT_TWINT_FEES.percent),
+    twintFeeFixedRappen: int
+      .nonnegative()
+      .default(DEFAULT_TWINT_FEES.fixedRappen),
     imageId: id.nullable(),
     addressId: id,
     formId: id,
@@ -217,6 +255,8 @@ export const liveDataTablesSchema = z.object({
   forms: z.array(formRow),
   formVersions: z.array(formVersionRow),
   formSubmissions: z.array(formSubmissionRow),
+  // added after format version 1 shipped, like the tables at the end
+  signupGuests: z.array(signupGuestRow).default([]),
   events: z.array(eventRow),
   eventResponses: z.array(eventResponseRow),
   eventGalleryImages: z.array(eventGalleryImageRow),
@@ -234,6 +274,7 @@ export type LiveDataImageRow = LiveDataTables["images"][number];
 
 // tables a live site running older code does not send at all
 const LATER_TABLES = new Set<string>([
+  "signupGuests",
   "volunteers",
   "eventVolunteers",
   "siteTexts",

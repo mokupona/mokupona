@@ -6,6 +6,8 @@ import {
   type BookingSummary,
   type SummaryRow,
 } from "./booking-summary";
+import { EMPTY_GUEST_BOOKKEEPING, type GuestBookkeeping } from "./bookkeeping";
+import { toPaymentMethod, type PaymentMethod } from "./payments";
 import { toSentSignupMail, type SentSignupMail } from "./signup-mails";
 import { toSignupStatus, type SignupStatus } from "./signup-status";
 
@@ -27,11 +29,22 @@ export interface SignupBooking {
   isLegacy: boolean;
   /** The signer's own address, as they typed it. */
   signerEmail: string;
-  /** Admin bookkeeping: whether each half of the payment is in. */
+  /** Admin bookkeeping: whether each half of the payment is in, and how. */
   firstHalfPaid: boolean;
   secondHalfPaid: boolean;
+  firstHalfMethod: PaymentMethod;
+  secondHalfMethod: PaymentMethod;
+  /**
+   * Admin bookkeeping: whether the mail the status calls for went out, by
+   * their own mark; null goes by `mails`.
+   */
+  confirmationMarkedSent: boolean | null;
+  /** Admin bookkeeping: whether the party was reminded to pay. */
+  paymentReminderSent: boolean;
   /** Admin bookkeeping: free text, never shown to the guest. */
   adminNote: string;
+  /** Admin bookkeeping per person, in the order of `booking.guests`. */
+  guestBookkeeping: GuestBookkeeping[];
   /**
    * False when the site didn't keep track of this signup's mails (it's from
    * before that, or older still): no record doesn't mean no mail.
@@ -68,6 +81,8 @@ export async function getSignupBookingsForEvent(
       return [];
     }
 
+    const booking = summarizeBooking(formFields, answers, prices, t);
+
     return [
       {
         submissionId: submission.id,
@@ -77,10 +92,18 @@ export async function getSignupBookingsForEvent(
         signerEmail: asString(answers.email),
         firstHalfPaid: submission.firstHalfPaid,
         secondHalfPaid: submission.secondHalfPaid,
+        firstHalfMethod: toPaymentMethod(submission.firstHalfMethod),
+        secondHalfMethod: toPaymentMethod(submission.secondHalfMethod),
+        confirmationMarkedSent: submission.confirmationMarkedSent,
+        paymentReminderSent: submission.paymentReminderSent,
         adminNote: submission.adminNote,
+        guestBookkeeping: perGuest(
+          booking.guests.length,
+          submission.guestBookkeeping,
+        ),
         mailsTracked: submission.mailsTracked,
         mails: submission.mails.flatMap(toSentSignupMail),
-        booking: summarizeBooking(formFields, answers, prices, t),
+        booking,
       },
     ];
   });
@@ -91,10 +114,15 @@ export async function getSignupBookingsForEvent(
     createdAt: row.createdAt,
     isLegacy: true,
     signerEmail: row.email,
-    // pre-form signups have no payment bookkeeping; the page doesn't offer it
+    // pre-form signups have no bookkeeping; the page doesn't offer it
     firstHalfPaid: false,
     secondHalfPaid: false,
+    firstHalfMethod: "twint",
+    secondHalfMethod: "twint",
+    confirmationMarkedSent: null,
+    paymentReminderSent: false,
     adminNote: "",
+    guestBookkeeping: [EMPTY_GUEST_BOOKKEEPING],
     mailsTracked: false,
     mails: [],
     booking: legacyBooking(row, prices, t),
@@ -103,6 +131,29 @@ export async function getSignupBookingsForEvent(
   return [...legacy, ...bookings].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
   );
+}
+
+/** The stored rows laid out by guest; a guest without a row has nothing yet. */
+function perGuest(
+  guests: number,
+  rows: readonly {
+    guestIndex: number;
+    arrivedAt: Date | null;
+    donationRappen: number | null;
+    donationMethod: string;
+  }[],
+): GuestBookkeeping[] {
+  const byIndex = new Map(rows.map((row) => [row.guestIndex, row]));
+
+  return Array.from({ length: guests }, (_, index): GuestBookkeeping => {
+    const row = byIndex.get(index);
+    if (!row) return EMPTY_GUEST_BOOKKEEPING;
+    return {
+      arrivedAt: row.arrivedAt,
+      donation: row.donationRappen,
+      donationMethod: toPaymentMethod(row.donationMethod),
+    };
+  });
 }
 
 /** A pre-form signup has one guest, with the answers it was stored with. */

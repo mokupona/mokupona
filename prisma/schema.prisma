@@ -133,6 +133,11 @@ model Event {
   confirmedMailMessage String?
   waitlistMailSubject  String?
   waitlistMailMessage  String?
+  // what TWINT keeps of each payment made through it, for the money received
+  // on the signup sheet: this share of the amount plus a fixed sum. Cash
+  // payments cost nothing.
+  twintFeePercent      Float   @default(1.5)
+  twintFeeFixedRappen  Int     @default(30)
 
   // the cover slot — deleting the image leaves the event standing (SetNull)
   image   Image?  @relation(fields: [imageId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -214,6 +219,17 @@ model FormSubmission {
   // the party owes has come in. Never shown to the guest.
   firstHalfPaid  Boolean @default(false)
   secondHalfPaid Boolean @default(false)
+  // how each half came in: "twint" or "cash"
+  // (app/features/signup-form/payments.ts). TWINT keeps a fee of each.
+  firstHalfMethod  String @default("twint")
+  secondHalfMethod String @default("twint")
+  // an admin's own mark of whether the mail the status calls for (the seat
+  // confirmation, or the waiting-list mail) went out, for mails sent by hand
+  // or lost on the way. null goes by the SignupMail records. Cleared when the
+  // status changes and when the site sends that mail itself.
+  confirmationMarkedSent Boolean?
+  // ticked by an admin once the party has been reminded to pay
+  paymentReminderSent    Boolean  @default(false)
   // free text for the admin team, e.g. "pays by transfer, allergy call"
   adminNote String @default("")
   // false for signups stored before the site kept a record of the mails it
@@ -227,6 +243,31 @@ model FormSubmission {
   formVersionId String
 
   mails SignupMail[]
+
+  guestBookkeeping SignupGuest[]
+}
+
+// The admin's bookkeeping for one person in a signup, kept on the signup
+// sheet during the dinner. Who the person is stays in FormSubmission.answers;
+// a person nobody has ticked or noted anything for has no row.
+model SignupGuest {
+  id             String    @id @default(cuid())
+  // their place in the booking: 0 is the signer, then the friends in the
+  // order the signer gave them. Fixed at signup, like FormSubmission.seats.
+  guestIndex     Int
+  arrivedAt      DateTime?
+  // what they gave on the night, in Rappen; null when nothing is entered
+  donationRappen Int?
+  // "twint" or "cash", like the payment halves
+  donationMethod String    @default("twint")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  submissionId String
+
+  @@unique([submissionId, guestIndex])
 }
 
 // One mail that went out about a signup, so the signup sheet can show who

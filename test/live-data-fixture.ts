@@ -5,8 +5,9 @@ const stamps = { createdAt: at, updatedAt: at };
 
 /**
  * A small but complete live-data copy: one past event with a cover, a form
- * with one signup in each signup table, a gallery photo, a board member and
- * a volunteer credited on the event.
+ * with one signup in each signup table (the current one with a person ticked
+ * as arrived), a gallery photo, a board member and a volunteer credited on
+ * the event.
  * Ids are prefixed so several fixtures can be told apart.
  */
 export function liveDataFixture(
@@ -94,7 +95,22 @@ export function liveDataFixture(
         firstHalfPaid: true,
         secondHalfPaid: false,
         adminNote: "Pays the second half by transfer in December",
+        firstHalfMethod: "cash",
+        secondHalfMethod: "twint",
+        confirmationMarkedSent: true,
+        paymentReminderSent: true,
         createdAt: at,
+      },
+    ],
+    signupGuests: [
+      {
+        id: id("signup_guest"),
+        submissionId: id("submission"),
+        guestIndex: 0,
+        arrivedAt: new Date("2025-02-01T18:05:00.000Z"),
+        donationRappen: 750,
+        donationMethod: "cash",
+        ...stamps,
       },
     ],
     events: [
@@ -115,6 +131,8 @@ export function liveDataFixture(
         confirmedMailMessage: null,
         waitlistMailSubject: null,
         waitlistMailMessage: "Fingers crossed, {name}.",
+        twintFeePercent: 1.3,
+        twintFeeFixedRappen: 25,
         imageId: id("cover"),
         addressId: id("address"),
         formId: id("form"),
@@ -183,6 +201,7 @@ export const EMPTY_LIVE_DATA: LiveDataTables = {
   forms: [],
   formVersions: [],
   formSubmissions: [],
+  signupGuests: [],
   events: [],
   eventResponses: [],
   eventGalleryImages: [],

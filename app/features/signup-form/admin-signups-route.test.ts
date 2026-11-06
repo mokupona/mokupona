@@ -500,3 +500,225 @@ describe("writing to a signup from the signup sheet", () => {
     },
   );
 });
+
+/** For the bookkeeping intents: what the action answered, and with what status. */
+async function postBookkeeping(
+  eventId: string,
+  body: Record<string, string> | [string, string][],
+) {
+  const { result } = await callAction(eventId, body);
+  const reply = result as unknown as {
+    data: { saved?: string; error?: string };
+    init: ResponseInit | null;
+  };
+  return { ...reply.data, status: reply.init?.status ?? 200 };
+}
+
+function submissionOf(id: string) {
+  return prisma.formSubmission.findUniqueOrThrow({
+    where: { id },
+    include: { guestBookkeeping: { orderBy: { guestIndex: "asc" } } },
+  });
+}
+
+describe("bookkeeping on the signup sheet during the dinner", () => {
+  it("ticks a person as arrived and back, without touching the others", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace", "Alan"]);
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "arrival",
+      submissionId: signup.id,
+      guest: "1",
+      arrived: "on",
+    });
+
+    expect(reply).toMatchObject({ saved: "arrival", status: 200 });
+    let { guestBookkeeping } = await submissionOf(signup.id);
+    expect(guestBookkeeping).toHaveLength(1);
+    expect(guestBookkeeping[0].guestIndex).toBe(1);
+    expect(guestBookkeeping[0].arrivedAt).toBeInstanceOf(Date);
+
+    await postBookkeeping(event.id, {
+      intent: "arrival",
+      submissionId: signup.id,
+      guest: "1",
+    });
+    ({ guestBookkeeping } = await submissionOf(signup.id));
+    expect(guestBookkeeping[0].arrivedAt).toBeNull();
+  });
+
+  it("notes a person's donation and how they gave it", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "donation",
+      submissionId: signup.id,
+      guest: "0",
+      amount: "7,50",
+      method: "cash",
+    });
+
+    expect(reply).toMatchObject({ saved: "donation", status: 200 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 0, donationRappen: 750, donationMethod: "cash" },
+    ]);
+
+    // an emptied field takes the donation back out
+    await postBookkeeping(event.id, {
+      intent: "donation",
+      submissionId: signup.id,
+      guest: "0",
+      amount: "",
+      method: "cash",
+    });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { donationRappen: null },
+    ]);
+  });
+
+  it("refuses a donation that isn't an amount, and a person beyond the party", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "donation",
+      submissionId: signup.id,
+      guest: "0",
+      amount: "ten",
+      method: "twint",
+    });
+    expect(reply.status).toBe(400);
+    expect(reply.error).toMatch(/amount in francs/);
+
+    await expect(
+      postBookkeeping(event.id, {
+        intent: "arrival",
+        submissionId: signup.id,
+        guest: "1",
+        arrived: "on",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      postBookkeeping(event.id, {
+        intent: "donation",
+        submissionId: signup.id,
+        guest: "0",
+        amount: "5",
+        method: "cheque",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toEqual([]);
+  });
+
+  it("keeps how each half came in alongside the ticks", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "cash",
+      secondHalfMethod: "twint",
+    });
+
+    expect(await submissionOf(signup.id)).toMatchObject({
+      firstHalfPaid: true,
+      firstHalfMethod: "cash",
+      secondHalfPaid: false,
+      secondHalfMethod: "twint",
+    });
+  });
+
+  it("ticks the payment reminder", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    await postBookkeeping(event.id, {
+      intent: "reminder",
+      submissionId: signup.id,
+      paymentReminderSent: "on",
+    });
+
+    expect((await submissionOf(signup.id)).paymentReminderSent).toBe(true);
+  });
+
+  it("sets the event's TWINT fees, and refuses fees that aren't numbers", async () => {
+    const { event } = await createTestEvent(5);
+
+    const saved = await postBookkeeping(event.id, {
+      intent: "twint-fees",
+      percent: "1,3",
+      fixed: "0.25",
+    });
+    expect(saved).toMatchObject({ saved: "twint-fees", status: 200 });
+    expect(
+      await prisma.event.findUniqueOrThrow({ where: { id: event.id } }),
+    ).toMatchObject({ twintFeePercent: 1.3, twintFeeFixedRappen: 25 });
+
+    const refused = await postBookkeeping(event.id, {
+      intent: "twint-fees",
+      percent: "",
+      fixed: "0.25",
+    });
+    expect(refused.status).toBe(400);
+    expect(
+      (await prisma.event.findUniqueOrThrow({ where: { id: event.id } }))
+        .twintFeePercent,
+    ).toBe(1.3);
+  });
+});
+
+describe("ticking the confirmation by hand", () => {
+  it("counts a confirmation ticked by hand as sent, and won't send it again", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    await postBookkeeping(event.id, {
+      intent: "confirmation-mark",
+      submissionId: signup.id,
+      sent: "on",
+    });
+    expect((await submissionOf(signup.id)).confirmationMarkedSent).toBe(true);
+
+    const { toast } = await post(event.id, {
+      intent: "send-confirmation",
+      submissionId: signup.id,
+    });
+    expect(toast).toMatchObject({ title: "Already marked as sent" });
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a confirmation ticked as not sent again, and lets the record speak after", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+    await prisma.signupMail.create({
+      data: {
+        submissionId: signup.id,
+        kind: "confirmed",
+        recipient: "ada@example.com",
+      },
+    });
+
+    // unticked: it never arrived
+    await postBookkeeping(event.id, {
+      intent: "confirmation-mark",
+      submissionId: signup.id,
+    });
+    expect((await submissionOf(signup.id)).confirmationMarkedSent).toBe(false);
+
+    const { toast } = await post(event.id, {
+      intent: "send-confirmation",
+      submissionId: signup.id,
+    });
+
+    expect(toast).toMatchObject({
+      type: "success",
+      title: "Confirmation sent",
+    });
+    expect(sendTemplateMock).toHaveBeenCalledOnce();
+    expect((await submissionOf(signup.id)).confirmationMarkedSent).toBeNull();
+  });
+});

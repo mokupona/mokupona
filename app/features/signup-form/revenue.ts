@@ -52,7 +52,17 @@ export function summarizeRevenue(parties: RevenueParty[]): RevenueSummary {
   };
 }
 
-/** The admin reads money as plain numbers; CHF follows the amount. */
+/**
+ * The admin reads money as plain numbers; CHF follows the amount. Whole
+ * francs stay whole, anything else shows its Rappen: "37.50 CHF".
+ */
 export function formatCHF(amount: number): string {
-  return `${amount} CHF`;
+  return Number.isInteger(amount)
+    ? `${amount} CHF`
+    : `${amount.toFixed(2)} CHF`;
+}
+
+/** An amount in Rappen (100 to the franc), read the same way. */
+export function formatRappen(amount: number): string {
+  return formatCHF(amount / 100);
 }

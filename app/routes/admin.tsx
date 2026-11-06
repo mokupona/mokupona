@@ -44,21 +44,37 @@ export const meta: Route.MetaFunction = () => {
   return [{ title: "Admin" }];
 };
 
-/** A page that holds a wide table sets `handle = { wideLayout: true }`. */
-function usesWideLayout(matches: ReturnType<typeof useMatches>) {
-  return matches.some(
-    (match) =>
-      (match.handle as { wideLayout?: boolean } | undefined)?.wideLayout,
-  );
+/**
+ * A page that holds a wide table sets `handle = { wideLayout: true }`; one
+ * that should take the whole window, like a sheet used during a dinner, sets
+ * `wideLayout: "full"`.
+ */
+function wideLayoutOf(
+  matches: ReturnType<typeof useMatches>,
+): boolean | "full" {
+  let wide: boolean | "full" = false;
+  for (const match of matches) {
+    const value = (
+      match.handle as { wideLayout?: boolean | "full" } | undefined
+    )?.wideLayout;
+    if (value === "full") return "full";
+    if (value) wide = true;
+  }
+  return wide;
 }
 
 export default function AdminLayout({ loaderData }: Route.ComponentProps) {
-  const wide = usesWideLayout(useMatches());
+  const wide = wideLayoutOf(useMatches());
 
   return (
     <>
       <AdminTabs counts={loaderData.counts} isAdmin={loaderData.isAdmin} />
-      <PageContainer className={cn("grow pt-7 pb-20", wide && "max-w-7xl")}>
+      <PageContainer
+        className={cn(
+          "grow pt-7 pb-20",
+          wide === "full" ? "max-w-none md:px-6" : wide && "max-w-7xl",
+        )}
+      >
         <Outlet />
       </PageContainer>
     </>

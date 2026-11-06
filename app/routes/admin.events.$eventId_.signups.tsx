@@ -4,7 +4,7 @@ import { data, Form, useFetcher, useNavigation } from "react-router";
 
 import type { Route } from "./+types/admin.events.$eventId_.signups";
 
-import { AdminPageHeader, InitialsAvatar } from "~/components/admin-ui";
+import { AdminPageHeader } from "~/components/admin-ui";
 import { BackLink } from "~/components/section";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
@@ -33,7 +33,11 @@ import {
   getSignupBookingsForEvent,
   type SignupBooking,
 } from "~/features/signup-form/bookings.server";
-import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
+import {
+  EMPTY_GUEST_BOOKKEEPING,
+  MAX_ADMIN_NOTE_LENGTH,
+  type GuestBookkeeping,
+} from "~/features/signup-form/bookkeeping";
 import {
   MAX_SIGNUP_MAIL_MESSAGE_LENGTH,
   MAX_SIGNUP_MAIL_SUBJECT_LENGTH,
@@ -51,7 +55,25 @@ import {
   type HeadcountSummary,
 } from "~/features/signup-form/headcount";
 import {
+  halfPrice,
+  isPaymentMethod,
+  MAX_DONATION_RAPPEN,
+  MAX_TWINT_FEE_FIXED_RAPPEN,
+  MAX_TWINT_FEE_PERCENT,
+  parseChfInput,
+  parsePercentInput,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
+  rappenToInput,
+  summarizeMoneyReceived,
+  type MoneyReceived,
+  type PaymentMethod,
+  type PaymentParty,
+  type TwintFees,
+} from "~/features/signup-form/payments";
+import {
   formatCHF,
+  formatRappen,
   summarizeRevenue,
   type RevenueSummary,
 } from "~/features/signup-form/revenue";
@@ -74,9 +96,10 @@ import {
   getSeatCounts,
   SignupNotFoundError,
   updateSignupBookkeeping,
+  updateSignupGuest,
   updateSignupStatus,
 } from "~/models/event-signup.server";
-import { getEventById } from "~/models/event.server";
+import { getEventById, setEventTwintFees } from "~/models/event.server";
 import { getSignupMailState } from "~/models/signup-mail.server";
 import { getDomainUrl, requireFound } from "~/shared/http.server";
 import { redirectWithToast, type ToastInput } from "~/utils/toast.server";
@@ -96,12 +119,21 @@ interface Party {
   guests: BookingGuest[];
   /** Answers that belong to the signup as a whole. */
   contact: SummaryRow[];
-  /** Admin bookkeeping: whether each half of the payment is in. */
+  /** Admin bookkeeping: whether each half of the payment is in, and how. */
   firstHalfPaid: boolean;
   secondHalfPaid: boolean;
+  firstHalfMethod: PaymentMethod;
+  secondHalfMethod: PaymentMethod;
+  /** Admin bookkeeping: whether the party was reminded to pay. */
+  paymentReminderSent: boolean;
   /** Admin bookkeeping: free text for the team, never shown to the guest. */
   adminNote: string;
-  /** Whether the mail the signup's status calls for has gone out. */
+  /** Admin bookkeeping per person, in the order of `guests`. */
+  guestBookkeeping: GuestBookkeeping[];
+  /**
+   * Whether the mail the signup's status calls for has gone out, by the
+   * site's records or an admin's mark.
+   */
   confirmation: ConfirmationMailState;
   /** False when the site didn't keep track of this signup's mails. */
   mailsTracked: boolean;
@@ -127,7 +159,11 @@ function toParty(signup: SignupBooking): Party {
     contact,
     firstHalfPaid: signup.firstHalfPaid,
     secondHalfPaid: signup.secondHalfPaid,
+    firstHalfMethod: signup.firstHalfMethod,
+    secondHalfMethod: signup.secondHalfMethod,
+    paymentReminderSent: signup.paymentReminderSent,
     adminNote: signup.adminNote,
+    guestBookkeeping: signup.guestBookkeeping,
     // pre-form signups can't be mailed from here: their rows hold no form
     // to rebuild the mail from
     confirmation: signup.isLegacy
@@ -136,6 +172,7 @@ function toParty(signup: SignupBooking): Party {
           status: signup.status,
           mailsTracked: signup.mailsTracked,
           mails: signup.mails,
+          markedSent: signup.confirmationMarkedSent,
         }),
     mailsTracked: signup.mailsTracked,
     mails: signup.mails,
@@ -145,11 +182,29 @@ function toParty(signup: SignupBooking): Party {
   };
 }
 
+/** A party as the money received reads it: its ticked halves and donations. */
+function toPaymentParty(party: Party): PaymentParty {
+  return {
+    status: party.status,
+    total: party.total,
+    firstHalf: { paid: party.firstHalfPaid, method: party.firstHalfMethod },
+    secondHalf: { paid: party.secondHalfPaid, method: party.secondHalfMethod },
+    donations: party.guestBookkeeping.map((guest) => ({
+      amount: guest.donation,
+      method: guest.donationMethod,
+    })),
+  };
+}
+
 export async function loader({ params }: Route.LoaderArgs) {
   const { eventId } = params;
 
   const event = await getEventById(eventId).then(requireFound);
   const prices = bookingPrices(event);
+  const twintFees: TwintFees = {
+    percent: event.twintFeePercent,
+    fixedRappen: event.twintFeeFixedRappen,
+  };
   const t = await getText();
 
   const [bookings, seats] = await Promise.all([
@@ -174,11 +229,119 @@ export async function loader({ params }: Route.LoaderArgs) {
         total: party.total,
       })),
     ),
+    // pre-form signups have no bookkeeping to add up
+    money: summarizeMoneyReceived(
+      parties.filter((party) => !party.isLegacy).map(toPaymentParty),
+      twintFees,
+    ),
+    twintFees,
     headcount: summarizeHeadcount(
-      parties.map((party) => ({ status: party.status, guests: party.guests })),
+      parties.map((party) => ({
+        status: party.status,
+        guests: party.guests.map((guest, guestIndex) => ({
+          isStudent: guest.isStudent,
+          vegetarian: guest.vegetarian,
+          arrived: party.guestBookkeeping[guestIndex]?.arrivedAt != null,
+        })),
+      })),
     ),
     mail: { copyTo: guestMailCopyTo(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
   };
+}
+
+/** The intents that only touch the admin's bookkeeping on a signup. */
+const BOOKKEEPING_INTENTS = [
+  "payments",
+  "note",
+  "confirmation-mark",
+  "reminder",
+] as const;
+
+type BookkeepingIntent = (typeof BOOKKEEPING_INTENTS)[number];
+
+function isBookkeepingIntent(value: unknown): value is BookkeepingIntent {
+  return (
+    typeof value === "string" &&
+    (BOOKKEEPING_INTENTS as readonly string[]).includes(value)
+  );
+}
+
+function readBookkeeping(
+  intent: BookkeepingIntent,
+  formData: FormData,
+): Parameters<typeof updateSignupBookkeeping>[0]["data"] {
+  switch (intent) {
+    case "payments":
+      return {
+        firstHalfPaid: formData.has("firstHalfPaid"),
+        secondHalfPaid: formData.has("secondHalfPaid"),
+        firstHalfMethod: readMethod(formData, "firstHalfMethod"),
+        secondHalfMethod: readMethod(formData, "secondHalfMethod"),
+      };
+    case "note":
+      return { adminNote: readNote(formData) };
+    case "confirmation-mark":
+      return { confirmationMarkedSent: formData.has("sent") };
+    case "reminder":
+      return { paymentReminderSent: formData.has("paymentReminderSent") };
+  }
+}
+
+/** A payment method from the form; left out, it stays as it was. */
+function readMethod(
+  formData: FormData,
+  name: string,
+): PaymentMethod | undefined {
+  const value = formData.get(name);
+  if (value === null) return undefined;
+  if (!isPaymentMethod(value)) {
+    throw new Response("Bad Request", { status: 400 });
+  }
+  return value;
+}
+
+function readGuestIndex(formData: FormData): number {
+  const index = Number(formData.get("guest"));
+  if (!Number.isInteger(index) || index < 0) {
+    throw new Response("Bad Request", { status: 400 });
+  }
+  return index;
+}
+
+/** A person's arrival or donation, checked before anything is stored. */
+function readGuestUpdate(
+  intent: "arrival" | "donation",
+  formData: FormData,
+): Parameters<typeof updateSignupGuest>[0]["data"] | { error: string } {
+  if (intent === "arrival") {
+    return { arrivedAt: formData.has("arrived") ? new Date() : null };
+  }
+
+  const amount = parseChfInput(String(formData.get("amount") ?? ""));
+  if (amount === undefined || (amount ?? 0) > MAX_DONATION_RAPPEN) {
+    return { error: "Enter an amount in francs, like 10 or 7.50." };
+  }
+  return {
+    donationRappen: amount,
+    donationMethod: readMethod(formData, "method"),
+  };
+}
+
+function readTwintFees(formData: FormData): TwintFees | { error: string } {
+  const percent = parsePercentInput(String(formData.get("percent") ?? ""));
+  const fixedRappen = parseChfInput(String(formData.get("fixed") ?? ""));
+
+  if (percent == null || percent > MAX_TWINT_FEE_PERCENT) {
+    return {
+      error: `Enter the share TWINT keeps, from 0 to ${MAX_TWINT_FEE_PERCENT} %, like 1.5.`,
+    };
+  }
+  if (fixedRappen == null || fixedRappen > MAX_TWINT_FEE_FIXED_RAPPEN) {
+    return {
+      error: `Enter the fixed fee in francs, from 0 to ${formatRappen(MAX_TWINT_FEE_FIXED_RAPPEN)}, like 0.30.`,
+    };
+  }
+  return { percent, fixedRappen };
 }
 
 const STATUS_BY_INTENT = {
@@ -203,21 +366,12 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   const formData = await request.formData();
   const intent = formData.get("intent");
 
-  // the payment ticks and the note are the admin's own bookkeeping; they
-  // don't touch the seats, so they skip the status rules below
-  if (intent === "payments" || intent === "note") {
-    const bookkeepingId = formData.get("submissionId");
-    if (typeof bookkeepingId !== "string") {
-      throw new Response("Bad Request", { status: 400 });
-    }
-
-    const update =
-      intent === "payments"
-        ? {
-            firstHalfPaid: formData.has("firstHalfPaid"),
-            secondHalfPaid: formData.has("secondHalfPaid"),
-          }
-        : { adminNote: readNote(formData) };
+  // the payment ticks, the mail ticks and the note are the admin's own
+  // bookkeeping; they don't touch the seats, so they skip the status rules
+  // below
+  if (isBookkeepingIntent(intent)) {
+    const bookkeepingId = readSubmissionId(formData);
+    const update = readBookkeeping(intent, formData);
 
     try {
       await updateSignupBookkeeping({
@@ -245,6 +399,59 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     return data({ saved: intent });
   }
 
+  // a person's arrival and donation, ticked and noted during the dinner
+  if (intent === "arrival" || intent === "donation") {
+    const submissionId = readSubmissionId(formData);
+    const guestIndex = readGuestIndex(formData);
+    const update = readGuestUpdate(intent, formData);
+    if ("error" in update) {
+      return data({ error: update.error }, { status: 400 });
+    }
+
+    try {
+      await updateSignupGuest({
+        eventId,
+        submissionId,
+        guestIndex,
+        data: update,
+      });
+    } catch (reason) {
+      if (reason instanceof SignupNotFoundError) {
+        throw new Response("Not Found", { status: 404 });
+      }
+      throw reason;
+    }
+
+    log.info(
+      {
+        userId: user.id,
+        event: eventId,
+        submission: submissionId,
+        guest: guestIndex,
+        changed: Object.keys(update),
+      },
+      "Admin updated a guest's bookkeeping",
+    );
+
+    return data({ saved: intent });
+  }
+
+  if (intent === "twint-fees") {
+    const fees = readTwintFees(formData);
+    if ("error" in fees) {
+      return data({ error: fees.error }, { status: 400 });
+    }
+
+    await setEventTwintFees(eventId, fees);
+
+    log.info(
+      { userId: user.id, event: eventId, fees },
+      "Admin set the event's TWINT fees",
+    );
+
+    return data({ saved: intent });
+  }
+
   if (intent === "send-confirmation") {
     const submissionId = readSubmissionId(formData);
     const signup = await getSignupMailState({ eventId, submissionId });
@@ -263,6 +470,12 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       return redirectWithToast(page, {
         title: "Already sent",
         description: `${MAIL_NAMES[confirmation.mail]} went out on ${formatAdminTimestamp(confirmation.sentAt)}.`,
+      });
+    }
+    if (confirmation.kind === "marked") {
+      return redirectWithToast(page, {
+        title: "Already marked as sent",
+        description: `Untick "${MAIL_NAMES[confirmation.mail]} sent" first if it should go out from here.`,
       });
     }
 
@@ -523,8 +736,9 @@ function statusToast(
   }
 }
 
-// the party table is wide; the admin layout gives this page the room it needs
-export const handle = { wideLayout: true };
+// the sheet is used at the door during the dinner, so it takes the whole
+// window to show as much of the list at once as it can
+export const handle = { wideLayout: "full" };
 
 export const meta: Route.MetaFunction = ({ loaderData }) => {
   return [
@@ -547,7 +761,8 @@ const SECTIONS: { status: SignupStatus; title: string; empty: string }[] = [
 ];
 
 export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
-  const { event, seats, parties, revenue, headcount, mail } = loaderData;
+  const { event, seats, parties, revenue, money, twintFees, headcount, mail } =
+    loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
   ).length;
@@ -555,6 +770,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
     (party) => party.confirmation.kind === "due",
   ).length;
   const overbookedBy = seats.confirmed - event.slots;
+  const arrived = headcount.confirmed.arrived + headcount.waitlisted.arrived;
 
   return (
     <main className="animate-page-in">
@@ -566,6 +782,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         eyebrow={[
           `${seats.confirmed} / ${event.slots} seats confirmed`,
           ...(seats.waitlisted > 0 ? [`${seats.waitlisted} waiting`] : []),
+          ...(arrived > 0 ? [`${arrived} arrived`] : []),
         ].join(" · ")}
         title={event.title}
         actions={
@@ -579,9 +796,12 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         }
       />
 
-      <RevenueSummary revenue={revenue} />
+      <RevenueSummary revenue={revenue} money={money} />
 
-      <Headcount headcount={headcount} />
+      <div className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <MoneyReceivedSummary money={money} fees={twintFees} />
+        <Headcount headcount={headcount} />
+      </div>
 
       {overbookedBy > 0 ? (
         <Notice>
@@ -599,8 +819,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
       {mailsDue > 0 ? (
         <Notice>
           {mailsDue} {mailsDue === 1 ? "group has" : "groups have"} no
-          confirmation email on record. You can send it from the Confirmation
-          column.
+          confirmation email on record. You can send it from the Emails column,
+          or tick it there if it went out another way.
         </Notice>
       ) : null}
 
@@ -609,6 +829,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
           const rows = parties.filter((party) => party.status === status);
           if (status === "cancelled" && rows.length === 0) return null;
           const total = rows.reduce((sum, party) => sum + party.total, 0);
+          const people = rows.reduce((sum, party) => sum + party.size, 0);
 
           return (
             <section key={status} aria-labelledby={`signups-${status}`}>
@@ -619,6 +840,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                 {title}{" "}
                 <span className="text-muted-foreground text-sm font-normal">
                   {rows.length} {rows.length === 1 ? "group" : "groups"}
+                  {` · ${peopleCount(people)}`}
                   {status === "cancelled" ? null : ` · ${formatCHF(total)}`}
                 </span>
               </h2>
@@ -636,17 +858,35 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function RevenueSummary({ revenue }: { revenue: RevenueSummary }) {
+function RevenueSummary({
+  revenue,
+  money,
+}: {
+  revenue: RevenueSummary;
+  money: MoneyReceived;
+}) {
   return (
-    <section aria-labelledby="revenue-heading" className="mb-8">
+    <section aria-labelledby="revenue-heading" className="mb-6">
       <h2 id="revenue-heading" className="sr-only">
         Expected revenue
       </h2>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Stat
           label="Expected revenue"
           value={formatCHF(revenue.confirmedTotal)}
-          note={`From ${people(revenue.confirmedPeople)} with a confirmed seat`}
+          note={`From ${peopleCount(revenue.confirmedPeople)} with a confirmed seat`}
+          emphasis
+        />
+        <Stat
+          label="Received so far"
+          value={formatRappen(money.net)}
+          note={
+            money.twintFees > 0
+              ? `${formatRappen(money.gross)} came in, less ${formatRappen(money.twintFees)} in TWINT fees`
+              : money.gross > 0
+                ? "Prices and donations ticked so far, no TWINT fees"
+                : "Nothing ticked as paid yet"
+          }
           emphasis
         />
         <Stat
@@ -655,7 +895,7 @@ function RevenueSummary({ revenue }: { revenue: RevenueSummary }) {
           note={
             revenue.waitlistPeople === 0
               ? "Nobody is waiting"
-              : `What ${people(revenue.waitlistPeople)} would pay if every group got a seat`
+              : `What ${peopleCount(revenue.waitlistPeople)} would pay if every group got a seat`
           }
         />
         <Stat
@@ -672,6 +912,193 @@ function RevenueSummary({ revenue }: { revenue: RevenueSummary }) {
   );
 }
 
+function MoneyReceivedSummary({
+  money,
+  fees,
+}: {
+  money: MoneyReceived;
+  fees: TwintFees;
+}) {
+  const { payments, donations } = money;
+  const rows = [
+    {
+      label: "Prices paid",
+      twint: payments.twint,
+      cash: payments.cash,
+    },
+    {
+      label: "Donations",
+      twint: donations.twint,
+      cash: donations.cash,
+    },
+    {
+      label: "Came in",
+      twint: payments.twint + donations.twint,
+      cash: payments.cash + donations.cash,
+      strong: true,
+    },
+  ];
+
+  return (
+    <section aria-labelledby="money-heading">
+      <h2 id="money-heading" className="mb-3 text-lg font-semibold">
+        Money received
+      </h2>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>What</TableHead>
+              <TableHead className="text-right">TWINT</TableHead>
+              <TableHead className="text-right">Cash</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.label} className="hover:bg-transparent">
+                <TableCell
+                  className={cn("py-2", row.strong && "font-semibold")}
+                >
+                  {row.label}
+                </TableCell>
+                <MoneyCell amount={row.twint} strong={row.strong} />
+                <MoneyCell amount={row.cash} strong={row.strong} />
+                <MoneyCell amount={row.twint + row.cash} strong={row.strong} />
+              </TableRow>
+            ))}
+            <TableRow className="hover:bg-transparent">
+              <TableCell className="py-2">
+                TWINT fees
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {money.twintTransactions}{" "}
+                  {money.twintTransactions === 1 ? "payment" : "payments"}
+                </span>
+              </TableCell>
+              <MoneyCell amount={-money.twintFees} />
+              <TableCell className="text-muted-foreground py-2 text-right">
+                —
+              </TableCell>
+              <MoneyCell amount={-money.twintFees} />
+            </TableRow>
+            <TableRow className="hover:bg-transparent">
+              <TableCell className="py-2 font-semibold">What we keep</TableCell>
+              <MoneyCell
+                amount={payments.twint + donations.twint - money.twintFees}
+                strong
+              />
+              <MoneyCell amount={payments.cash + donations.cash} strong />
+              <MoneyCell amount={money.net} strong emphasis />
+            </TableRow>
+          </TableBody>
+        </Table>
+        <div className="flex flex-col gap-4 border-t p-4">
+          <p className="text-sm">
+            {money.outstandingParties === 0 ? (
+              "Every confirmed group has paid in full."
+            ) : (
+              <>
+                Still to come:{" "}
+                <span className="font-semibold tabular-nums">
+                  {formatRappen(money.outstanding)}
+                </span>
+                , the unpaid halves of {money.outstandingParties} confirmed{" "}
+                {money.outstandingParties === 1 ? "group" : "groups"}.
+              </>
+            )}
+          </p>
+          <TwintFeesForm fees={fees} />
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function MoneyCell({
+  amount,
+  strong = false,
+  emphasis = false,
+}: {
+  amount: number;
+  strong?: boolean;
+  emphasis?: boolean;
+}) {
+  return (
+    <TableCell
+      className={cn(
+        "py-2 text-right whitespace-nowrap tabular-nums",
+        strong && "font-semibold",
+        emphasis && "text-primary",
+      )}
+    >
+      {amount < 0 ? `−${formatRappen(-amount)}` : formatRappen(amount)}
+    </TableCell>
+  );
+}
+
+function TwintFeesForm({ fees }: { fees: TwintFees }) {
+  const fetcher = useFetcher<typeof action>();
+  const id = useId();
+  const busy = fetcher.state !== "idle";
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const error = reply && "error" in reply ? reply.error : null;
+  const saved =
+    reply !== undefined && "saved" in reply && reply.saved === "twint-fees";
+
+  return (
+    <fetcher.Form method="post" className="flex flex-col gap-2">
+      <input type="hidden" name="intent" value="twint-fees" />
+      <p className="text-sm font-semibold">TWINT fees for this event</p>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <label htmlFor={`${id}-percent`} className="sr-only">
+          Share TWINT keeps of each payment, in percent
+        </label>
+        <Input
+          id={`${id}-percent`}
+          key={`percent-${fees.percent}`}
+          name="percent"
+          defaultValue={String(fees.percent)}
+          inputMode="decimal"
+          required
+          className="h-9 w-20 text-right tabular-nums"
+        />
+        <span>% of each payment, plus</span>
+        <label htmlFor={`${id}-fixed`} className="sr-only">
+          Fixed fee per payment, in CHF
+        </label>
+        <Input
+          id={`${id}-fixed`}
+          key={`fixed-${fees.fixedRappen}`}
+          name="fixed"
+          defaultValue={rappenToInput(fees.fixedRappen)}
+          inputMode="decimal"
+          required
+          className="h-9 w-20 text-right tabular-nums"
+        />
+        <span>CHF</span>
+        <Button type="submit" size="sm" variant="outline" disabled={busy}>
+          {busy ? "Saving…" : "Save fees"}
+        </Button>
+        {saved ? (
+          <span role="status" className="text-muted-foreground">
+            Saved
+          </span>
+        ) : null}
+      </div>
+      {error ? (
+        <p role="alert" className="text-destructive-light text-sm">
+          {error}
+        </p>
+      ) : null}
+      <p className="text-muted-foreground text-xs">
+        Each half ticked as paid by TWINT and each donation by TWINT counts as
+        one payment. Cash costs nothing.
+      </p>
+    </fetcher.Form>
+  );
+}
+
 function Headcount({ headcount }: { headcount: HeadcountSummary }) {
   const { confirmed, waitlisted } = headcount;
 
@@ -680,6 +1107,12 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
       label: "People",
       confirmed: confirmed.people,
       waitlisted: waitlisted.people,
+      strong: true,
+    },
+    {
+      label: "Arrived",
+      confirmed: confirmed.arrived,
+      waitlisted: waitlisted.arrived,
       strong: true,
     },
     {
@@ -714,7 +1147,7 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
   ];
 
   return (
-    <section aria-labelledby="headcount-heading" className="mb-8">
+    <section aria-labelledby="headcount-heading">
       <h2 id="headcount-heading" className="mb-3 text-lg font-semibold">
         Headcount
       </h2>
@@ -730,18 +1163,20 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.label} className="hover:bg-transparent">
-                <TableCell className={row.strong ? "font-semibold" : undefined}>
+                <TableCell
+                  className={cn("py-2", row.strong && "font-semibold")}
+                >
                   {row.label}
                 </TableCell>
                 <TableCell
                   className={cn(
-                    "text-right tabular-nums",
+                    "py-2 text-right tabular-nums",
                     row.strong && "font-semibold",
                   )}
                 >
                   {row.confirmed}
                 </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
+                <TableCell className="text-muted-foreground py-2 text-right tabular-nums">
                   {row.waitlisted}
                 </TableCell>
               </TableRow>
@@ -753,7 +1188,7 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
   );
 }
 
-function people(count: number) {
+function peopleCount(count: number) {
   return `${count} ${count === 1 ? "person" : "people"}`;
 }
 
@@ -803,7 +1238,11 @@ interface MailSettings {
   replyTo: string;
 }
 
-const TABLE_COLUMNS = 8;
+const TABLE_COLUMNS = 10;
+
+// one row per person: the person's own cells, then the party's cells, which
+// span all of the party's rows
+const CELL = "px-3 py-2 align-top";
 
 function PartyTable({
   parties,
@@ -822,24 +1261,35 @@ function PartyTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>Guest</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead className="text-center">Party</TableHead>
-            <TableHead className="text-right">Price</TableHead>
-            <TableHead>Payments</TableHead>
-            <TableHead>Confirmation</TableHead>
-            <TableHead className="text-right">Signed up</TableHead>
-            <TableHead className="text-right">
+            <TableHead className="px-3 text-center">Arrived</TableHead>
+            <TableHead className="px-3">Guest</TableHead>
+            <TableHead className="px-3 text-right">
+              Price
+              <span className="block font-normal tracking-normal normal-case">
+                full · half
+              </span>
+            </TableHead>
+            <TableHead className="px-3">Donation</TableHead>
+            <TableHead className="border-l px-3 text-center">Party</TableHead>
+            <TableHead className="px-3 text-right">
+              Group price
+              <span className="block font-normal tracking-normal normal-case">
+                full · half
+              </span>
+            </TableHead>
+            <TableHead className="px-3">Payments</TableHead>
+            <TableHead className="px-3">Emails</TableHead>
+            <TableHead className="px-3 text-right">Signed up</TableHead>
+            <TableHead className="px-3 text-right">
               <span className="sr-only">Actions</span>
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {parties.map((party, index) => (
-            <PartyRow
+          {parties.map((party) => (
+            <PartyRows
               key={party.submissionId}
               party={party}
-              index={index}
               seatsLeft={seatsLeft}
               mail={mail}
             />
@@ -860,73 +1310,57 @@ function PartyTable({
   );
 }
 
-function PartyRow({
+function PartyRows({
   party,
-  index,
   seatsLeft,
   mail,
 }: {
   party: Party;
-  index: number;
   seatsLeft: number;
   mail: MailSettings;
 }) {
   const [open, setOpen] = useState(false);
   const detailsId = `party-${party.submissionId}`;
+  const rowSpan = party.guests.length;
+  // the party's last row closes it off, unless its details follow
+  const closingRow = open ? -1 : rowSpan - 1;
 
   return (
     <>
-      <TableRow>
-        <TableCell>
-          <div className="flex items-center gap-3">
-            <InitialsAvatar
-              name={party.name}
-              seed={index}
-              className="size-8 text-xs"
-            />
-            <div className="flex flex-col items-start gap-1">
-              <span className="font-semibold">{party.name}</span>
-              {party.adminNote ? (
-                <span className="text-primary text-xs">Has a note</span>
-              ) : null}
-              <button
-                type="button"
-                aria-expanded={open}
-                aria-controls={detailsId}
-                onClick={() => setOpen((current) => !current)}
-                className="text-primary text-xs hover:underline"
-              >
-                {open ? "Hide details" : "Show details"}
-              </button>
-            </div>
-          </div>
-        </TableCell>
-        <TableCell className="text-muted-foreground">{party.email}</TableCell>
-        <TableCell className="text-center">{party.size}</TableCell>
-        <TableCell className="text-right font-semibold whitespace-nowrap tabular-nums">
-          {formatCHF(party.total)}
-        </TableCell>
-        <TableCell>
-          <PaymentTicks party={party} />
-        </TableCell>
-        <TableCell>
-          <ConfirmationCell party={party} />
-        </TableCell>
-        <TableCell className="text-right">
-          <time
-            dateTime={new Date(party.createdAt).toISOString()}
-            suppressHydrationWarning
-            className="text-muted-foreground text-sm whitespace-nowrap"
-          >
-            {formatAdminTimestamp(new Date(party.createdAt))}
-          </time>
-        </TableCell>
-        <TableCell className="text-right">
-          {party.isLegacy ? null : (
-            <PartyActions party={party} seatsLeft={seatsLeft} />
-          )}
-        </TableCell>
-      </TableRow>
+      {party.guests.map((guest, guestIndex) => (
+        <GuestRow
+          key={guestIndex}
+          party={party}
+          guest={guest}
+          guestIndex={guestIndex}
+          closesParty={guestIndex === closingRow}
+          signerExtras={
+            guestIndex === 0 ? (
+              <>
+                <span className="text-muted-foreground text-xs break-all">
+                  {party.email}
+                </span>
+                {party.adminNote ? (
+                  <span className="text-primary text-xs">Has a note</span>
+                ) : null}
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={detailsId}
+                  onClick={() => setOpen((current) => !current)}
+                  className="text-primary text-xs hover:underline"
+                >
+                  {open ? "Hide details" : "Show details"}
+                </button>
+              </>
+            ) : null
+          }
+        >
+          {guestIndex === 0 ? (
+            <PartyCells party={party} rowSpan={rowSpan} seatsLeft={seatsLeft} />
+          ) : null}
+        </GuestRow>
+      ))}
       {open ? (
         <TableRow className="hover:bg-transparent">
           <TableCell
@@ -939,6 +1373,256 @@ function PartyRow({
         </TableRow>
       ) : null}
     </>
+  );
+}
+
+/** One person's cells: their arrival, name, price and donation. */
+function GuestRow({
+  party,
+  guest,
+  guestIndex,
+  closesParty,
+  signerExtras,
+  children,
+}: {
+  party: Party;
+  guest: BookingGuest;
+  guestIndex: number;
+  closesParty: boolean;
+  signerExtras: React.ReactNode;
+  /** The party's own cells, on its first row. */
+  children: React.ReactNode;
+}) {
+  const arrival = useFetcher();
+  const arrivalId = `arrived-${party.submissionId}-${guestIndex}`;
+  const bookkeeping =
+    party.guestBookkeeping[guestIndex] ?? EMPTY_GUEST_BOOKKEEPING;
+  const savedArrived = bookkeeping.arrivedAt !== null;
+  // shows the tick at once, before the page has reloaded its data
+  const arrived = arrival.formData
+    ? arrival.formData.has("arrived")
+    : savedArrived;
+  const own = cn(CELL, arrived && "bg-primary/10");
+  const tags = [
+    guest.vegetarian === true ? "vegetarian" : null,
+    guest.isStudent ? "student" : null,
+  ].filter(Boolean);
+
+  return (
+    <TableRow
+      className={cn(
+        "hover:bg-transparent",
+        !closesParty && "border-foreground/10 border-dashed",
+      )}
+    >
+      <TableCell className={cn(own, "text-center")}>
+        {party.isLegacy ? (
+          <span className="text-muted-foreground text-sm">—</span>
+        ) : (
+          <arrival.Form method="post" className="flex justify-center pt-0.5">
+            <input type="hidden" name="intent" value="arrival" />
+            <input
+              type="hidden"
+              name="submissionId"
+              value={party.submissionId}
+            />
+            <input type="hidden" name="guest" value={guestIndex} />
+            <input
+              id={arrivalId}
+              key={String(savedArrived)}
+              type="checkbox"
+              name="arrived"
+              defaultChecked={savedArrived}
+              aria-label={`${guest.name} arrived`}
+              onChange={(event) => event.currentTarget.form?.requestSubmit()}
+              className="accent-primary size-5"
+            />
+          </arrival.Form>
+        )}
+      </TableCell>
+      <TableCell className={own}>
+        <div className="flex min-w-36 flex-col items-start gap-0.5">
+          {party.isLegacy ? (
+            <span className={cn(guestIndex === 0 && "font-semibold")}>
+              {guest.name}
+            </span>
+          ) : (
+            <label
+              htmlFor={arrivalId}
+              className={cn(
+                "cursor-pointer",
+                guestIndex === 0 && "font-semibold",
+              )}
+            >
+              {guest.name}
+            </label>
+          )}
+          {tags.length > 0 ? (
+            <span className="text-muted-foreground text-xs">
+              {tags.join(" · ")}
+            </span>
+          ) : null}
+          {signerExtras}
+        </div>
+      </TableCell>
+      <TableCell className={cn(own, "text-right")}>
+        <PriceLines price={guest.price} />
+      </TableCell>
+      <TableCell className={own}>
+        {party.isLegacy ? (
+          <span className="text-muted-foreground text-sm">—</span>
+        ) : (
+          <DonationForm
+            party={party}
+            guest={guest}
+            guestIndex={guestIndex}
+            bookkeeping={bookkeeping}
+          />
+        )}
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+}
+
+/** A price in whole francs, and the half that each payment comes to. */
+function PriceLines({ price }: { price: number }) {
+  return (
+    <div className="flex flex-col items-end whitespace-nowrap tabular-nums">
+      <span className="font-semibold">{formatCHF(price)}</span>
+      <span className="text-muted-foreground text-xs">
+        half {formatRappen(halfPrice(price))}
+      </span>
+    </div>
+  );
+}
+
+/** The party's cells, spanning all of its people's rows. */
+function PartyCells({
+  party,
+  rowSpan,
+  seatsLeft,
+}: {
+  party: Party;
+  rowSpan: number;
+  seatsLeft: number;
+}) {
+  return (
+    <>
+      <TableCell rowSpan={rowSpan} className={cn(CELL, "border-l text-center")}>
+        {party.size}
+      </TableCell>
+      <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
+        <PriceLines price={party.total} />
+      </TableCell>
+      <TableCell rowSpan={rowSpan} className={CELL}>
+        <PaymentTicks party={party} />
+      </TableCell>
+      <TableCell rowSpan={rowSpan} className={CELL}>
+        <MailTicks party={party} />
+      </TableCell>
+      <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
+        <time
+          dateTime={new Date(party.createdAt).toISOString()}
+          suppressHydrationWarning
+          className="text-muted-foreground text-sm whitespace-nowrap"
+        >
+          {formatAdminTimestamp(new Date(party.createdAt))}
+        </time>
+      </TableCell>
+      <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
+        {party.isLegacy ? null : (
+          <PartyActions party={party} seatsLeft={seatsLeft} />
+        )}
+      </TableCell>
+    </>
+  );
+}
+
+function DonationForm({
+  party,
+  guest,
+  guestIndex,
+  bookkeeping,
+}: {
+  party: Party;
+  guest: BookingGuest;
+  guestIndex: number;
+  bookkeeping: GuestBookkeeping;
+}) {
+  const fetcher = useFetcher<typeof action>();
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const error = reply && "error" in reply ? reply.error : null;
+  const saved = rappenToInput(bookkeeping.donation);
+
+  return (
+    <fetcher.Form
+      method="post"
+      className={cn(
+        "flex flex-col gap-1",
+        fetcher.state !== "idle" && "opacity-60",
+      )}
+    >
+      <input type="hidden" name="intent" value="donation" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <input type="hidden" name="guest" value={guestIndex} />
+      <div className="flex items-center gap-1">
+        <Input
+          key={saved}
+          name="amount"
+          defaultValue={saved}
+          inputMode="decimal"
+          aria-label={`Donation from ${guest.name}, in CHF`}
+          aria-invalid={error ? true : undefined}
+          // saved when the field is left, or with Enter
+          onBlur={(event) => {
+            if (event.currentTarget.value.trim() !== saved) {
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          className="h-8 w-20 px-2 text-right tabular-nums"
+        />
+        <span className="text-muted-foreground text-xs">CHF</span>
+        <MethodSelect
+          name="method"
+          method={bookkeeping.donationMethod}
+          label={`How ${guest.name} gave`}
+        />
+      </div>
+      {error ? (
+        <span role="alert" className="text-destructive-light text-xs">
+          {error}
+        </span>
+      ) : null}
+    </fetcher.Form>
+  );
+}
+
+/** TWINT or cash; picking one saves the form it sits in. */
+function MethodSelect({
+  name,
+  method,
+  label,
+}: {
+  name: string;
+  method: PaymentMethod;
+  label: string;
+}) {
+  return (
+    <select
+      key={method}
+      name={name}
+      defaultValue={method}
+      aria-label={label}
+      onChange={(event) => event.currentTarget.form?.requestSubmit()}
+      className="bg-background focus-visible:inset-ring-ring h-8 border px-1.5 text-xs focus-visible:inset-ring-2 focus-visible:outline-hidden"
+    >
+      {PAYMENT_METHODS.map((option) => (
+        <option key={option} value={option}>
+          {PAYMENT_METHOD_LABELS[option]}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -1039,11 +1723,17 @@ function PaymentTicks({ party }: { party: Party }) {
         name="firstHalfPaid"
         label="1st half paid"
         checked={party.firstHalfPaid}
+        methodName="firstHalfMethod"
+        method={party.firstHalfMethod}
+        methodLabel={`How ${party.name}'s group paid the 1st half`}
       />
       <PaymentTick
         name="secondHalfPaid"
         label="2nd half paid"
         checked={party.secondHalfPaid}
+        methodName="secondHalfMethod"
+        method={party.secondHalfMethod}
+        methodLabel={`How ${party.name}'s group paid the 2nd half`}
       />
     </fetcher.Form>
   );
@@ -1053,23 +1743,32 @@ function PaymentTick({
   name,
   label,
   checked,
+  methodName,
+  method,
+  methodLabel,
 }: {
   name: string;
   label: string;
   checked: boolean;
+  methodName: string;
+  method: PaymentMethod;
+  methodLabel: string;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 whitespace-nowrap">
-      <input
-        key={String(checked)}
-        type="checkbox"
-        name={name}
-        defaultChecked={checked}
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        className="accent-primary size-4"
-      />
-      {label}
-    </label>
+    <div className="flex items-center gap-2">
+      <label className="inline-flex items-center gap-2 whitespace-nowrap">
+        <input
+          key={String(checked)}
+          type="checkbox"
+          name={name}
+          defaultChecked={checked}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          className="accent-primary size-4"
+        />
+        {label}
+      </label>
+      <MethodSelect name={methodName} method={method} label={methodLabel} />
+    </div>
   );
 }
 
@@ -1194,58 +1893,112 @@ function SentAt({ date }: { date: Date }) {
   );
 }
 
-function ConfirmationCell({ party }: { party: Party }) {
-  const { confirmation } = party;
-
+/** The confirmation and the payment reminder: whether each went out. */
+function MailTicks({ party }: { party: Party }) {
   if (party.isLegacy) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
 
-  switch (confirmation.kind) {
-    case "sent":
-      return (
-        <div className="flex flex-col items-start gap-0.5 text-sm">
-          <span className="inline-flex items-center gap-1 whitespace-nowrap">
-            <CheckIcon className="text-primary size-4" aria-hidden />
-            {MAIL_NAMES[confirmation.mail]} sent
-          </span>
-          <SentAt date={confirmation.sentAt} />
-        </div>
-      );
-    case "none":
-      return confirmation.last ? (
-        <div className="text-muted-foreground flex flex-col items-start gap-0.5 text-sm">
-          <span className="whitespace-nowrap">
-            {MAIL_NAMES[confirmation.last.mail]} sent
-          </span>
-          <SentAt date={confirmation.last.sentAt} />
-        </div>
-      ) : (
-        <span className="text-muted-foreground text-sm">—</span>
-      );
-    case "due":
-      return (
-        <div className="flex flex-col items-start gap-1 text-sm">
-          {confirmation.previous ? (
-            <span className="text-destructive-light whitespace-nowrap">
-              Only the {MAIL_NAMES[confirmation.previous.mail].toLowerCase()}
-            </span>
-          ) : confirmation.tracked ? (
-            <span className="text-destructive-light font-semibold whitespace-nowrap">
-              Not sent
-            </span>
-          ) : (
-            <span
-              className="text-muted-foreground whitespace-nowrap"
-              title="Signed up before the site kept track of its emails, so they may have had one"
-            >
-              No record
-            </span>
-          )}
-          <SendConfirmationButton party={party} confirmation={confirmation} />
-        </div>
-      );
+  return (
+    <div className="flex flex-col items-start gap-2 text-sm">
+      <ConfirmationTick party={party} />
+      {party.status === "cancelled" ? null : <ReminderTick party={party} />}
+    </div>
+  );
+}
+
+function ConfirmationTick({ party }: { party: Party }) {
+  const { confirmation } = party;
+  const fetcher = useFetcher();
+
+  // a cancelled signup is owed no mail; the sheet shows the last one it got
+  if (confirmation.kind === "none") {
+    return confirmation.last ? (
+      <div className="text-muted-foreground flex flex-col items-start gap-0.5">
+        <span className="whitespace-nowrap">
+          {MAIL_NAMES[confirmation.last.mail]} sent
+        </span>
+        <SentAt date={confirmation.last.sentAt} />
+      </div>
+    ) : (
+      <span className="text-muted-foreground">No email due</span>
+    );
   }
+
+  const sent = confirmation.kind === "sent" || confirmation.kind === "marked";
+  // shows the tick at once, before the page has reloaded its data
+  const ticked = fetcher.formData ? fetcher.formData.has("sent") : sent;
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <fetcher.Form method="post">
+        <input type="hidden" name="intent" value="confirmation-mark" />
+        <input type="hidden" name="submissionId" value={party.submissionId} />
+        <label className="inline-flex items-center gap-2 whitespace-nowrap">
+          <input
+            key={String(sent)}
+            type="checkbox"
+            name="sent"
+            defaultChecked={sent}
+            onChange={(event) => event.currentTarget.form?.requestSubmit()}
+            className="accent-primary size-4"
+          />
+          {MAIL_NAMES[confirmation.mail]} sent
+        </label>
+      </fetcher.Form>
+
+      {confirmation.kind === "sent" ? (
+        <SentAt date={confirmation.sentAt} />
+      ) : confirmation.kind === "marked" ? (
+        <span className="text-muted-foreground text-xs">Ticked by hand</span>
+      ) : confirmation.markedNotSent ? (
+        <span className="text-destructive-light text-xs whitespace-nowrap">
+          Ticked as not sent
+        </span>
+      ) : confirmation.previous ? (
+        <span className="text-destructive-light text-xs whitespace-nowrap">
+          Only the {MAIL_NAMES[confirmation.previous.mail].toLowerCase()}
+        </span>
+      ) : confirmation.tracked ? (
+        <span className="text-destructive-light text-xs font-semibold whitespace-nowrap">
+          Not sent
+        </span>
+      ) : (
+        <span
+          className="text-muted-foreground text-xs whitespace-nowrap"
+          title="Signed up before the site kept track of its emails, so they may have had one"
+        >
+          No record
+        </span>
+      )}
+
+      {confirmation.kind === "due" && !ticked ? (
+        <SendConfirmationButton party={party} confirmation={confirmation} />
+      ) : null}
+    </div>
+  );
+}
+
+function ReminderTick({ party }: { party: Party }) {
+  const fetcher = useFetcher();
+
+  return (
+    <fetcher.Form method="post">
+      <input type="hidden" name="intent" value="reminder" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <label className="inline-flex items-center gap-2 whitespace-nowrap">
+        <input
+          key={String(party.paymentReminderSent)}
+          type="checkbox"
+          name="paymentReminderSent"
+          defaultChecked={party.paymentReminderSent}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          className="accent-primary size-4"
+        />
+        Payment reminder sent
+      </label>
+    </fetcher.Form>
+  );
 }
 
 function SendConfirmationButton({

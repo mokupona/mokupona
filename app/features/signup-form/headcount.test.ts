@@ -32,6 +32,7 @@ describe("summarizeHeadcount", () => {
       dietNotAsked: 0,
       students: 1,
       notStudents: 2,
+      arrived: 0,
     });
     expect(summary.waitlisted).toEqual({
       people: 2,
@@ -40,6 +41,7 @@ describe("summarizeHeadcount", () => {
       dietNotAsked: 0,
       students: 1,
       notStudents: 1,
+      arrived: 0,
     });
   });
 
@@ -60,6 +62,30 @@ describe("summarizeHeadcount", () => {
       notVegetarian: 0,
       dietNotAsked: 1,
     });
+  });
+
+  it("counts the people ticked as arrived, per list", () => {
+    const summary = summarizeHeadcount([
+      {
+        status: "confirmed",
+        guests: [
+          { isStudent: false, vegetarian: false, arrived: true },
+          { isStudent: false, vegetarian: false, arrived: false },
+          { isStudent: false, vegetarian: false },
+        ],
+      },
+      {
+        status: "waitlisted",
+        guests: [{ isStudent: false, vegetarian: false, arrived: true }],
+      },
+      {
+        status: "cancelled",
+        guests: [{ isStudent: false, vegetarian: false, arrived: true }],
+      },
+    ]);
+
+    expect(summary.confirmed.arrived).toBe(1);
+    expect(summary.waitlisted.arrived).toBe(1);
   });
 
   it("leaves cancelled signups out", () => {

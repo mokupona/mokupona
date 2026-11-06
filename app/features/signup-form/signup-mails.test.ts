@@ -49,6 +49,7 @@ describe("confirmationMailState", () => {
       mail: "waitlisted",
       previous: null,
       tracked: true,
+      markedNotSent: false,
     });
     expect(
       confirmationMailState({
@@ -87,6 +88,7 @@ describe("confirmationMailState", () => {
         sentAt: new Date("2026-11-05T10:00:00Z"),
       },
       tracked: true,
+      markedNotSent: false,
     });
   });
 
@@ -103,6 +105,43 @@ describe("confirmationMailState", () => {
     ).toMatchObject({ kind: "sent", mail: "confirmed" });
   });
 
+  it("counts a mail an admin marked as sent by hand", () => {
+    expect(
+      confirmationMailState({
+        status: "confirmed",
+        mailsTracked: false,
+        mails: [],
+        markedSent: true,
+      }),
+    ).toEqual({ kind: "marked", mail: "confirmed" });
+    // the record still shows when the site did send it
+    expect(
+      confirmationMailState({
+        status: "confirmed",
+        mailsTracked: true,
+        mails: [sent("confirmed", "2026-11-05T10:00:00Z")],
+        markedSent: true,
+      }),
+    ).toMatchObject({ kind: "sent", mail: "confirmed" });
+  });
+
+  it("is due when an admin marked it as not sent, whatever the records say", () => {
+    expect(
+      confirmationMailState({
+        status: "confirmed",
+        mailsTracked: true,
+        mails: [sent("confirmed", "2026-11-05T10:00:00Z")],
+        markedSent: false,
+      }),
+    ).toEqual({
+      kind: "due",
+      mail: "confirmed",
+      previous: null,
+      tracked: true,
+      markedNotSent: true,
+    });
+  });
+
   it("has nothing due for a cancelled signup", () => {
     expect(
       confirmationMailState({
@@ -114,6 +153,14 @@ describe("confirmationMailState", () => {
       kind: "none",
       last: { mail: "confirmed", sentAt: new Date("2026-11-05T10:00:00Z") },
     });
+    expect(
+      confirmationMailState({
+        status: "cancelled",
+        mailsTracked: true,
+        mails: [],
+        markedSent: true,
+      }),
+    ).toEqual({ kind: "none", last: null });
   });
 });
 

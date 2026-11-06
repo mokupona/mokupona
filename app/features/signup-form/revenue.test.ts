@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCHF, summarizeRevenue } from "./revenue";
+import { formatCHF, formatRappen, summarizeRevenue } from "./revenue";
 
 describe("summarizeRevenue", () => {
   it("counts confirmed parties as expected revenue and waiting-list parties as possible", () => {
@@ -47,8 +47,18 @@ describe("summarizeRevenue", () => {
 });
 
 describe("formatCHF", () => {
-  it("writes an amount in francs", () => {
+  it("writes an amount in francs, with Rappen only when there are some", () => {
     expect(formatCHF(0)).toBe("0 CHF");
-    expect(formatCHF(37.5)).toBe("37.5 CHF");
+    expect(formatCHF(40)).toBe("40 CHF");
+    expect(formatCHF(37.5)).toBe("37.50 CHF");
+    expect(formatCHF(33.33)).toBe("33.33 CHF");
+  });
+});
+
+describe("formatRappen", () => {
+  it("writes an amount in Rappen as francs", () => {
+    expect(formatRappen(4000)).toBe("40 CHF");
+    expect(formatRappen(2250)).toBe("22.50 CHF");
+    expect(formatRappen(-90)).toBe("-0.90 CHF");
   });
 });
