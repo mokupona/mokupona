@@ -62,6 +62,14 @@ export async function getFormSubmissionsForEvent(eventId: string) {
     include: {
       formVersion: true,
       mails: { orderBy: SIGNUP_MAIL_ORDER_BY, select: SIGNUP_MAIL_SELECT },
+      guestBookkeeping: {
+        select: {
+          guestIndex: true,
+          arrivedAt: true,
+          donationRappen: true,
+          donationMethod: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   });

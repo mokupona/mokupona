@@ -5,6 +5,8 @@ export interface HeadcountGuest {
   isStudent: boolean;
   /** null when the event's form never asks about diet. */
   vegetarian: boolean | null;
+  /** Ticked on the signup sheet at the door. */
+  arrived?: boolean;
 }
 
 export interface HeadcountParty {
@@ -21,6 +23,8 @@ export interface Headcount {
   dietNotAsked: number;
   students: number;
   notStudents: number;
+  /** People ticked as arrived on the night. */
+  arrived: number;
 }
 
 export interface HeadcountSummary {
@@ -36,13 +40,14 @@ function emptyHeadcount(): Headcount {
     dietNotAsked: 0,
     students: 0,
     notStudents: 0,
+    arrived: 0,
   };
 }
 
 /**
  * Counts the people holding a confirmed seat and the people on the waiting
- * list, split by diet and by student status. Cancelled signups count for
- * nothing, like in the revenue figures.
+ * list, split by diet and by student status, and how many of them have
+ * arrived. Cancelled signups count for nothing, like in the revenue figures.
  */
 export function summarizeHeadcount(
   parties: HeadcountParty[],
@@ -69,6 +74,8 @@ export function summarizeHeadcount(
 
       if (guest.isStudent) bucket.students += 1;
       else bucket.notStudents += 1;
+
+      if (guest.arrived) bucket.arrived += 1;
     }
   }
 

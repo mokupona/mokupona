@@ -81,6 +81,52 @@ describe("getSignupBookingsForEvent", () => {
     });
   });
 
+  it("lays out each person's arrival and donation, and how the halves came in", async () => {
+    const { eventId, versionId } = await eventWithPrices();
+    const arrivedAt = new Date("2026-11-06T18:30:00Z");
+    await prisma.formSubmission.create({
+      data: {
+        formVersionId: versionId,
+        seats: 3,
+        email: "ada@example.com",
+        secondHalfPaid: true,
+        secondHalfMethod: "cash",
+        confirmationMarkedSent: true,
+        paymentReminderSent: true,
+        answers: {
+          name: "Ada",
+          email: "ada@example.com",
+          phone: "0791234567",
+          friends: [{ name: "Grace" }, { name: "Alan" }],
+        },
+        guestBookkeeping: {
+          create: [
+            { guestIndex: 2, arrivedAt, donationRappen: 750 },
+            { guestIndex: 0, donationRappen: 1000, donationMethod: "cash" },
+          ],
+        },
+      },
+    });
+
+    const [signup] = await getSignupBookingsForEvent(
+      eventId,
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    expect(signup).toMatchObject({
+      firstHalfMethod: "twint",
+      secondHalfMethod: "cash",
+      confirmationMarkedSent: true,
+      paymentReminderSent: true,
+      guestBookkeeping: [
+        { arrivedAt: null, donation: 1000, donationMethod: "cash" },
+        { arrivedAt: null, donation: null, donationMethod: "twint" },
+        { arrivedAt, donation: 750, donationMethod: "twint" },
+      ],
+    });
+  });
+
   it("reads a signup from before forms as one guest, confirmed", async () => {
     const { eventId } = await eventWithPrices();
     await prisma.eventResponse.create({

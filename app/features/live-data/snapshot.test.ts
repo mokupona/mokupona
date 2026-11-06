@@ -164,6 +164,58 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     });
   });
 
+  it("carries how the halves came in, the mails ticked by hand, and each person's arrival and donation", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      firstHalfMethod: "cash",
+      secondHalfMethod: "twint",
+      confirmationMarkedSent: true,
+      paymentReminderSent: true,
+    });
+    expect(parsed.signupGuests).toEqual([
+      expect.objectContaining({
+        guestIndex: 0,
+        arrivedAt: new Date("2025-02-01T18:05:00.000Z"),
+        donationRappen: 750,
+        donationMethod: "cash",
+      }),
+    ]);
+    expect(parsed.events[0]).toMatchObject({
+      twintFeePercent: 1.3,
+      twintFeeFixedRappen: 25,
+    });
+  });
+
+  it("reads a live site that predates the payment methods with the defaults and no arrivals", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const submission of tables.formSubmissions) {
+      delete submission.firstHalfMethod;
+      delete submission.secondHalfMethod;
+      delete submission.confirmationMarkedSent;
+      delete submission.paymentReminderSent;
+    }
+    for (const event of tables.events) {
+      delete event.twintFeePercent;
+      delete event.twintFeeFixedRappen;
+    }
+    delete tables.signupGuests;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      firstHalfMethod: "twint",
+      secondHalfMethod: "twint",
+      confirmationMarkedSent: null,
+      paymentReminderSent: false,
+    });
+    expect(parsed.events[0]).toMatchObject({
+      twintFeePercent: 1.5,
+      twintFeeFixedRappen: 30,
+    });
+    expect(parsed.signupGuests).toEqual([]);
+  });
+
   it("reads a live site that predates the ticks as unpaid, with no note", () => {
     const tables = overTheWire(liveDataFixture());
     for (const submission of tables.formSubmissions) {

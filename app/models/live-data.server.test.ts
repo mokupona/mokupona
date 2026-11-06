@@ -46,6 +46,7 @@ describe("replaceLiveDataTables", () => {
       forms: 1,
       formVersions: 1,
       formSubmissions: 1,
+      signupGuests: 1,
       events: 1,
       eventResponses: 1,
       eventGalleryImages: 1,
@@ -112,6 +113,7 @@ describe("readLiveDataTables", () => {
     const tables = await readLiveDataTables({ includeSignups: false });
 
     expect(tables.formSubmissions).toEqual([]);
+    expect(tables.signupGuests).toEqual([]);
     expect(tables.eventResponses).toEqual([]);
     expect(tables.events).toHaveLength(1);
   });

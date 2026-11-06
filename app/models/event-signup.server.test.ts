@@ -9,6 +9,7 @@ import {
   getSeatCountsByEvent,
   SignupNotFoundError,
   updateSignupBookkeeping,
+  updateSignupGuest,
   updateSignupStatus,
 } from "./event-signup.server";
 import { createEvent } from "./event.server";
@@ -340,6 +341,32 @@ describe("updateSignupBookkeeping", () => {
     expect(unchanged.firstHalfPaid).toBe(false);
   });
 
+  it("records how each half came in and the mails ticked by hand", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        secondHalfMethod: "cash",
+        confirmationMarkedSent: true,
+        paymentReminderSent: true,
+      },
+    });
+
+    expect(
+      await prisma.formSubmission.findUniqueOrThrow({
+        where: { id: signup.id },
+      }),
+    ).toMatchObject({
+      firstHalfMethod: "twint",
+      secondHalfMethod: "cash",
+      confirmationMarkedSent: true,
+      paymentReminderSent: true,
+    });
+  });
+
   it("refuses a note longer than the limit", async () => {
     const fixture = await createTestEvent(4);
     const signup = await signupFor(fixture);
@@ -351,5 +378,107 @@ describe("updateSignupBookkeeping", () => {
         data: { adminNote: "x".repeat(MAX_ADMIN_NOTE_LENGTH + 1) },
       }),
     ).rejects.toBeInstanceOf(RangeError);
+  });
+});
+
+describe("updateSignupGuest", () => {
+  async function partyOfThree() {
+    const fixture = await createTestEvent(4);
+    const { id } = await signUp(fixture, { friends: 2 });
+    return { eventId: fixture.event.id, submissionId: id };
+  }
+
+  function rowsOf(submissionId: string) {
+    return prisma.signupGuest.findMany({
+      where: { submissionId },
+      orderBy: { guestIndex: "asc" },
+    });
+  }
+
+  it("keeps each person's arrival and donation apart", async () => {
+    const party = await partyOfThree();
+    const arrivedAt = new Date("2026-11-06T18:30:00Z");
+
+    await updateSignupGuest({ ...party, guestIndex: 2, data: { arrivedAt } });
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 0,
+      data: { donationRappen: 750, donationMethod: "cash" },
+    });
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 2,
+      data: { donationRappen: 1000 },
+    });
+
+    expect(await rowsOf(party.submissionId)).toMatchObject([
+      {
+        guestIndex: 0,
+        arrivedAt: null,
+        donationRappen: 750,
+        donationMethod: "cash",
+      },
+      {
+        guestIndex: 2,
+        arrivedAt,
+        donationRappen: 1000,
+        donationMethod: "twint",
+      },
+    ]);
+  });
+
+  it("refuses a person beyond the party, and a signup of another event", async () => {
+    const party = await partyOfThree();
+    const other = await createTestEvent(4);
+
+    await expect(
+      updateSignupGuest({ ...party, guestIndex: 3, data: { arrivedAt: null } }),
+    ).rejects.toBeInstanceOf(SignupNotFoundError);
+    await expect(
+      updateSignupGuest({
+        ...party,
+        eventId: other.event.id,
+        guestIndex: 0,
+        data: { arrivedAt: new Date() },
+      }),
+    ).rejects.toBeInstanceOf(SignupNotFoundError);
+    expect(await rowsOf(party.submissionId)).toEqual([]);
+  });
+
+  it("refuses a donation that isn't a whole, positive number of Rappen", async () => {
+    const party = await partyOfThree();
+
+    for (const donationRappen of [-100, 12.5]) {
+      await expect(
+        updateSignupGuest({
+          ...party,
+          guestIndex: 0,
+          data: { donationRappen },
+        }),
+      ).rejects.toBeInstanceOf(RangeError);
+    }
+  });
+});
+
+describe("updateSignupStatus and the admin's confirmation mark", () => {
+  it("clears the mark, which spoke of the old status's mail", async () => {
+    const fixture = await createTestEvent(4);
+    const { id } = await signUp(fixture);
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: id,
+      data: { confirmationMarkedSent: true },
+    });
+
+    await updateSignupStatus({
+      eventId: fixture.event.id,
+      submissionId: id,
+      status: "waitlisted",
+    });
+
+    const after = await prisma.formSubmission.findUniqueOrThrow({
+      where: { id },
+    });
+    expect(after.confirmationMarkedSent).toBeNull();
   });
 });

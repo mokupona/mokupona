@@ -19,6 +19,8 @@ const event = {
   confirmedMailMessage: null,
   waitlistMailSubject: null,
   waitlistMailMessage: null,
+  twintFeePercent: 1.5,
+  twintFeeFixedRappen: 30,
   image: {
     id: "image-id",
     storageKey: "abc123",

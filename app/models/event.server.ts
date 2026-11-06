@@ -4,6 +4,7 @@ import { prisma } from "~/db.server";
 import { DEFAULT_CHECKLIST_ITEMS } from "~/features/events/checklist";
 import { FormSchema, type FieldDescriptor } from "~/features/forms/fields";
 import { DEFAULT_FORM } from "~/features/signup-form/default-form";
+import type { TwintFees } from "~/features/signup-form/payments";
 import { addChecklistItemsInTx } from "~/models/event-checklist.server";
 import {
   CURRENT_FORM_VERSION_ORDER_BY,
@@ -94,6 +95,20 @@ export async function getNextEvent(
   return prisma.event.findFirst({
     ...nextEventArgs(now),
     include: { address: true, ...EVENT_IMAGE_INCLUDE },
+  });
+}
+
+/** What TWINT keeps of each payment for this event's money received. */
+export async function setEventTwintFees(
+  id: string,
+  fees: TwintFees,
+): Promise<void> {
+  await prisma.event.update({
+    where: { id },
+    data: {
+      twintFeePercent: fees.percent,
+      twintFeeFixedRappen: fees.fixedRappen,
+    },
   });
 }
 

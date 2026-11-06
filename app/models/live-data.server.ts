@@ -3,6 +3,7 @@ import type { Prisma } from "#prisma/generated/client";
 import { prisma } from "~/db.server";
 import type { LiveDataTables } from "~/features/live-data/snapshot";
 import type { LiveDataCounts } from "~/features/live-data/tables";
+import { toPaymentMethod } from "~/features/signup-form/payments";
 import { toSignupStatus } from "~/features/signup-form/signup-status";
 
 const INSERT_CHUNK_SIZE = 200;
@@ -30,6 +31,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     forms,
     formVersions,
     formSubmissions,
+    signupGuests,
     events,
     eventResponses,
     eventGalleryImages,
@@ -43,6 +45,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     prisma.form.count(),
     prisma.formVersion.count(),
     prisma.formSubmission.count(),
+    prisma.signupGuest.count(),
     prisma.event.count(),
     prisma.eventResponse.count(),
     prisma.eventGalleryImage.count(),
@@ -60,6 +63,7 @@ export async function countLiveDataTables(): Promise<LiveDataCounts> {
     forms,
     formVersions,
     formSubmissions,
+    signupGuests,
     events,
     eventResponses,
     eventGalleryImages,
@@ -88,6 +92,7 @@ export async function readLiveDataTables({
     forms,
     formVersions,
     formSubmissions,
+    signupGuests,
     events,
     eventResponses,
     eventGalleryImages,
@@ -151,7 +156,24 @@ export async function readLiveDataTables({
         firstHalfPaid: true,
         secondHalfPaid: true,
         adminNote: true,
+        firstHalfMethod: true,
+        secondHalfMethod: true,
+        confirmationMarkedSent: true,
+        paymentReminderSent: true,
         createdAt: true,
+      },
+    }),
+    prisma.signupGuest.findMany({
+      orderBy: byId,
+      ...(includeSignups ? {} : { take: 0 }),
+      select: {
+        id: true,
+        submissionId: true,
+        guestIndex: true,
+        arrivedAt: true,
+        donationRappen: true,
+        donationMethod: true,
+        ...TIMESTAMPS,
       },
     }),
     prisma.event.findMany({
@@ -173,6 +195,8 @@ export async function readLiveDataTables({
         confirmedMailMessage: true,
         waitlistMailSubject: true,
         waitlistMailMessage: true,
+        twintFeePercent: true,
+        twintFeeFixedRappen: true,
         imageId: true,
         addressId: true,
         formId: true,
@@ -246,8 +270,14 @@ export async function readLiveDataTables({
     formSubmissions: formSubmissions.map((row) => ({
       ...row,
       status: toSignupStatus(row.status),
+      firstHalfMethod: toPaymentMethod(row.firstHalfMethod),
+      secondHalfMethod: toPaymentMethod(row.secondHalfMethod),
       answers:
         row.answers as LiveDataTables["formSubmissions"][number]["answers"],
+    })),
+    signupGuests: signupGuests.map((row) => ({
+      ...row,
+      donationMethod: toPaymentMethod(row.donationMethod),
     })),
     events: events.map(({ createdBy, ...event }) => ({
       ...event,
@@ -350,6 +380,7 @@ export async function replaceLiveDataTables(
       await tx.eventGalleryImage.deleteMany();
       await tx.eventResponse.deleteMany();
       await tx.event.deleteMany();
+      await tx.signupGuest.deleteMany();
       await tx.formSubmission.deleteMany();
       await tx.formVersion.deleteMany();
       await tx.form.deleteMany();
@@ -383,6 +414,9 @@ export async function replaceLiveDataTables(
             mailsTracked: false,
           })),
         }),
+      );
+      await insertAll(tables.signupGuests, (data) =>
+        tx.signupGuest.createMany({ data }),
       );
       await insertAll(tables.events, (data) =>
         tx.event.createMany({

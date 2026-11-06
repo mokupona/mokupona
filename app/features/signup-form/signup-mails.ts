@@ -64,8 +64,13 @@ export type ConfirmationMailState =
   /** The signup mail for the signup's current status went out. */
   | { kind: "sent"; mail: SignupMailKind; sentAt: Date }
   /**
-   * The signup mail for the current status isn't on record, so the sheet
-   * offers to send it.
+   * An admin marked the mail for the current status as sent, and the site
+   * has no record of sending it: it went out by hand.
+   */
+  | { kind: "marked"; mail: SignupMailKind }
+  /**
+   * The signup mail for the current status isn't on record, or an admin
+   * marked it as not sent, so the sheet offers to send it.
    */
   | {
       kind: "due";
@@ -77,6 +82,8 @@ export type ConfirmationMailState =
        * its mail all the same.
        */
       tracked: boolean;
+      /** An admin marked it as not sent, whatever the records say. */
+      markedNotSent: boolean;
     }
   /** A cancelled signup: no mail is due. */
   | { kind: "none"; last: { mail: SignupMailKind; sentAt: Date } | null };
@@ -86,15 +93,21 @@ export type ConfirmationMailState =
  * confirmation for a confirmed signup, the waiting-list mail for one on the
  * waiting list. A confirmed signup that only ever got the waiting-list mail
  * (say, its "seat confirmed" mail failed) still has its confirmation due.
+ *
+ * An admin's mark (`markedSent`) wins over the records: true for a mail
+ * that went out by hand, false for one that never arrived. null goes by the
+ * records alone.
  */
 export function confirmationMailState({
   status,
   mailsTracked,
   mails,
+  markedSent = null,
 }: {
   status: SignupStatus;
   mailsTracked: boolean;
   mails: readonly SentSignupMail[];
+  markedSent?: boolean | null;
 }): ConfirmationMailState {
   const last = mails.reduce<{ mail: SignupMailKind; sentAt: Date } | null>(
     (latest, mail) =>
@@ -106,10 +119,17 @@ export function confirmationMailState({
   );
 
   if (status === "cancelled") return { kind: "none", last };
-  if (last?.mail === status) {
+  if (last?.mail === status && markedSent !== false) {
     return { kind: "sent", mail: status, sentAt: last.sentAt };
   }
-  return { kind: "due", mail: status, previous: last, tracked: mailsTracked };
+  if (markedSent === true) return { kind: "marked", mail: status };
+  return {
+    kind: "due",
+    mail: status,
+    previous: last?.mail === status ? null : last,
+    tracked: mailsTracked,
+    markedNotSent: markedSent === false,
+  };
 }
 
 export interface MessageRecipient {
