@@ -35,6 +35,7 @@ export const EventSchema = z.object({
   description: z.string({ error: "Description is required" }).trim(),
   menuDescription: z.string().trim().optional(),
   donationDescription: z.string().trim().optional(),
+  recap: z.string().trim().optional(),
   date: z
     .string({ error: "Date is required" })
     .regex(

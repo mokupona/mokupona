@@ -105,6 +105,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         formData,
         fieldName: "donationDescription",
       });
+      const recapUpdateValue = nullableStringUpdateValue({
+        formData,
+        fieldName: "recap",
+      });
 
       const { event, replacedImageKey } = await updateEvent(
         eventId,
@@ -117,6 +121,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           ...(donationDescriptionUpdateValue !== undefined && {
             donationDescription: donationDescriptionUpdateValue,
           }),
+          ...(recapUpdateValue !== undefined && { recap: recapUpdateValue }),
           date: toUtcEventDate(date),
           slots,
           price,

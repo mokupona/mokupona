@@ -215,4 +215,20 @@ describe("admin event edit action", () => {
       await prisma.image.findUniqueOrThrow({ where: { id: event.imageId! } }),
     ).toMatchObject({ cropWidth: 0.5, cropHeight: 0.5 });
   });
+
+  it("saves the recap, and clears it when the field is emptied", async () => {
+    const { eventId, addressId } = await createTestEvent();
+    const recapOf = async () =>
+      (await prisma.event.findUniqueOrThrow({ where: { id: eventId } })).recap;
+    expect(await recapOf()).toBeNull();
+
+    const body = editBody(addressId, defaultBuilderRows());
+    body.set("recap", "  What a night. **Thank you** all!  ");
+    await submit(eventId, body, await moderator());
+    expect(await recapOf()).toBe("What a night. **Thank you** all!");
+
+    body.set("recap", "   ");
+    await submit(eventId, body, await moderator());
+    expect(await recapOf()).toBeNull();
+  });
 });

@@ -184,6 +184,7 @@ export async function readLiveDataTables({
         description: true,
         menuDescription: true,
         donationDescription: true,
+        recap: true,
         date: true,
         slots: true,
         published: true,

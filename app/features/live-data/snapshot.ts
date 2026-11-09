@@ -147,6 +147,8 @@ const eventRow = z
     description: text,
     menuDescription: nullableText,
     donationDescription: nullableText,
+    // added later: a live site on older code has no recaps
+    recap: nullableText.default(null),
     date: dateTime,
     slots: int,
     // added after format version 1 shipped: a live site on older code has no

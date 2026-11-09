@@ -8,6 +8,7 @@ const event = {
   description: "Event description",
   menuDescription: "Seasonal menu",
   donationDescription: "Pay what you can",
+  recap: null,
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
   published: true,
@@ -95,5 +96,15 @@ describe("event view-model mapping", () => {
     );
     expect(detail.menuHtml).toBeNull();
     expect(detail.donationHtml).toBeNull();
+    expect(detail.recapHtml).toBeNull();
+  });
+
+  it("renders the recap, and leaves a blank one out", () => {
+    expect(
+      toEventDetailModel({ ...event, recap: "What a **night**." }).recapHtml,
+    ).toBe("<p>What a <strong>night</strong>.</p>");
+    expect(
+      toEventDetailModel({ ...event, recap: " \n " }).recapHtml,
+    ).toBeNull();
   });
 });

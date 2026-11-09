@@ -1,7 +1,7 @@
 import { CalendarIcon, InfoIcon } from "lucide-react";
 
 import { formatEventDateLine } from "../date-format";
-import type { EventDetailModel } from "../view-models";
+import { eventStoryHtml, type EventDetailModel } from "../view-models";
 
 import {
   EventDateHeading,
@@ -54,7 +54,7 @@ export function EventStory({ event }: EventViewProps) {
         </div>
 
         <MarkdownText
-          html={event.descriptionHtml}
+          html={eventStoryHtml(event, new Date())}
           className="text-foreground/80 text-base font-light md:text-lg"
         />
 
