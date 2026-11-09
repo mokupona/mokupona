@@ -5,7 +5,11 @@ import type { Route } from "./+types/admin.events.$eventId";
 
 import { Button, buttonVariants } from "~/components/ui/button";
 import { requestLoggerContext } from "~/features/auth/middleware.server";
-import { normalizeChecklistLabel } from "~/features/events/checklist";
+import {
+  DEFAULT_CHECKLIST_CATEGORY,
+  normalizeChecklistLabel,
+  parseChecklistCategory,
+} from "~/features/events/checklist";
 import { AdminEventChecklist } from "~/features/events/components/admin-event-checklist";
 import { AdminEventQrCode } from "~/features/events/components/admin-event-qr-code";
 import { EventView } from "~/features/events/components/event-view";
@@ -16,6 +20,7 @@ import {
   deleteChecklistItem,
   getChecklistForEvent,
   setChecklistItemDone,
+  updateChecklistItem,
 } from "~/models/event-checklist.server";
 import { getEventById, setEventPublished } from "~/models/event.server";
 import { getDomainUrl, requireFound } from "~/shared/http.server";
@@ -33,6 +38,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     checklist: checklist.map((item) => ({
       id: item.id,
       label: item.label,
+      category:
+        parseChecklistCategory(item.category) ?? DEFAULT_CHECKLIST_CATEGORY,
       done: item.doneAt !== null,
     })),
   };
@@ -70,8 +77,22 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     }
     case "checklist-add": {
       const label = normalizeChecklistLabel(formData.get("label"));
-      if (!label) throw new Response("Bad Request", { status: 400 });
-      await addChecklistItem(eventId, label);
+      const category = parseChecklistCategory(formData.get("category"));
+      if (!label || !category) {
+        throw new Response("Bad Request", { status: 400 });
+      }
+      await addChecklistItem(eventId, { label, category });
+      return data({ ok: true });
+    }
+    case "checklist-update": {
+      const label = normalizeChecklistLabel(formData.get("label"));
+      const category = parseChecklistCategory(formData.get("category"));
+      if (typeof itemId !== "string" || !label || !category) {
+        throw new Response("Bad Request", { status: 400 });
+      }
+      if (!(await updateChecklistItem(eventId, itemId, { label, category }))) {
+        throw new Response("Not Found", { status: 404 });
+      }
       return data({ ok: true });
     }
     case "checklist-defaults": {

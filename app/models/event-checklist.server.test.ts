@@ -8,6 +8,7 @@ import {
   deleteChecklistItem,
   getChecklistForEvent,
   setChecklistItemDone,
+  updateChecklistItem,
 } from "./event-checklist.server";
 import {
   createEvent,
@@ -62,7 +63,7 @@ describe("event checklist", () => {
 
     const items = await getChecklistForEvent(event.id);
 
-    expect(items.map((item) => item.label)).toEqual([
+    expect(items.map(({ label, category }) => ({ label, category }))).toEqual([
       ...DEFAULT_CHECKLIST_ITEMS,
     ]);
     expect(items.every((item) => item.doneAt === null)).toBe(true);
@@ -70,11 +71,17 @@ describe("event checklist", () => {
 
   it("appends, ticks, unticks and removes items", async () => {
     const event = await newEvent();
-    await addChecklistItem(event.id, "Borrow extra chairs");
+    await addChecklistItem(event.id, {
+      label: "Borrow extra chairs",
+      category: "logistics",
+    });
 
     let items = await getChecklistForEvent(event.id);
     const chairs = items.at(-1)!;
-    expect(chairs.label).toBe("Borrow extra chairs");
+    expect(chairs).toMatchObject({
+      label: "Borrow extra chairs",
+      category: "logistics",
+    });
 
     expect(await setChecklistItemDone(event.id, chairs.id, true)).toBe(true);
     items = await getChecklistForEvent(event.id);
@@ -115,7 +122,63 @@ describe("event checklist", () => {
       (item) => item.label,
     );
     expect(labels).toHaveLength(DEFAULT_CHECKLIST_ITEMS.length);
-    expect(new Set(labels)).toEqual(new Set(DEFAULT_CHECKLIST_ITEMS));
+    expect(new Set(labels)).toEqual(
+      new Set(DEFAULT_CHECKLIST_ITEMS.map(({ label }) => label)),
+    );
+  });
+
+  it("rewords an item in place and keeps its spot", async () => {
+    const event = await newEvent();
+    const before = await getChecklistForEvent(event.id);
+    const menu = before.find((item) => item.label === "Plan the menu")!;
+
+    expect(
+      await updateChecklistItem(event.id, menu.id, {
+        label: "Plan the menu with the chef",
+        category: "menu",
+      }),
+    ).toBe(true);
+
+    const after = await getChecklistForEvent(event.id);
+    expect(after.map((item) => item.id)).toEqual(before.map((item) => item.id));
+    expect(after.find((item) => item.id === menu.id)).toMatchObject({
+      label: "Plan the menu with the chef",
+      category: "menu",
+      position: menu.position,
+    });
+  });
+
+  it("moves an item to the end of another category", async () => {
+    const event = await newEvent();
+    const [first] = await getChecklistForEvent(event.id);
+
+    await updateChecklistItem(event.id, first!.id, {
+      label: first!.label,
+      category: "decorations",
+    });
+
+    const items = await getChecklistForEvent(event.id);
+    expect(items.at(-1)).toMatchObject({
+      id: first!.id,
+      category: "decorations",
+    });
+  });
+
+  it("leaves another event's item alone when rewording", async () => {
+    const [one, other] = await Promise.all([newEvent(), newEvent()]);
+    const [item] = await getChecklistForEvent(one.id);
+
+    expect(
+      await updateChecklistItem(other.id, item!.id, {
+        label: "Hijacked",
+        category: "general",
+      }),
+    ).toBe(false);
+    expect((await getChecklistForEvent(one.id))[0]).toMatchObject({
+      id: item!.id,
+      label: item!.label,
+      category: item!.category,
+    });
   });
 
   it("goes with its event", async () => {
