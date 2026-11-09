@@ -130,6 +130,9 @@ export default [
       "app/features/site-text/**",
       // the statistics report's labels, which only /admin/stats shows
       "app/features/stats/report.ts",
+      // the event checklist's categories and usual items, which only the
+      // admin event page shows
+      "app/features/events/checklist.ts",
       // copy that only the admin area shows: role pickers, the auth
       // switches, the event cover editor, photo framing, and the validation
       // of event, location, board-member, volunteer and signup-form-builder

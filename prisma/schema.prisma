@@ -162,10 +162,12 @@ model Event {
 }
 
 // The organisers' to-do list for one dinner (book a photographer, buy wine,
-// …). Admin-only bookkeeping, never shown on the public site.
+// …). Admin-only bookkeeping, never shown on the public site. `category` is
+// one of CHECKLIST_CATEGORIES in app/features/events/checklist.ts.
 model EventChecklistItem {
   id       String    @id @default(cuid())
   label    String
+  category String    @default("general")
   position Int       @default(0)
   doneAt   DateTime?
 

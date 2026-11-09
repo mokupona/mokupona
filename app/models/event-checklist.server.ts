@@ -1,9 +1,17 @@
 import type { EventChecklistItem, Prisma } from "#prisma/generated/client";
 
 import { prisma } from "~/db.server";
-import { DEFAULT_CHECKLIST_ITEMS } from "~/features/events/checklist";
+import {
+  type ChecklistCategory,
+  DEFAULT_CHECKLIST_ITEMS,
+} from "~/features/events/checklist";
 
 export type { EventChecklistItem };
+
+export interface NewChecklistItem {
+  label: string;
+  category: ChecklistCategory;
+}
 
 const CHECKLIST_ORDER_BY = [
   { position: "asc" },
@@ -19,6 +27,11 @@ export async function getChecklistForEvent(
   });
 }
 
+/**
+ * Positions run across the whole list, not per category: the list is grouped
+ * by category when it's shown, so the next free one is the end of every
+ * category at once.
+ */
 async function nextPositionInTx(
   tx: Prisma.TransactionClient,
   eventId: string,
@@ -31,18 +44,19 @@ async function nextPositionInTx(
   return last ? last.position + 1 : 0;
 }
 
-/** Appends the given labels to the end of an event's checklist. */
+/** Appends the given items to the end of their categories. */
 export async function addChecklistItemsInTx(
   tx: Prisma.TransactionClient,
   eventId: string,
-  labels: readonly string[],
+  items: readonly NewChecklistItem[],
 ): Promise<void> {
-  if (labels.length === 0) return;
+  if (items.length === 0) return;
   const start = await nextPositionInTx(tx, eventId);
   await tx.eventChecklistItem.createMany({
-    data: labels.map((label, index) => ({
+    data: items.map(({ label, category }, index) => ({
       eventId,
       label,
+      category,
       position: start + index,
     })),
   });
@@ -50,11 +64,9 @@ export async function addChecklistItemsInTx(
 
 export async function addChecklistItem(
   eventId: string,
-  label: string,
+  item: NewChecklistItem,
 ): Promise<void> {
-  await prisma.$transaction((tx) =>
-    addChecklistItemsInTx(tx, eventId, [label]),
-  );
+  await prisma.$transaction((tx) => addChecklistItemsInTx(tx, eventId, [item]));
 }
 
 /**
@@ -71,8 +83,38 @@ export async function addDefaultChecklistItems(eventId: string): Promise<void> {
     await addChecklistItemsInTx(
       tx,
       eventId,
-      DEFAULT_CHECKLIST_ITEMS.filter((label) => !have.has(label)),
+      DEFAULT_CHECKLIST_ITEMS.filter(({ label }) => !have.has(label)),
     );
+  });
+}
+
+/**
+ * Rewords an item and/or moves it to another category, where it goes to the
+ * end. Scoped to the event like the other changes; returns whether an item
+ * was changed.
+ */
+export async function updateChecklistItem(
+  eventId: string,
+  itemId: string,
+  { label, category }: NewChecklistItem,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const item = await tx.eventChecklistItem.findFirst({
+      where: { id: itemId, eventId },
+      select: { category: true },
+    });
+    if (!item) return false;
+
+    const moved = item.category !== category;
+    await tx.eventChecklistItem.update({
+      where: { id: itemId },
+      data: {
+        label,
+        category,
+        ...(moved ? { position: await nextPositionInTx(tx, eventId) } : {}),
+      },
+    });
+    return true;
   });
 }
 
