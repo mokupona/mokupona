@@ -1,3 +1,5 @@
+import { isPastEvent } from "./event-status";
+
 import type { Address } from "~/models/address.server";
 import type { ImageMetadata } from "~/models/image.server";
 
@@ -32,10 +34,26 @@ export interface EventDetailModel extends EventSummaryModel {
   studentDiscount: number | null;
   vegetarianDiscount: number | null;
   descriptionHtml: string;
+  /** What the page says once the dinner is over; null when nobody wrote one. */
+  recapHtml: string | null;
   menuHtml: string | null;
   donationHtml: string | null;
   discountsHtml: string | null;
   addressLine: string;
+}
+
+/**
+ * The event page's main text. The description is written to get people to
+ * sign up, so once the dinner is over its recap takes that place; a past
+ * event nobody wrote a recap for keeps its description.
+ */
+export function eventStoryHtml(
+  event: Pick<EventDetailModel, "date" | "descriptionHtml" | "recapHtml">,
+  now: Date,
+): string {
+  return isPastEvent(new Date(event.date), now) && event.recapHtml
+    ? event.recapHtml
+    : event.descriptionHtml;
 }
 
 export interface AddressOptionModel {

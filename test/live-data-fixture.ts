@@ -120,6 +120,7 @@ export function liveDataFixture(
         description: "Soup, bread and a long evening.",
         menuDescription: null,
         donationDescription: null,
+        recap: "Thank you for a warm evening.",
         date: new Date("2025-02-01T18:00:00.000Z"),
         slots: 12,
         published: true,

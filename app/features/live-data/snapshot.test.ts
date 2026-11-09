@@ -187,6 +187,23 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     });
   });
 
+  it("reads a live site that predates recaps as events without one", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const event of tables.events) delete event.recap;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.events[0]).toMatchObject({ recap: null });
+  });
+
+  it("carries the recap across", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.events[0]).toMatchObject({
+      recap: "Thank you for a warm evening.",
+    });
+  });
+
   it("reads a live site that predates the payment methods with the defaults and no arrivals", () => {
     const tables = overTheWire(liveDataFixture());
     for (const submission of tables.formSubmissions) {

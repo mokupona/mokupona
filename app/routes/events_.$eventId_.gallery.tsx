@@ -39,7 +39,11 @@ export async function loader({ params }: Route.LoaderArgs) {
     event: {
       id: event.id,
       title: event.title,
-      description: markdownToText(event.description),
+      // the album only exists once the dinner is over, so it leads with the
+      // recap when there is one rather than the call to sign up
+      description: markdownToText(
+        event.recap?.trim() ? event.recap : event.description,
+      ),
       date: event.date,
     },
     images,

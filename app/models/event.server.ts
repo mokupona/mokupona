@@ -31,6 +31,8 @@ export interface EventCreateData {
   description: string;
   menuDescription?: string | null;
   donationDescription?: string | null;
+  /** What the page says once the dinner is over, instead of the description. */
+  recap?: string | null;
   date: Date;
   slots: number;
   price: number;

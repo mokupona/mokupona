@@ -116,6 +116,9 @@ model Event {
   description         String
   menuDescription     String?
   donationDescription String?
+  // shown on the event page instead of `description` once the dinner is
+  // over: how it went, thanks, what's next. null keeps the description.
+  recap               String?
   date                DateTime
   slots               Int
   // a draft (false) is only visible in the admin area: the public pages,

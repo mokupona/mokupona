@@ -60,6 +60,7 @@ type AdminEventFormProps = {
 
 const SECTIONS = [
   { id: "section-basics", label: "Basics" },
+  { id: "section-recap", label: "After the dinner" },
   { id: "section-photo", label: "Photo" },
   { id: "section-menu-donation", label: "Menu & donation" },
   { id: "section-schedule-pricing", label: "Schedule & pricing" },
@@ -297,6 +298,22 @@ export function AdminEventForm({
                 rows: 10,
               }}
               errors={fields.description.errors}
+            />
+          </SectionCard>
+
+          <SectionCard
+            id="section-recap"
+            title="After the dinner"
+            description="Once the dinner is over, the event page shows this instead of the description: how the evening went, a thank-you, a pointer to the photos. Leave it empty to keep showing the description. You can write or change it at any time, also for past dinners."
+          >
+            <TextareaField
+              labelProps={{ children: "Recap" }}
+              description={MARKDOWN_HINT}
+              textareaProps={{
+                ...getTextareaProps(fields.recap),
+                rows: 8,
+              }}
+              errors={fields.recap.errors}
             />
           </SectionCard>
 

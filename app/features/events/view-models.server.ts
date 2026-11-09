@@ -49,6 +49,7 @@ export function toEventDetailModel(event: EventWithAddress): EventDetailModel {
     studentDiscount: event.studentDiscount,
     vegetarianDiscount: event.vegetarianDiscount,
     descriptionHtml: renderMarkdown(event.description),
+    recapHtml: renderOptionalMarkdown(event.recap),
     menuHtml: renderOptionalMarkdown(event.menuDescription),
     donationHtml: renderOptionalMarkdown(event.donationDescription),
     discountsHtml: renderOptionalMarkdown(event.discounts),
