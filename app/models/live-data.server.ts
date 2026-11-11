@@ -160,6 +160,7 @@ export async function readLiveDataTables({
         secondHalfMethod: true,
         confirmationMarkedSent: true,
         paymentReminderSent: true,
+        singlePayment: true,
         createdAt: true,
       },
     }),

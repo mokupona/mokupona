@@ -1,5 +1,6 @@
 // The money side of the signup sheet: how each payment came in, what TWINT
-// keeps of it, and what has come in so far. Amounts here are in Rappen
+// keeps of it, and what has come in so far. A party pays its price in two
+// halves, or the whole of it in one payment. Amounts here are in Rappen
 // (100 to the franc), so halves, donations and fees add up without rounding
 // drift; the prices on an event stay whole francs.
 
@@ -94,6 +95,11 @@ export interface PaymentParty {
   status: SignupStatus;
   /** What the whole party pays, in CHF. */
   total: number;
+  /**
+   * The party pays the whole total in one payment: `firstHalf` then stands
+   * for that payment, and `secondHalf` doesn't count.
+   */
+  singlePayment: boolean;
   firstHalf: PaymentHalf;
   secondHalf: PaymentHalf;
   /** Each person's donation, in Rappen; null when they gave nothing. */
@@ -106,7 +112,7 @@ export interface MethodTotals {
 }
 
 export interface MoneyReceived {
-  /** The ticked halves of the party prices, by how they came in. */
+  /** The ticked payments of the party prices, by how they came in. */
   payments: MethodTotals;
   donations: MethodTotals;
   /** Everything that came in, before TWINT's fees. */
@@ -116,16 +122,16 @@ export interface MoneyReceived {
   twintTransactions: number;
   /** What we keep: everything that came in, less TWINT's fees. */
   net: number;
-  /** The unticked halves of the confirmed parties: money still to come. */
+  /** The unticked payments of the confirmed parties: money still to come. */
   outstanding: number;
   outstandingParties: number;
 }
 
 /**
- * Adds up the money that came in, in Rappen. Each ticked half and each
- * donation is one payment, and each TWINT payment loses its fee. A ticked
- * half counts whatever the signup's status, since the money is in; only a
- * confirmed party still owes the halves that aren't ticked.
+ * Adds up the money that came in, in Rappen. Each ticked half, each price
+ * paid in one go and each donation is one payment, and each TWINT payment
+ * loses its fee. A ticked payment counts whatever the signup's status, since
+ * the money is in; only a confirmed party still owes what isn't ticked.
  */
 export function summarizeMoneyReceived(
   parties: readonly PaymentParty[],
@@ -152,12 +158,11 @@ export function summarizeMoneyReceived(
   };
 
   for (const party of parties) {
-    const half = halfPrice(party.total);
     let unpaid = 0;
 
-    for (const { paid, method } of [party.firstHalf, party.secondHalf]) {
-      if (paid) receive(payments, half, method);
-      else unpaid += half;
+    for (const { amount, paid, method } of partyPayments(party)) {
+      if (paid) receive(payments, amount, method);
+      else unpaid += amount;
     }
     for (const donation of party.donations) {
       receive(donations, donation.amount ?? 0, donation.method);
@@ -182,4 +187,18 @@ export function summarizeMoneyReceived(
     outstanding,
     outstandingParties,
   };
+}
+
+/** The payments a party's price comes in: two halves, or the whole of it. */
+function partyPayments(
+  party: PaymentParty,
+): (PaymentHalf & { amount: number })[] {
+  if (party.singlePayment) {
+    return [{ ...party.firstHalf, amount: chfToRappen(party.total) }];
+  }
+  const half = halfPrice(party.total);
+  return [
+    { ...party.firstHalf, amount: half },
+    { ...party.secondHalf, amount: half },
+  ];
 }

@@ -632,6 +632,54 @@ describe("bookkeeping on the signup sheet during the dinner", () => {
     });
   });
 
+  it("switches a party to one payment, keeping the second half for later", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "twint",
+      secondHalfPaid: "on",
+      secondHalfMethod: "cash",
+      singlePayment: "on",
+    });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      singlePayment: true,
+      firstHalfPaid: true,
+      secondHalfPaid: true,
+      secondHalfMethod: "cash",
+    });
+
+    // in one payment the form shows a single tick, the first half's
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfMethod: "cash",
+      singlePayment: "on",
+    });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      singlePayment: true,
+      firstHalfPaid: false,
+      firstHalfMethod: "cash",
+      secondHalfPaid: true,
+      secondHalfMethod: "cash",
+    });
+
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "cash",
+    });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      singlePayment: false,
+      firstHalfPaid: true,
+      secondHalfPaid: true,
+    });
+  });
+
   it("ticks the payment reminder", async () => {
     const { event, signUp } = await createTestEvent(5);
     const signup = await signUp("ada@example.com");

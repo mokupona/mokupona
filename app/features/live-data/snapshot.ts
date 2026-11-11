@@ -90,6 +90,9 @@ const formSubmissionRow = z
     secondHalfMethod: z.string().optional(),
     confirmationMarkedSent: z.boolean().nullable().optional(),
     paymentReminderSent: z.boolean().optional(),
+    // added later still: a live site on older code has every party paying in
+    // two halves
+    singlePayment: z.boolean().default(false),
     createdAt: dateTime,
   })
   .transform(

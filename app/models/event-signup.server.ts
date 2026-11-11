@@ -196,9 +196,10 @@ export async function updateSignupStatus({
 }
 
 /**
- * The admin's own bookkeeping for a signup: which halves of the payment are
- * in and how they came, which mails went out by hand, and a note. Touches
- * nothing the guest or the seats depend on.
+ * The admin's own bookkeeping for a signup: whether the party pays in two
+ * halves or in one payment, which of them are in and how they came, which
+ * mails went out by hand, and a note. Touches nothing the guest or the seats
+ * depend on.
  */
 export async function updateSignupBookkeeping({
   eventId,
@@ -208,6 +209,7 @@ export async function updateSignupBookkeeping({
   eventId: string;
   submissionId: string;
   data: {
+    singlePayment?: boolean;
     firstHalfPaid?: boolean;
     secondHalfPaid?: boolean;
     firstHalfMethod?: PaymentMethod;

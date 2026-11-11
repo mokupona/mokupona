@@ -228,6 +228,11 @@ model FormSubmission {
   // (app/features/signup-form/payments.ts). TWINT keeps a fee of each.
   firstHalfMethod  String @default("twint")
   secondHalfMethod String @default("twint")
+  // ticked by an admin when the party pays the whole price in one payment
+  // rather than in two halves: firstHalfPaid and firstHalfMethod then stand
+  // for that one payment, and the second half is left as it was, unused. One
+  // payment through TWINT costs one fee, not two.
+  singlePayment    Boolean @default(false)
   // an admin's own mark of whether the mail the status calls for (the seat
   // confirmation, or the waiting-list mail) went out, for mails sent by hand
   // or lost on the way. null goes by the SignupMail records. Cleared when the
