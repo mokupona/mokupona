@@ -17,6 +17,7 @@ function party(overrides: Partial<PaymentParty> = {}): PaymentParty {
   return {
     status: "confirmed",
     total: 80,
+    singlePayment: false,
     firstHalf: { paid: false, method: "twint" },
     secondHalf: { paid: false, method: "twint" },
     donations: [],
@@ -158,6 +159,38 @@ describe("summarizeMoneyReceived", () => {
 
     expect(money.outstanding).toBe(4000 + 4000);
     expect(money.outstandingParties).toBe(2);
+  });
+
+  it("takes a price paid in one payment whole, with one TWINT fee", () => {
+    const money = summarizeMoneyReceived(
+      [
+        party({
+          singlePayment: true,
+          firstHalf: { paid: true, method: "twint" },
+          // left from before it paid in one: doesn't count
+          secondHalf: { paid: true, method: "cash" },
+        }),
+      ],
+      FEES,
+    );
+
+    expect(money.payments).toEqual({ twint: 8000, cash: 0 });
+    // 1.5% of 80 CHF is 120 Rappen, plus 30 once
+    expect(money.twintTransactions).toBe(1);
+    expect(money.twintFees).toBe(150);
+    expect(money.net).toBe(8000 - 150);
+    expect(money.outstanding).toBe(0);
+  });
+
+  it("counts the whole price as owed until one payment is ticked", () => {
+    const money = summarizeMoneyReceived(
+      [party({ singlePayment: true, total: 45 })],
+      FEES,
+    );
+
+    expect(money.gross).toBe(0);
+    expect(money.outstanding).toBe(4500);
+    expect(money.outstandingParties).toBe(1);
   });
 
   it("keeps money that came in from a party that cancelled since", () => {

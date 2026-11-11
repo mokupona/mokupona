@@ -63,6 +63,7 @@ describe("getSignupBookingsForEvent", () => {
       status: "waitlisted",
       isLegacy: false,
       signerEmail: "ada@example.com",
+      singlePayment: false,
       firstHalfPaid: true,
       secondHalfPaid: false,
       adminNote: "Pays the rest in December",
@@ -91,6 +92,7 @@ describe("getSignupBookingsForEvent", () => {
         email: "ada@example.com",
         secondHalfPaid: true,
         secondHalfMethod: "cash",
+        singlePayment: true,
         confirmationMarkedSent: true,
         paymentReminderSent: true,
         answers: {
@@ -115,6 +117,7 @@ describe("getSignupBookingsForEvent", () => {
     );
 
     expect(signup).toMatchObject({
+      singlePayment: true,
       firstHalfMethod: "twint",
       secondHalfMethod: "cash",
       confirmationMarkedSent: true,

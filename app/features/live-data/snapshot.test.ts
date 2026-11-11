@@ -187,6 +187,26 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     });
   });
 
+  it("carries a party that pays in one payment", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.formSubmissions[0].singlePayment = true;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({ singlePayment: true });
+  });
+
+  it("reads a live site that predates single payments as paying in halves", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const submission of tables.formSubmissions) {
+      delete submission.singlePayment;
+    }
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({ singlePayment: false });
+  });
+
   it("reads a live site that predates recaps as events without one", () => {
     const tables = overTheWire(liveDataFixture());
     for (const event of tables.events) delete event.recap;

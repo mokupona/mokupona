@@ -29,7 +29,11 @@ export interface SignupBooking {
   isLegacy: boolean;
   /** The signer's own address, as they typed it. */
   signerEmail: string;
-  /** Admin bookkeeping: whether each half of the payment is in, and how. */
+  /**
+   * Admin bookkeeping: whether each half of the payment is in, and how. When
+   * the party pays in one payment, the first half stands for it.
+   */
+  singlePayment: boolean;
   firstHalfPaid: boolean;
   secondHalfPaid: boolean;
   firstHalfMethod: PaymentMethod;
@@ -90,6 +94,7 @@ export async function getSignupBookingsForEvent(
         createdAt: submission.createdAt,
         isLegacy: false,
         signerEmail: asString(answers.email),
+        singlePayment: submission.singlePayment,
         firstHalfPaid: submission.firstHalfPaid,
         secondHalfPaid: submission.secondHalfPaid,
         firstHalfMethod: toPaymentMethod(submission.firstHalfMethod),
@@ -115,6 +120,7 @@ export async function getSignupBookingsForEvent(
     isLegacy: true,
     signerEmail: row.email,
     // pre-form signups have no bookkeeping; the page doesn't offer it
+    singlePayment: false,
     firstHalfPaid: false,
     secondHalfPaid: false,
     firstHalfMethod: "twint",

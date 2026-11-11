@@ -99,6 +99,7 @@ export function liveDataFixture(
         secondHalfMethod: "twint",
         confirmationMarkedSent: true,
         paymentReminderSent: true,
+        singlePayment: false,
         createdAt: at,
       },
     ],

@@ -119,7 +119,11 @@ interface Party {
   guests: BookingGuest[];
   /** Answers that belong to the signup as a whole. */
   contact: SummaryRow[];
-  /** Admin bookkeeping: whether each half of the payment is in, and how. */
+  /**
+   * Admin bookkeeping: whether each half of the payment is in, and how. When
+   * the party pays in one payment, the first half stands for it.
+   */
+  singlePayment: boolean;
   firstHalfPaid: boolean;
   secondHalfPaid: boolean;
   firstHalfMethod: PaymentMethod;
@@ -157,6 +161,7 @@ function toParty(signup: SignupBooking): Party {
     createdAt: signup.createdAt,
     guests,
     contact,
+    singlePayment: signup.singlePayment,
     firstHalfPaid: signup.firstHalfPaid,
     secondHalfPaid: signup.secondHalfPaid,
     firstHalfMethod: signup.firstHalfMethod,
@@ -182,11 +187,12 @@ function toParty(signup: SignupBooking): Party {
   };
 }
 
-/** A party as the money received reads it: its ticked halves and donations. */
+/** A party as the money received reads it: its ticked payments and donations. */
 function toPaymentParty(party: Party): PaymentParty {
   return {
     status: party.status,
     total: party.total,
+    singlePayment: party.singlePayment,
     firstHalf: { paid: party.firstHalfPaid, method: party.firstHalfMethod },
     secondHalf: { paid: party.secondHalfPaid, method: party.secondHalfMethod },
     donations: party.guestBookkeeping.map((guest) => ({
@@ -271,13 +277,25 @@ function readBookkeeping(
   formData: FormData,
 ): Parameters<typeof updateSignupBookkeeping>[0]["data"] {
   switch (intent) {
-    case "payments":
+    case "payments": {
+      // a half the form leaves out (the second, while the party pays in one
+      // payment) stays as it was, ready for when it pays in halves again;
+      // the form sends each half's method with its tick, so a method
+      // that's missing is a half that wasn't there
+      const firstHalfMethod = readMethod(formData, "firstHalfMethod");
+      const secondHalfMethod = readMethod(formData, "secondHalfMethod");
       return {
-        firstHalfPaid: formData.has("firstHalfPaid"),
-        secondHalfPaid: formData.has("secondHalfPaid"),
-        firstHalfMethod: readMethod(formData, "firstHalfMethod"),
-        secondHalfMethod: readMethod(formData, "secondHalfMethod"),
+        singlePayment: formData.has("singlePayment"),
+        ...(firstHalfMethod && {
+          firstHalfPaid: formData.has("firstHalfPaid"),
+          firstHalfMethod,
+        }),
+        ...(secondHalfMethod && {
+          secondHalfPaid: formData.has("secondHalfPaid"),
+          secondHalfMethod,
+        }),
       };
+    }
     case "note":
       return { adminNote: readNote(formData) };
     case "confirmation-mark":
@@ -1003,7 +1021,7 @@ function MoneyReceivedSummary({
                 <span className="font-semibold tabular-nums">
                   {formatRappen(money.outstanding)}
                 </span>
-                , the unpaid halves of {money.outstandingParties} confirmed{" "}
+                , still owed by {money.outstandingParties} confirmed{" "}
                 {money.outstandingParties === 1 ? "group" : "groups"}.
               </>
             )}
@@ -1092,8 +1110,8 @@ function TwintFeesForm({ fees }: { fees: TwintFees }) {
         </p>
       ) : null}
       <p className="text-muted-foreground text-xs">
-        Each half ticked as paid by TWINT and each donation by TWINT counts as
-        one payment. Cash costs nothing.
+        Each half ticked as paid by TWINT, each price paid in full by TWINT and
+        each donation by TWINT counts as one payment. Cash costs nothing.
       </p>
     </fetcher.Form>
   );
@@ -1485,13 +1503,24 @@ function GuestRow({
   );
 }
 
-/** A price in whole francs, and the half that each payment comes to. */
-function PriceLines({ price }: { price: number }) {
+/**
+ * A price in whole francs, and the half that each payment comes to, unless
+ * it's paid in one payment.
+ */
+function PriceLines({
+  price,
+  singlePayment = false,
+}: {
+  price: number;
+  singlePayment?: boolean;
+}) {
   return (
     <div className="flex flex-col items-end whitespace-nowrap tabular-nums">
       <span className="font-semibold">{formatCHF(price)}</span>
       <span className="text-muted-foreground text-xs">
-        half {formatRappen(halfPrice(price))}
+        {singlePayment
+          ? "in 1 payment"
+          : `half ${formatRappen(halfPrice(price))}`}
       </span>
     </div>
   );
@@ -1513,7 +1542,7 @@ function PartyCells({
         {party.size}
       </TableCell>
       <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
-        <PriceLines price={party.total} />
+        <PriceLines price={party.total} singlePayment={party.singlePayment} />
       </TableCell>
       <TableCell rowSpan={rowSpan} className={CELL}>
         <PaymentTicks party={party} />
@@ -1710,8 +1739,14 @@ function PaymentTicks({ party }: { party: Party }) {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
 
+  // shows the switch at once, before the page has reloaded its data
+  const singlePayment = fetcher.formData
+    ? fetcher.formData.has("singlePayment")
+    : party.singlePayment;
+
   // the ticks are native checkboxes: a click shows at once, and each one is
-  // remounted from the saved value once the page has reloaded its data
+  // remounted from the saved value once the page has reloaded its data. In
+  // one payment, the first half's tick and method stand for the whole price.
   return (
     <fetcher.Form
       method="post"
@@ -1719,22 +1754,46 @@ function PaymentTicks({ party }: { party: Party }) {
     >
       <input type="hidden" name="intent" value="payments" />
       <input type="hidden" name="submissionId" value={party.submissionId} />
-      <PaymentTick
-        name="firstHalfPaid"
-        label="1st half paid"
-        checked={party.firstHalfPaid}
-        methodName="firstHalfMethod"
-        method={party.firstHalfMethod}
-        methodLabel={`How ${party.name}'s group paid the 1st half`}
-      />
-      <PaymentTick
-        name="secondHalfPaid"
-        label="2nd half paid"
-        checked={party.secondHalfPaid}
-        methodName="secondHalfMethod"
-        method={party.secondHalfMethod}
-        methodLabel={`How ${party.name}'s group paid the 2nd half`}
-      />
+      {singlePayment ? (
+        <PaymentTick
+          name="firstHalfPaid"
+          label="Paid in full"
+          checked={party.firstHalfPaid}
+          methodName="firstHalfMethod"
+          method={party.firstHalfMethod}
+          methodLabel={`How ${party.name}'s group paid`}
+        />
+      ) : (
+        <>
+          <PaymentTick
+            name="firstHalfPaid"
+            label="1st half paid"
+            checked={party.firstHalfPaid}
+            methodName="firstHalfMethod"
+            method={party.firstHalfMethod}
+            methodLabel={`How ${party.name}'s group paid the 1st half`}
+          />
+          <PaymentTick
+            name="secondHalfPaid"
+            label="2nd half paid"
+            checked={party.secondHalfPaid}
+            methodName="secondHalfMethod"
+            method={party.secondHalfMethod}
+            methodLabel={`How ${party.name}'s group paid the 2nd half`}
+          />
+        </>
+      )}
+      <label className="text-muted-foreground inline-flex items-center gap-2 text-xs whitespace-nowrap">
+        <input
+          key={String(party.singlePayment)}
+          type="checkbox"
+          name="singlePayment"
+          defaultChecked={party.singlePayment}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          className="accent-primary size-3.5"
+        />
+        1 payment, no halves
+      </label>
     </fetcher.Form>
   );
 }
