@@ -179,6 +179,7 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
         arrivedAt: new Date("2025-02-01T18:05:00.000Z"),
         donationRappen: 750,
         donationMethod: "cash",
+        priceShare: "half",
       }),
     ]);
     expect(parsed.events[0]).toMatchObject({
@@ -205,6 +206,24 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     const parsed = liveDataTablesSchema.parse(tables);
 
     expect(parsed.formSubmissions[0]).toMatchObject({ singlePayment: false });
+  });
+
+  it("reads a live site that predates price shares as everyone paying in full", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const guest of tables.signupGuests) delete guest.priceShare;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
+  });
+
+  it("reads a price share it doesn't know as paying in full", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.signupGuests[0].priceShare = "quarter";
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
   });
 
   it("reads a live site that predates recaps as events without one", () => {

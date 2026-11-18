@@ -2,7 +2,8 @@
 // keeps of it, and what has come in so far. A party pays its price in two
 // halves, or the whole of it in one payment. Amounts here are in Rappen
 // (100 to the franc), so halves, donations and fees add up without rounding
-// drift; the prices on an event stay whole francs.
+// drift; the prices on an event stay whole francs, and a person an admin set
+// to pay half pays half of theirs.
 
 import type { SignupStatus } from "./signup-status";
 
@@ -25,6 +26,49 @@ export function isPaymentMethod(value: unknown): value is PaymentMethod {
 /** A stored method as the sheet reads it; anything unknown counts as TWINT. */
 export function toPaymentMethod(value: string): PaymentMethod {
   return isPaymentMethod(value) ? value : "twint";
+}
+
+/**
+ * What share of their price one person pays, set by an admin on the signup
+ * sheet: all of it, half, or nothing. For helpers who sign up so their
+ * allergies are on the sheet, but don't pay or pay half.
+ */
+export const PRICE_SHARES = ["full", "half", "none"] as const;
+
+export type PriceShare = (typeof PRICE_SHARES)[number];
+
+export const PRICE_SHARE_LABELS: Record<PriceShare, string> = {
+  full: "Pays in full",
+  half: "Pays half",
+  none: "Doesn't pay",
+};
+
+export function isPriceShare(value: unknown): value is PriceShare {
+  return (
+    typeof value === "string" &&
+    (PRICE_SHARES as readonly string[]).includes(value)
+  );
+}
+
+/** A stored share as the sheet reads it; anything unknown pays in full. */
+export function toPriceShare(value: string): PriceShare {
+  return isPriceShare(value) ? value : "full";
+}
+
+/**
+ * What one person pays of their price, in CHF. Half of a whole-franc price
+ * can end in 50 Rappen, so a party's total and its halves stay exact in
+ * Rappen.
+ */
+export function priceAfterShare(price: number, share: PriceShare): number {
+  switch (share) {
+    case "full":
+      return price;
+    case "half":
+      return price / 2;
+    case "none":
+      return 0;
+  }
 }
 
 /** What TWINT keeps of each payment: a share of it plus a fixed sum. */
@@ -51,7 +95,10 @@ export function chfToRappen(chf: number): number {
   return Math.round(chf * 100);
 }
 
-/** Half of a price in whole francs, in Rappen: always exact. */
+/**
+ * Half of a price in whole or half francs (a person paying half), in Rappen:
+ * always exact.
+ */
 export function halfPrice(chf: number): number {
   return chfToRappen(chf) / 2;
 }
@@ -93,7 +140,7 @@ export interface PaymentHalf {
 /** One signup, as far as the money that came in is concerned. */
 export interface PaymentParty {
   status: SignupStatus;
-  /** What the whole party pays, in CHF. */
+  /** What the whole party pays, in CHF, after each person's price share. */
   total: number;
   /**
    * The party pays the whole total in one payment: `firstHalf` then stands

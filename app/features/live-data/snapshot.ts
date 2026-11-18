@@ -5,6 +5,7 @@ import { LIVE_DATA_TABLES, type LiveDataCounts } from "./tables";
 import {
   DEFAULT_TWINT_FEES,
   toPaymentMethod,
+  toPriceShare,
 } from "~/features/signup-form/payments";
 import {
   normalizeSignupEmail,
@@ -130,8 +131,8 @@ const formSubmissionRow = z
     },
   );
 
-// the admin's arrivals and donations per person in a signup; a person
-// nobody ticked anything for has no row
+// the admin's arrivals, donations and price shares per person in a signup;
+// a person nobody ticked anything for has no row
 const signupGuestRow = z.object({
   id,
   submissionId: id,
@@ -139,6 +140,8 @@ const signupGuestRow = z.object({
   arrivedAt: dateTime.nullable(),
   donationRappen: int.nonnegative().nullable(),
   donationMethod: z.string().transform(toPaymentMethod),
+  // added later: a live site on older code has everyone paying in full
+  priceShare: z.string().default("full").transform(toPriceShare),
   createdAt: dateTime,
   updatedAt: dateTime,
 });

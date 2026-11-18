@@ -3,7 +3,7 @@ import type { Prisma } from "#prisma/generated/client";
 import { prisma } from "~/db.server";
 import type { LiveDataTables } from "~/features/live-data/snapshot";
 import type { LiveDataCounts } from "~/features/live-data/tables";
-import { toPaymentMethod } from "~/features/signup-form/payments";
+import { toPaymentMethod, toPriceShare } from "~/features/signup-form/payments";
 import { toSignupStatus } from "~/features/signup-form/signup-status";
 
 const INSERT_CHUNK_SIZE = 200;
@@ -174,6 +174,7 @@ export async function readLiveDataTables({
         arrivedAt: true,
         donationRappen: true,
         donationMethod: true,
+        priceShare: true,
         ...TIMESTAMPS,
       },
     }),
@@ -280,6 +281,7 @@ export async function readLiveDataTables({
     signupGuests: signupGuests.map((row) => ({
       ...row,
       donationMethod: toPaymentMethod(row.donationMethod),
+      priceShare: toPriceShare(row.priceShare),
     })),
     events: events.map(({ createdBy, ...event }) => ({
       ...event,

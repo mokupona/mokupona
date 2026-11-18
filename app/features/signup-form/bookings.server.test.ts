@@ -82,7 +82,7 @@ describe("getSignupBookingsForEvent", () => {
     });
   });
 
-  it("lays out each person's arrival and donation, and how the halves came in", async () => {
+  it("lays out each person's arrival, donation and price share, and how the halves came in", async () => {
     const { eventId, versionId } = await eventWithPrices();
     const arrivedAt = new Date("2026-11-06T18:30:00Z");
     await prisma.formSubmission.create({
@@ -104,7 +104,12 @@ describe("getSignupBookingsForEvent", () => {
         guestBookkeeping: {
           create: [
             { guestIndex: 2, arrivedAt, donationRappen: 750 },
-            { guestIndex: 0, donationRappen: 1000, donationMethod: "cash" },
+            {
+              guestIndex: 0,
+              donationRappen: 1000,
+              donationMethod: "cash",
+              priceShare: "none",
+            },
           ],
         },
       },
@@ -123,9 +128,24 @@ describe("getSignupBookingsForEvent", () => {
       confirmationMarkedSent: true,
       paymentReminderSent: true,
       guestBookkeeping: [
-        { arrivedAt: null, donation: 1000, donationMethod: "cash" },
-        { arrivedAt: null, donation: null, donationMethod: "twint" },
-        { arrivedAt, donation: 750, donationMethod: "twint" },
+        {
+          arrivedAt: null,
+          donation: 1000,
+          donationMethod: "cash",
+          priceShare: "none",
+        },
+        {
+          arrivedAt: null,
+          donation: null,
+          donationMethod: "twint",
+          priceShare: "full",
+        },
+        {
+          arrivedAt,
+          donation: 750,
+          donationMethod: "twint",
+          priceShare: "full",
+        },
       ],
     });
   });

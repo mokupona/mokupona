@@ -270,6 +270,11 @@ model SignupGuest {
   donationRappen Int?
   // "twint" or "cash", like the payment halves
   donationMethod String    @default("twint")
+  // what share of their price they pay: "full", "half" or "none"
+  // (app/features/signup-form/payments.ts), for helpers who sign up so
+  // their allergies are on the sheet but pay less or nothing. Their price on
+  // the sheet and their party's total follow it; the mails don't.
+  priceShare     String    @default("full")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

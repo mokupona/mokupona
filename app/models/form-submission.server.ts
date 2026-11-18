@@ -68,6 +68,7 @@ export async function getFormSubmissionsForEvent(eventId: string) {
           arrivedAt: true,
           donationRappen: true,
           donationMethod: true,
+          priceShare: true,
         },
       },
     },
