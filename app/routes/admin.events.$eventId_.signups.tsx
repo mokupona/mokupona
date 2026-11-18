@@ -1,4 +1,5 @@
 import { CheckIcon, DownloadIcon } from "lucide-react";
+import type { Logger } from "pino";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { data, Form, useFetcher, useNavigation } from "react-router";
 
@@ -39,13 +40,16 @@ import {
   type GuestBookkeeping,
 } from "~/features/signup-form/bookkeeping";
 import {
+  defaultPaymentReminderCopy,
   MAX_SIGNUP_MAIL_MESSAGE_LENGTH,
   MAX_SIGNUP_MAIL_SUBJECT_LENGTH,
   signupMailPlaceholderList,
   unknownSignupMailPlaceholders,
+  type SignupMailCopy,
   type SignupMailKind,
 } from "~/features/signup-form/confirmation-mail";
 import {
+  sendPaymentReminders,
   sendSignupMessage,
   sendStoredSignupMail,
   SIGNUP_MESSAGE_REPLY_TO,
@@ -54,6 +58,7 @@ import {
   summarizeHeadcount,
   type HeadcountSummary,
 } from "~/features/signup-form/headcount";
+import { isPaymentReminderDue } from "~/features/signup-form/payment-reminders";
 import {
   halfPrice,
   isPaymentMethod,
@@ -104,7 +109,11 @@ import {
   updateSignupGuest,
   updateSignupStatus,
 } from "~/models/event-signup.server";
-import { getEventById, setEventTwintFees } from "~/models/event.server";
+import {
+  getEventById,
+  setEventPaymentReminderCopy,
+  setEventTwintFees,
+} from "~/models/event.server";
 import { getSignupMailState } from "~/models/signup-mail.server";
 import { getDomainUrl, requireFound } from "~/shared/http.server";
 import { redirectWithToast, type ToastInput } from "~/utils/toast.server";
@@ -162,11 +171,6 @@ interface Party {
 
 function toParty(signup: SignupBooking): Party {
   const { guests, contact, total: fullTotal } = signup.booking;
-  const total = guests.reduce(
-    (sum, guest, guestIndex) =>
-      sum + priceAfterShare(guest.price, shareOf(signup, guestIndex)),
-    0,
-  );
 
   return {
     submissionId: signup.submissionId,
@@ -175,7 +179,7 @@ function toParty(signup: SignupBooking): Party {
     name: guests[0]?.name ?? "",
     email: signup.signerEmail,
     size: guests.length,
-    total,
+    total: signup.amountDue,
     fullTotal,
     createdAt: signup.createdAt,
     guests,
@@ -247,6 +251,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 
   // oldest first, so the waiting list reads in the order people joined
   const parties = bookings.map(toParty);
+  const reminderDefaults = defaultPaymentReminderCopy(t);
 
   return {
     event: {
@@ -280,6 +285,19 @@ export async function loader({ params }: Route.LoaderArgs) {
       })),
     ),
     mail: { copyTo: guestMailCopyTo(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
+    reminder: {
+      subject: event.paymentReminderMailSubject ?? reminderDefaults.subject,
+      message: event.paymentReminderMailMessage ?? reminderDefaults.message,
+      // false while it's the site-wide reminder, edited under Texts
+      ownCopy:
+        event.paymentReminderMailSubject !== null ||
+        event.paymentReminderMailMessage !== null,
+      // the groups the reminder would go to, oldest signup first
+      due: bookings.filter(isPaymentReminderDue).map((signup) => ({
+        submissionId: signup.submissionId,
+        name: signup.booking.guests[0]?.name ?? signup.signerEmail,
+      })),
+    },
   };
 }
 
@@ -521,6 +539,21 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     return data({ saved: intent });
   }
 
+  if (
+    intent === "reminder-copy" ||
+    intent === "reminder-reset" ||
+    intent === "send-reminders"
+  ) {
+    return reminderAction({
+      intent,
+      eventId,
+      formData,
+      origin: getDomainUrl(request),
+      userId: user.id,
+      log,
+    });
+  }
+
   if (intent === "send-confirmation") {
     const submissionId = readSubmissionId(formData);
     const signup = await getSignupMailState({ eventId, submissionId });
@@ -706,6 +739,100 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   return redirectWithToast(page, statusToast(status, previous, mailFailed));
 }
 
+/**
+ * The payment reminder: saving what an admin wrote for it, going back to the
+ * site-wide one, or sending it to every group that's due one (which saves
+ * what was sent, too).
+ */
+async function reminderAction({
+  intent,
+  eventId,
+  formData,
+  origin,
+  userId,
+  log,
+}: {
+  intent: "reminder-copy" | "reminder-reset" | "send-reminders";
+  eventId: string;
+  formData: FormData;
+  origin: string;
+  userId: string;
+  log: Logger;
+}) {
+  await getEventById(eventId).then(requireFound);
+
+  if (intent === "reminder-reset") {
+    await setEventPaymentReminderCopy(eventId, {
+      subject: null,
+      message: null,
+    });
+    log.info(
+      { userId, event: eventId },
+      "Admin set the event back to the site-wide payment reminder",
+    );
+    return data({ saved: intent });
+  }
+
+  const copy = readMailCopy(formData);
+  if ("error" in copy) {
+    return data({ reminderError: copy.error }, { status: 400 });
+  }
+
+  // the site-wide text, left as it is, stays the site-wide text: an edit to
+  // it under Texts still reaches this event
+  const defaults = defaultPaymentReminderCopy(await getText());
+  await setEventPaymentReminderCopy(eventId, {
+    subject: copy.subject === defaults.subject ? null : copy.subject,
+    message: copy.message === defaults.message ? null : copy.message,
+  });
+
+  if (intent === "reminder-copy") {
+    log.info({ userId, event: eventId }, "Admin saved the payment reminder");
+    return data({ saved: intent });
+  }
+
+  let result: Awaited<ReturnType<typeof sendPaymentReminders>>;
+  try {
+    result = await sendPaymentReminders({
+      eventId,
+      copy,
+      origin,
+      sentById: userId,
+    });
+  } catch (error) {
+    log.error(
+      { event: eventId, error },
+      "Failed to send the payment reminders",
+    );
+    return data(
+      {
+        reminderError:
+          "The reminders couldn't be sent. The error is in the logs.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (result.sent.length === 0 && result.failed.length === 0) {
+    return data(
+      { reminderError: "No group is due a reminder right now." },
+      { status: 400 },
+    );
+  }
+
+  log.info(
+    {
+      userId,
+      event: eventId,
+      sent: result.sent.length,
+      failed: result.failed.length,
+    },
+    "Admin sent the payment reminders",
+  );
+
+  return data({ reminderResult: result });
+}
+
 const MAIL_NAMES: Record<SignupMailKind, string> = {
   confirmed: "Confirmation",
   waitlisted: "Waiting-list email",
@@ -725,12 +852,6 @@ function readMessageDraft(
 ):
   | { subject: string; message: string; guestIndexes: number[] }
   | { error: string } {
-  const field = (name: string) => {
-    const value = formData.get(name);
-    return typeof value === "string" ? value.trim() : "";
-  };
-  const subject = field("subject");
-  const message = field("message");
   const guestIndexes = formData
     .getAll("recipient")
     .map(Number)
@@ -739,6 +860,27 @@ function readMessageDraft(
   if (guestIndexes.length === 0) {
     return { error: "Pick at least one person to write to." };
   }
+  const copy = readMailCopy(formData);
+  if ("error" in copy) return copy;
+
+  return { ...copy, guestIndexes };
+}
+
+/**
+ * The subject and Markdown message of a mail an admin wrote (a message, the
+ * payment reminder), checked before anything is stored or sent.
+ */
+function readMailCopy(formData: FormData): SignupMailCopy | { error: string } {
+  const field = (name: string) => {
+    const value = formData.get(name);
+    // a textarea sends its line breaks as \r\n
+    return typeof value === "string"
+      ? value.replace(/\r\n?/g, "\n").trim()
+      : "";
+  };
+  const subject = field("subject");
+  const message = field("message");
+
   if (!subject) return { error: "The email needs a subject." };
   if (subject.length > MAX_SIGNUP_MAIL_SUBJECT_LENGTH) {
     return {
@@ -759,7 +901,7 @@ function readMessageDraft(
     };
   }
 
-  return { subject, message, guestIndexes };
+  return { subject, message };
 }
 
 function readNote(formData: FormData): string {
@@ -830,8 +972,17 @@ const SECTIONS: { status: SignupStatus; title: string; empty: string }[] = [
 ];
 
 export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
-  const { event, seats, parties, revenue, money, twintFees, headcount, mail } =
-    loaderData;
+  const {
+    event,
+    seats,
+    parties,
+    revenue,
+    money,
+    twintFees,
+    headcount,
+    mail,
+    reminder,
+  } = loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
   ).length;
@@ -871,6 +1022,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         <MoneyReceivedSummary money={money} fees={twintFees} />
         <Headcount headcount={headcount} />
       </div>
+
+      <PaymentReminder reminder={reminder} mail={mail} />
 
       {overbookedBy > 0 ? (
         <Notice>
@@ -1165,6 +1318,203 @@ function TwintFeesForm({ fees }: { fees: TwintFees }) {
         each donation by TWINT counts as one payment. Cash costs nothing.
       </p>
     </fetcher.Form>
+  );
+}
+
+interface ReminderSettings {
+  /** What the reminder says now: the event's own, or the site-wide one. */
+  subject: string;
+  message: string;
+  /** False while the event uses the site-wide reminder. */
+  ownCopy: boolean;
+  /** The groups it would go to. */
+  due: { submissionId: string; name: string }[];
+}
+
+/**
+ * The payment reminder: who's due one, and the email itself, written here
+ * and sent to all of them in one go.
+ */
+function PaymentReminder({
+  reminder,
+  mail,
+}: {
+  reminder: ReminderSettings;
+  mail: MailSettings;
+}) {
+  const [open, setOpen] = useState(false);
+  const fetcher = useFetcher<typeof action>();
+  const id = useId();
+  const busy = fetcher.state !== "idle";
+  const sending = busy && fetcher.formData?.get("intent") === "send-reminders";
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const result =
+    reply && "reminderResult" in reply ? reply.reminderResult : undefined;
+  const error = reply && "reminderError" in reply ? reply.reminderError : null;
+  const saved =
+    reply !== undefined &&
+    "saved" in reply &&
+    (reply.saved === "reminder-copy" || reply.saved === "reminder-reset");
+  const count = reminder.due.length;
+  const groups = `${count} ${count === 1 ? "group" : "groups"}`;
+  // the fields start over from what's saved once it changes
+  const copyKey = `${reminder.subject}\n${reminder.message}`;
+
+  return (
+    <section aria-labelledby="reminder-heading" className="mb-8">
+      <h2 id="reminder-heading" className="mb-3 text-lg font-semibold">
+        Payment reminder
+      </h2>
+      <Card className="flex flex-col gap-4 p-4">
+        <p className="text-sm">
+          {count === 0 ? (
+            "No group is due a reminder: every confirmed group has paid its 1st half, has been reminded, or has nothing to pay."
+          ) : (
+            <>
+              <span className="font-semibold">{groups}</span> with a confirmed
+              seat {count === 1 ? "hasn't" : "haven't"} paid the 1st half and{" "}
+              {count === 1 ? "hasn't" : "haven't"} been reminded yet:{" "}
+              {listNames(reminder.due.map((party) => party.name))}.
+            </>
+          )}
+        </p>
+
+        {open ? (
+          <fetcher.Form method="post" className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`${id}-subject`}
+                className="text-sm font-semibold"
+              >
+                Subject
+              </label>
+              <Input
+                key={copyKey}
+                id={`${id}-subject`}
+                name="subject"
+                defaultValue={reminder.subject}
+                required
+                maxLength={MAX_SIGNUP_MAIL_SUBJECT_LENGTH}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label
+                htmlFor={`${id}-message`}
+                className="text-sm font-semibold"
+              >
+                Message
+              </label>
+              <Textarea
+                key={copyKey}
+                id={`${id}-message`}
+                name="message"
+                defaultValue={reminder.message}
+                required
+                rows={8}
+                maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+              />
+              <p className="text-muted-foreground text-xs">
+                Each group gets one email, to the person who signed it up, with
+                a button to the event page under your message. Once it&apos;s
+                out, the group is ticked as reminded. Markdown works: [link
+                text](https://…), **bold**, *italic*. Placeholders:{" "}
+                {signupMailPlaceholderList()}; {"{total}"} and {"{half}"} are
+                what the group pays, after anyone set to pay half or nothing.
+                Replies go to {mail.replyTo}.
+                {mail.copyTo
+                  ? ` A copy of each email goes to ${mail.copyTo}.`
+                  : null}{" "}
+                {reminder.ownCopy
+                  ? "This event has its own reminder text."
+                  : "This is the site-wide reminder text, from Texts → Emails; saving a change keeps it for this event only."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="submit"
+                name="intent"
+                value="send-reminders"
+                size="sm"
+                disabled={busy || count === 0}
+                onClick={(clickEvent) => {
+                  const ok = window.confirm(
+                    `Send the payment reminder to ${groups}? Each one is ticked as reminded once it's out.`,
+                  );
+                  if (!ok) clickEvent.preventDefault();
+                }}
+              >
+                {sending ? "Sending…" : `Send to ${groups}`}
+              </Button>
+              <Button
+                type="submit"
+                name="intent"
+                value="reminder-copy"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+              >
+                Save text
+              </Button>
+              {reminder.ownCopy ? (
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="reminder-reset"
+                  size="sm"
+                  variant="outline"
+                  formNoValidate
+                  disabled={busy}
+                >
+                  Use the site-wide text
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Close
+              </Button>
+              {saved ? (
+                <span role="status" className="text-muted-foreground text-sm">
+                  Saved
+                </span>
+              ) : null}
+              {error ? (
+                <span role="alert" className="text-destructive-light text-sm">
+                  {error}
+                </span>
+              ) : null}
+            </div>
+          </fetcher.Form>
+        ) : (
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant={count > 0 ? "default" : "outline"}
+              onClick={() => setOpen(true)}
+            >
+              {count > 0 ? "Write and send the reminder" : "Edit the reminder"}
+            </Button>
+          </div>
+        )}
+
+        {result ? (
+          <p role="status" className="text-sm">
+            {result.sent.length > 0
+              ? `Reminded ${listNames(result.sent)}.`
+              : null}
+            {result.failed.length > 0
+              ? ` Couldn't email ${listNames(result.failed)}; ${result.failed.length === 1 ? "they're" : "they're all"} still due, and the error is in the logs.`
+              : null}
+          </p>
+        ) : null}
+      </Card>
+    </section>
   );
 }
 
@@ -2103,6 +2453,7 @@ const MAIL_KIND_LABELS: Record<SignupMailRecordKind, string> = {
   waitlisted: "Waiting-list email",
   friend: "Note that they were signed up",
   custom: "Message",
+  reminder: "Payment reminder",
 };
 
 function SentAt({ date }: { date: Date }) {
@@ -2208,23 +2559,32 @@ function ConfirmationTick({ party }: { party: Party }) {
 
 function ReminderTick({ party }: { party: Party }) {
   const fetcher = useFetcher();
+  // mails are oldest first
+  const lastReminder = party.mails
+    .filter((sent) => sent.kind === "reminder")
+    .at(-1);
 
   return (
-    <fetcher.Form method="post">
-      <input type="hidden" name="intent" value="reminder" />
-      <input type="hidden" name="submissionId" value={party.submissionId} />
-      <label className="inline-flex items-center gap-2 whitespace-nowrap">
-        <input
-          key={String(party.paymentReminderSent)}
-          type="checkbox"
-          name="paymentReminderSent"
-          defaultChecked={party.paymentReminderSent}
-          onChange={(event) => event.currentTarget.form?.requestSubmit()}
-          className="accent-primary size-4"
-        />
-        Payment reminder sent
-      </label>
-    </fetcher.Form>
+    <div className="flex flex-col items-start gap-0.5">
+      <fetcher.Form method="post">
+        <input type="hidden" name="intent" value="reminder" />
+        <input type="hidden" name="submissionId" value={party.submissionId} />
+        <label className="inline-flex items-center gap-2 whitespace-nowrap">
+          <input
+            key={String(party.paymentReminderSent)}
+            type="checkbox"
+            name="paymentReminderSent"
+            defaultChecked={party.paymentReminderSent}
+            onChange={(event) => event.currentTarget.form?.requestSubmit()}
+            className="accent-primary size-4"
+          />
+          Payment reminder sent
+        </label>
+      </fetcher.Form>
+      {party.paymentReminderSent && lastReminder ? (
+        <SentAt date={lastReminder.sentAt} />
+      ) : null}
+    </div>
   );
 }
 
@@ -2301,7 +2661,7 @@ function PartyMails({ party, mail }: { party: Party; mail: MailSettings }) {
                 ) : null}
               </span>
               <SentAt date={sent.sentAt} />
-              {sent.kind === "custom" ? (
+              {sent.kind === "custom" || sent.kind === "reminder" ? (
                 <details className="mt-1">
                   <summary className="cursor-pointer">
                     &ldquo;{sent.subject}&rdquo;

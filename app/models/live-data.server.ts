@@ -198,6 +198,8 @@ export async function readLiveDataTables({
         confirmedMailMessage: true,
         waitlistMailSubject: true,
         waitlistMailMessage: true,
+        paymentReminderMailSubject: true,
+        paymentReminderMailMessage: true,
         twintFeePercent: true,
         twintFeeFixedRappen: true,
         imageId: true,

@@ -10,7 +10,9 @@ import {
 } from "./compose";
 import {
   fillSignupMailCopy,
+  GUEST_MAIL_TEMPLATES,
   mailTemplates,
+  signupMailValues,
   teamCopy,
   type SignupConfirmationProps,
 } from "./templates";
@@ -483,6 +485,7 @@ describe("guest messages", () => {
           date: "Saturday 14 November, 19:00",
           guests: "2",
           total: "CHF 60",
+          half: "CHF 30",
         },
       ),
     ).toEqual({
@@ -505,6 +508,49 @@ describe("guest messages", () => {
     expect(body.html).toContain("<strong>moved</strong>");
     expect(body.text).toContain("https://mokupona.ch/events/1");
     expect(body.text).toContain("you signed up for Winter table");
+  });
+
+  it("renders the payment reminder with a button to the event", () => {
+    const body = mailTemplates.paymentReminder(
+      {
+        subject: "Your first half for Winter table",
+        message: "Please send **15 CHF**.",
+        event: { title: "Winter table", url: "https://mokupona.ch/events/1" },
+      },
+      defaultText,
+    );
+
+    expect(body.subject).toBe("Your first half for Winter table");
+    expect(body.html).toContain("<strong>15 CHF</strong>");
+    expect(body.text).toContain("https://mokupona.ch/events/1");
+    expect(body.text).toContain("you signed up for Winter table");
+    expect(GUEST_MAIL_TEMPLATES.has("paymentReminder")).toBe(true);
+  });
+
+  it("fills {total} and {half} with what the group pays, to the Rappen", () => {
+    const booking = {
+      guests: [
+        {
+          name: "Ada",
+          isStudent: false,
+          vegetarian: null,
+          price: 45,
+          email: null,
+          rows: [],
+        },
+      ],
+      contact: [],
+      total: 45,
+    };
+    const event = { title: "Winter table", date: new Date() };
+
+    expect(
+      signupMailValues({ name: "Ada", event, booking }, defaultText),
+    ).toMatchObject({ total: "45 CHF", half: "22.50 CHF" });
+    // after an admin set someone to pay half or nothing
+    expect(
+      signupMailValues({ name: "Ada", event, booking, total: 0 }, defaultText),
+    ).toMatchObject({ total: "free", half: "free" });
   });
 
   it("titles the team's copy with the guest and the subject they got", () => {

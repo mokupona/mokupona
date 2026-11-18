@@ -171,6 +171,9 @@ const eventRow = z
     confirmedMailMessage: nullableText.default(null),
     waitlistMailSubject: nullableText.default(null),
     waitlistMailMessage: nullableText.default(null),
+    // added later: a live site on older code has no reminder of its own
+    paymentReminderMailSubject: nullableText.default(null),
+    paymentReminderMailMessage: nullableText.default(null),
     // added later still: a live site on older code has the default fees
     twintFeePercent: z
       .number()

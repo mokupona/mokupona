@@ -322,6 +322,60 @@ describe("updateSignupBookkeeping", () => {
     });
   });
 
+  it("ticks the payment reminder once the first half comes in, and only then", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+    const update = (
+      data: Parameters<typeof updateSignupBookkeeping>[0]["data"],
+    ) =>
+      updateSignupBookkeeping({
+        eventId: fixture.event.id,
+        submissionId: signup.id,
+        data,
+      });
+    const reminded = async () =>
+      (
+        await prisma.formSubmission.findUniqueOrThrow({
+          where: { id: signup.id },
+        })
+      ).paymentReminderSent;
+
+    // a second half on its own doesn't count
+    await update({ firstHalfPaid: false, secondHalfPaid: true });
+    expect(await reminded()).toBe(false);
+
+    await update({ firstHalfPaid: true, secondHalfPaid: true });
+    expect(await reminded()).toBe(true);
+
+    // an admin who unticks the reminder after keeps it unticked, even when
+    // the payment ticks are saved again
+    await update({ paymentReminderSent: false });
+    await update({ firstHalfPaid: true, secondHalfPaid: false });
+    expect(await reminded()).toBe(false);
+
+    // and unticking the first half leaves the reminder alone
+    await update({ paymentReminderSent: true });
+    await update({ firstHalfPaid: false });
+    expect(await reminded()).toBe(true);
+  });
+
+  it("ticks the payment reminder when a single payment is ticked as paid", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: { singlePayment: true, firstHalfPaid: true },
+    });
+
+    expect(
+      await prisma.formSubmission.findUniqueOrThrow({
+        where: { id: signup.id },
+      }),
+    ).toMatchObject({ firstHalfPaid: true, paymentReminderSent: true });
+  });
+
   it("won't touch a signup that belongs to another event", async () => {
     const mine = await createTestEvent(4);
     const theirs = await createTestEvent(4);

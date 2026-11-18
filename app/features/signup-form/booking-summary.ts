@@ -193,8 +193,13 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * A price for a guest's mail. Whole francs stay whole; half of an odd price
+ * (the first payment) shows its Rappen: "22.50 CHF".
+ */
 export function formatChf(amount: number, t: Text): string {
-  return amount === 0
-    ? t("emails.signup.free")
-    : t("emails.signup.amount", { amount });
+  if (amount === 0) return t("emails.signup.free");
+  return t("emails.signup.amount", {
+    amount: Number.isInteger(amount) ? amount : amount.toFixed(2),
+  });
 }

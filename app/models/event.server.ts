@@ -45,6 +45,9 @@ export interface EventCreateData {
   confirmedMailMessage?: string | null;
   waitlistMailSubject?: string | null;
   waitlistMailMessage?: string | null;
+  /** Written on the signup sheet; null uses the site-wide reminder. */
+  paymentReminderMailSubject?: string | null;
+  paymentReminderMailMessage?: string | null;
   addressId: string;
   image: ImageCreateData;
   createdById: string;
@@ -110,6 +113,23 @@ export async function setEventTwintFees(
     data: {
       twintFeePercent: fees.percent,
       twintFeeFixedRappen: fees.fixedRappen,
+    },
+  });
+}
+
+/**
+ * The event's own payment reminder, as an admin wrote it on the signup
+ * sheet; null for a part that should follow the site-wide reminder.
+ */
+export async function setEventPaymentReminderCopy(
+  id: string,
+  copy: { subject: string | null; message: string | null },
+): Promise<void> {
+  await prisma.event.update({
+    where: { id },
+    data: {
+      paymentReminderMailSubject: copy.subject,
+      paymentReminderMailMessage: copy.message,
     },
   });
 }

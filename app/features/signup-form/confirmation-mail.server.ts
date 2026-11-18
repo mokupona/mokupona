@@ -3,7 +3,9 @@ import {
   summarizeBooking,
   type BookingSummary,
 } from "./booking-summary";
-import type { SignupMailKind } from "./confirmation-mail";
+import { getSignupBookingsForEvent } from "./bookings.server";
+import type { SignupMailCopy, SignupMailKind } from "./confirmation-mail";
+import { isPaymentReminderDue } from "./payment-reminders";
 import {
   messageRecipients,
   type MessageRecipient,
@@ -20,8 +22,12 @@ import {
 import { getText } from "~/features/site-text/site-text.server";
 import { requestLogger } from "~/logger/request-context.server";
 import { getSignupForMail } from "~/models/event-signup.server";
-import type { Event } from "~/models/event.server";
-import { recordSignupMail } from "~/models/signup-mail.server";
+import { getEventById, type Event } from "~/models/event.server";
+import {
+  claimPaymentReminder,
+  recordSignupMail,
+  releasePaymentReminder,
+} from "~/models/signup-mail.server";
 
 export const DEFAULT_EVENT_SIGNUP_MAIL_FROM = "moku pona <noreply@mokupona.ch>";
 
@@ -340,6 +346,87 @@ export async function sendSignupMessage({
   const failed: MessageRecipient[] = [];
   for (const [index, result] of results.entries()) {
     (result.status === "fulfilled" ? sent : failed).push(recipients[index]);
+  }
+
+  return { sent, failed };
+}
+
+/**
+ * The payment reminder, sent from the signup sheet to every group that's due
+ * one (payment-reminders.ts): to the person who signed the group up, with the
+ * placeholders filled in for their group and {total} and {half} at what it
+ * pays after anyone set to pay half or nothing.
+ *
+ * The mails go out one at a time, so a long list stays inside the mail
+ * provider's rate limit. Each group is ticked as reminded just before its
+ * mail goes out, so a second click can't remind it twice, and unticked again
+ * if the mail fails; the mails that go out are kept on the signups' records.
+ * Answers with the names of the people reached, and of those who weren't.
+ */
+export async function sendPaymentReminders({
+  eventId,
+  copy,
+  origin,
+  sentById,
+}: {
+  eventId: string;
+  /** Markdown, placeholders still in. */
+  copy: SignupMailCopy;
+  origin: string;
+  /** The admin who sent it. */
+  sentById: string;
+}): Promise<{ sent: string[]; failed: string[] }> {
+  const event = await getEventById(eventId);
+  if (!event) throw new Error(`Event ${eventId} doesn't exist`);
+  const t = await getText();
+  const url = new URL(`/events/${event.id}`, origin).href;
+  const due = (
+    await getSignupBookingsForEvent(eventId, bookingPrices(event), t)
+  ).filter(isPaymentReminderDue);
+
+  const sent: string[] = [];
+  const failed: string[] = [];
+
+  for (const signup of due) {
+    const name = signup.booking.guests[0]?.name ?? signup.signerEmail;
+    // someone else got there first
+    if (!(await claimPaymentReminder(signup.submissionId))) continue;
+
+    const filled = fillSignupMailCopy(
+      copy,
+      signupMailValues(
+        { name, event, booking: signup.booking, total: signup.amountDue },
+        t,
+      ),
+    );
+
+    try {
+      await sendTemplate(
+        "paymentReminder",
+        signup.signerEmail,
+        { ...filled, event: { title: event.title, url } },
+        { from: eventSignupMailFrom(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
+      );
+    } catch {
+      // sendTemplate has logged why; the group is due again
+      failed.push(name);
+      await releasePaymentReminder(signup.submissionId).catch((error) =>
+        requestLogger.error(
+          { submission: signup.submissionId, error },
+          "Failed to untick a payment reminder that didn't go out",
+        ),
+      );
+      continue;
+    }
+
+    sent.push(name);
+    await recordSentMail({
+      submissionId: signup.submissionId,
+      kind: "reminder",
+      recipient: signup.signerEmail,
+      ...filled,
+      sentById,
+    });
   }
 
   return { sent, failed };

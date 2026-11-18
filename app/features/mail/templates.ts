@@ -21,6 +21,7 @@ import {
   type SignupMailKind,
   type SignupMailValues,
 } from "~/features/signup-form/confirmation-mail";
+import { halfPrice } from "~/features/signup-form/payments";
 import type { Text } from "~/features/site-text/text";
 import type { InvitableRole } from "~/features/users/invite.shared";
 import { escapeMarkdown } from "~/shared/markdown.server";
@@ -50,16 +51,21 @@ function options(t: Text) {
 /**
  * What the placeholders of a signup's mail stand for. `name` is whoever the
  * mail is for: the signer, unless an admin writes to one of their friends.
+ * `total` is what the booking comes to, unless the mail says what the group
+ * pays after an admin set someone to pay half or nothing (the reminder).
  */
 export function signupMailValues(
   {
     name,
     event,
     booking,
+    total = booking.total,
   }: {
     name: string;
     event: { title: string; date: Date };
     booking: BookingSummary;
+    /** In CHF. */
+    total?: number;
   },
   t: Text,
 ): SignupMailValues {
@@ -68,7 +74,8 @@ export function signupMailValues(
     event: event.title,
     date: formatEventMailDate(event.date),
     guests: String(booking.guests.length),
-    total: formatChf(booking.total, t),
+    total: formatChf(total, t),
+    half: formatChf(halfPrice(total) / 100, t),
   };
 }
 
@@ -248,6 +255,37 @@ function signupMessage(
   );
 }
 
+export interface PaymentReminderProps {
+  /** The reminder's subject, placeholders already filled in for this group. */
+  subject: string;
+  /** Its Markdown message, placeholders already filled in. */
+  message: string;
+  event: {
+    title: string;
+    /** Absolute link to the public event page. */
+    url: string;
+  };
+}
+
+/**
+ * The reminder to pay the first half, sent from the event's signup sheet to
+ * the person who signed a group up.
+ */
+function paymentReminder(
+  { subject, message, event }: PaymentReminderProps,
+  t: Text,
+) {
+  return compose(
+    subject,
+    [
+      markdown(message),
+      action(t("emails.reminder.button"), event.url),
+      note(t("emails.reminder.note", { event: event.title })),
+    ],
+    options(t),
+  );
+}
+
 /**
  * Every mail the site sends. Each takes its props and the site texts, so an
  * admin's edits under Emails reach the inbox.
@@ -302,6 +340,8 @@ export const mailTemplates = {
 
   signupMessage,
 
+  paymentReminder,
+
   volunteerInterest: (
     { name, email, message }: { name: string; email: string; message?: string },
     t: Text,
@@ -331,6 +371,7 @@ export const GUEST_MAIL_TEMPLATES: ReadonlySet<MailTemplateName> = new Set([
   "signupConfirmation",
   "friendSignup",
   "signupMessage",
+  "paymentReminder",
 ]);
 
 /**

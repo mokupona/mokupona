@@ -1,6 +1,6 @@
-// The signup confirmation mail's per-event copy. Shared by the mail template,
-// which fills it in, and the admin event form, which shows the defaults and
-// validates what an admin types.
+// The signup confirmation mail's per-event copy, and the payment reminder's.
+// Shared by the mail templates, which fill them in, and the admin pages,
+// which show the defaults and validate what an admin types.
 
 import type { Text } from "~/features/site-text/text";
 
@@ -31,12 +31,24 @@ export function defaultSignupMailCopy(
   };
 }
 
+/**
+ * The payment reminder an event without its own uses: the site-wide texts
+ * under Emails. It's sent from the signup sheet.
+ */
+export function defaultPaymentReminderCopy(t: Text): SignupMailCopy {
+  return {
+    subject: t("emails.reminder.subject"),
+    message: t("emails.reminder.message"),
+  };
+}
+
 export const SIGNUP_MAIL_PLACEHOLDERS = {
   name: "name of the person who signed up",
   event: "event title",
   date: "date and time of the event",
   guests: "number of people in the signup",
   total: "total price of the signup",
+  half: "half of the total: the first payment",
 } as const;
 
 export type SignupMailPlaceholder = keyof typeof SIGNUP_MAIL_PLACEHOLDERS;

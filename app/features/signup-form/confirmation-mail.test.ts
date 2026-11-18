@@ -12,6 +12,7 @@ const values: SignupMailValues = {
   date: "Saturday 14 November, 19:00",
   guests: "2",
   total: "90 CHF",
+  half: "45 CHF",
 };
 
 describe("fillSignupMailPlaceholders", () => {

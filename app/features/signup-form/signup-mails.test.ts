@@ -198,7 +198,7 @@ describe("toSentSignupMail", () => {
       sentBy: { name: "Moderator" },
     };
 
-    expect(toSentSignupMail({ ...row, kind: "reminder" })).toEqual([]);
+    expect(toSentSignupMail({ ...row, kind: "newsletter" })).toEqual([]);
     expect(toSentSignupMail({ ...row, kind: "custom" })).toEqual([
       {
         kind: "custom",
