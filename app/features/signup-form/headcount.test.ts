@@ -33,6 +33,8 @@ describe("summarizeHeadcount", () => {
       students: 1,
       notStudents: 2,
       arrived: 0,
+      paysHalf: 0,
+      paysNothing: 0,
     });
     expect(summary.waitlisted).toEqual({
       people: 2,
@@ -42,6 +44,8 @@ describe("summarizeHeadcount", () => {
       students: 1,
       notStudents: 1,
       arrived: 0,
+      paysHalf: 0,
+      paysNothing: 0,
     });
   });
 
@@ -86,6 +90,31 @@ describe("summarizeHeadcount", () => {
 
     expect(summary.confirmed.arrived).toBe(1);
     expect(summary.waitlisted.arrived).toBe(1);
+  });
+
+  it("counts the people who pay half or nothing, per list", () => {
+    const guest = { isStudent: false, vegetarian: false };
+    const summary = summarizeHeadcount([
+      {
+        status: "confirmed",
+        guests: [
+          { ...guest, priceShare: "none" },
+          { ...guest, priceShare: "none" },
+          { ...guest, priceShare: "half" },
+          { ...guest, priceShare: "full" },
+          guest,
+        ],
+      },
+      { status: "waitlisted", guests: [{ ...guest, priceShare: "half" }] },
+      { status: "cancelled", guests: [{ ...guest, priceShare: "none" }] },
+    ]);
+
+    expect(summary.confirmed).toMatchObject({
+      people: 5,
+      paysHalf: 1,
+      paysNothing: 2,
+    });
+    expect(summary.waitlisted).toMatchObject({ paysHalf: 1, paysNothing: 0 });
   });
 
   it("leaves cancelled signups out", () => {

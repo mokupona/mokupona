@@ -111,6 +111,7 @@ export function liveDataFixture(
         arrivedAt: new Date("2025-02-01T18:05:00.000Z"),
         donationRappen: 750,
         donationMethod: "cash",
+        priceShare: "half",
         ...stamps,
       },
     ],

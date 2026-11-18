@@ -10,15 +10,19 @@ import { sendTemplate } from "~/features/mail/mail.server";
 import {
   createEventSignup,
   getSeatCounts,
+  updateSignupGuest,
   updateSignupStatus,
 } from "~/models/event-signup.server";
 import { createEvent } from "~/models/event.server";
 import { getCurrentFormVersion } from "~/models/form.server";
 import { getUserByIdWithRole } from "~/models/user.server";
-import { action } from "~/routes/admin.events.$eventId_.signups";
+import { action, loader } from "~/routes/admin.events.$eventId_.signups";
 import { getToast } from "~/utils/toast.server";
 
-vi.mock("~/features/mail/mail.server", () => ({ sendTemplate: vi.fn() }));
+vi.mock("~/features/mail/mail.server", () => ({
+  sendTemplate: vi.fn(),
+  guestMailCopyTo: () => null,
+}));
 const sendTemplateMock = vi.mocked(sendTemplate);
 
 beforeEach(() => {
@@ -680,6 +684,41 @@ describe("bookkeeping on the signup sheet during the dinner", () => {
     });
   });
 
+  it("sets what a person pays, and refuses a share it doesn't know", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "price-share",
+      submissionId: signup.id,
+      guest: "1",
+      priceShare: "none",
+    });
+
+    expect(reply).toMatchObject({ saved: "price-share", status: 200 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, priceShare: "none" },
+    ]);
+
+    await expect(
+      postBookkeeping(event.id, {
+        intent: "price-share",
+        submissionId: signup.id,
+        guest: "0",
+        priceShare: "quarter",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      postBookkeeping(event.id, {
+        intent: "price-share",
+        submissionId: signup.id,
+        guest: "2",
+        priceShare: "half",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toHaveLength(1);
+  });
+
   it("ticks the payment reminder", async () => {
     const { event, signUp } = await createTestEvent(5);
     const signup = await signUp("ada@example.com");
@@ -768,5 +807,61 @@ describe("ticking the confirmation by hand", () => {
     });
     expect(sendTemplateMock).toHaveBeenCalledOnce();
     expect((await submissionOf(signup.id)).confirmationMarkedSent).toBeNull();
+  });
+});
+
+describe("the signup sheet's money with helpers who pay less", () => {
+  async function loadSheet(eventId: string) {
+    return loader({ params: { eventId } } as unknown as Parameters<
+      typeof loader
+    >[0]);
+  }
+
+  it("prices a person who doesn't pay at nothing, and one who pays half at half", async () => {
+    // 20 CHF a seat
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace", "Alan"]);
+    const party = { eventId: event.id, submissionId: signup.id };
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 1,
+      data: { priceShare: "none" },
+    });
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 2,
+      data: { priceShare: "half" },
+    });
+
+    const sheet = await loadSheet(event.id);
+
+    expect(sheet.parties[0]).toMatchObject({ total: 30, fullTotal: 60 });
+    expect(sheet.revenue.confirmedTotal).toBe(30);
+    expect(sheet.money.outstanding).toBe(3000);
+    expect(sheet.headcount.confirmed).toMatchObject({
+      people: 3,
+      paysHalf: 1,
+      paysNothing: 1,
+    });
+  });
+
+  it("owes nothing for a helper who signed up alone and doesn't pay", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const helper = await signUp("helper@example.com");
+    await signUp("guest@example.com");
+    await updateSignupGuest({
+      eventId: event.id,
+      submissionId: helper.id,
+      guestIndex: 0,
+      data: { priceShare: "none" },
+    });
+
+    const sheet = await loadSheet(event.id);
+
+    expect(sheet.parties.map((party) => party.total)).toEqual([0, 20]);
+    expect(sheet.money).toMatchObject({
+      outstanding: 2000,
+      outstandingParties: 1,
+    });
   });
 });

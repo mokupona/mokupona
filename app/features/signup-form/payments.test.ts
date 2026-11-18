@@ -4,9 +4,11 @@ import {
   halfPrice,
   parseChfInput,
   parsePercentInput,
+  priceAfterShare,
   rappenToInput,
   summarizeMoneyReceived,
   toPaymentMethod,
+  toPriceShare,
   twintFee,
   type PaymentParty,
 } from "./payments";
@@ -91,6 +93,35 @@ describe("toPaymentMethod", () => {
     expect(toPaymentMethod("cash")).toBe("cash");
     expect(toPaymentMethod("twint")).toBe("twint");
     expect(toPaymentMethod("cheque")).toBe("twint");
+  });
+});
+
+describe("price shares", () => {
+  it("takes all of a price, half of it, or nothing", () => {
+    expect(priceAfterShare(80, "full")).toBe(80);
+    expect(priceAfterShare(80, "half")).toBe(40);
+    expect(priceAfterShare(85, "half")).toBe(42.5);
+    expect(priceAfterShare(80, "none")).toBe(0);
+  });
+
+  it("reads a stored share, and anything unknown as paying in full", () => {
+    expect(toPriceShare("half")).toBe("half");
+    expect(toPriceShare("none")).toBe("none");
+    expect(toPriceShare("")).toBe("full");
+    expect(toPriceShare("quarter")).toBe("full");
+  });
+
+  it("keeps the halves of a half price exact, to the Rappen", () => {
+    // 80 CHF and half of 85 CHF
+    const total = 80 + priceAfterShare(85, "half");
+    expect(halfPrice(total)).toBe(6125);
+
+    const money = summarizeMoneyReceived(
+      [party({ total, firstHalf: { paid: true, method: "cash" } })],
+      FEES,
+    );
+    expect(money.payments.cash).toBe(6125);
+    expect(money.outstanding).toBe(6125);
   });
 });
 
@@ -224,5 +255,18 @@ describe("summarizeMoneyReceived", () => {
     expect(money.twintTransactions).toBe(0);
     expect(money.outstanding).toBe(0);
     expect(money.outstandingParties).toBe(0);
+  });
+
+  it("owes nothing for a party of helpers who don't pay", () => {
+    const money = summarizeMoneyReceived(
+      [
+        party({ total: priceAfterShare(80, "none") }),
+        party({ total: priceAfterShare(80, "half") }),
+      ],
+      FEES,
+    );
+
+    expect(money.outstanding).toBe(4000);
+    expect(money.outstandingParties).toBe(1);
   });
 });

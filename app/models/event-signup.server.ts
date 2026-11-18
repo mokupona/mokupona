@@ -7,6 +7,7 @@ import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import {
   MAX_DONATION_RAPPEN,
   type PaymentMethod,
+  type PriceShare,
 } from "~/features/signup-form/payments";
 import {
   ACTIVE_SIGNUP_STATUSES,
@@ -239,7 +240,7 @@ export async function updateSignupBookkeeping({
 
 /**
  * The admin's bookkeeping for one person in a signup: whether they've
- * arrived, and what they gave. `guestIndex` is their place in the booking
+ * arrived, what they gave, and what share of their price they pay. `guestIndex` is their place in the booking
  * (0 is the signer); one past the party is refused like a missing signup.
  */
 export async function updateSignupGuest({
@@ -255,6 +256,7 @@ export async function updateSignupGuest({
     arrivedAt?: Date | null;
     donationRappen?: number | null;
     donationMethod?: PaymentMethod;
+    priceShare?: PriceShare;
   };
 }): Promise<void> {
   if (

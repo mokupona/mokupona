@@ -427,6 +427,32 @@ describe("updateSignupGuest", () => {
     ]);
   });
 
+  it("keeps each person's share of their price, everyone else paying in full", async () => {
+    const party = await partyOfThree();
+
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 1,
+      data: { priceShare: "none" },
+    });
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 2,
+      data: { priceShare: "half", arrivedAt: null },
+    });
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 0,
+      data: { donationRappen: 500 },
+    });
+
+    expect(await rowsOf(party.submissionId)).toMatchObject([
+      { guestIndex: 0, priceShare: "full", donationRappen: 500 },
+      { guestIndex: 1, priceShare: "none" },
+      { guestIndex: 2, priceShare: "half" },
+    ]);
+  });
+
   it("refuses a person beyond the party, and a signup of another event", async () => {
     const party = await partyOfThree();
     const other = await createTestEvent(4);

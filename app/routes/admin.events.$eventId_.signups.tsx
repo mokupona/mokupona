@@ -57,6 +57,7 @@ import {
 import {
   halfPrice,
   isPaymentMethod,
+  isPriceShare,
   MAX_DONATION_RAPPEN,
   MAX_TWINT_FEE_FIXED_RAPPEN,
   MAX_TWINT_FEE_PERCENT,
@@ -64,11 +65,15 @@ import {
   parsePercentInput,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
+  priceAfterShare,
+  PRICE_SHARE_LABELS,
+  PRICE_SHARES,
   rappenToInput,
   summarizeMoneyReceived,
   type MoneyReceived,
   type PaymentMethod,
   type PaymentParty,
+  type PriceShare,
   type TwintFees,
 } from "~/features/signup-form/payments";
 import {
@@ -112,10 +117,18 @@ interface Party {
   name: string;
   email: string;
   size: number;
-  /** What the whole party pays, in CHF. */
+  /**
+   * What the whole party pays, in CHF: each person's price after the share
+   * an admin set for them (all of it, half, or nothing).
+   */
   total: number;
+  /** What the party would pay if everyone paid in full, in CHF. */
+  fullTotal: number;
   createdAt: Date;
-  /** The signer first, then their friends, each with their price and answers. */
+  /**
+   * The signer first, then their friends, each with their answers and the
+   * price they signed up at, before any share.
+   */
   guests: BookingGuest[];
   /** Answers that belong to the signup as a whole. */
   contact: SummaryRow[];
@@ -148,7 +161,12 @@ interface Party {
 }
 
 function toParty(signup: SignupBooking): Party {
-  const { guests, contact, total } = signup.booking;
+  const { guests, contact, total: fullTotal } = signup.booking;
+  const total = guests.reduce(
+    (sum, guest, guestIndex) =>
+      sum + priceAfterShare(guest.price, shareOf(signup, guestIndex)),
+    0,
+  );
 
   return {
     submissionId: signup.submissionId,
@@ -158,6 +176,7 @@ function toParty(signup: SignupBooking): Party {
     email: signup.signerEmail,
     size: guests.length,
     total,
+    fullTotal,
     createdAt: signup.createdAt,
     guests,
     contact,
@@ -185,6 +204,14 @@ function toParty(signup: SignupBooking): Party {
       ? []
       : messageRecipients(guests, signup.signerEmail),
   };
+}
+
+/** What share of their price one person in a party pays. */
+function shareOf(
+  party: Pick<Party, "guestBookkeeping">,
+  guestIndex: number,
+): PriceShare {
+  return party.guestBookkeeping[guestIndex]?.priceShare ?? "full";
 }
 
 /** A party as the money received reads it: its ticked payments and donations. */
@@ -248,6 +275,7 @@ export async function loader({ params }: Route.LoaderArgs) {
           isStudent: guest.isStudent,
           vegetarian: guest.vegetarian,
           arrived: party.guestBookkeeping[guestIndex]?.arrivedAt != null,
+          priceShare: shareOf(party, guestIndex),
         })),
       })),
     ),
@@ -326,13 +354,35 @@ function readGuestIndex(formData: FormData): number {
   return index;
 }
 
-/** A person's arrival or donation, checked before anything is stored. */
+/** The intents that touch the bookkeeping of one person in a signup. */
+const GUEST_INTENTS = ["arrival", "donation", "price-share"] as const;
+
+type GuestIntent = (typeof GUEST_INTENTS)[number];
+
+function isGuestIntent(value: unknown): value is GuestIntent {
+  return (
+    typeof value === "string" &&
+    (GUEST_INTENTS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * A person's arrival, donation or share of their price, checked before
+ * anything is stored.
+ */
 function readGuestUpdate(
-  intent: "arrival" | "donation",
+  intent: GuestIntent,
   formData: FormData,
 ): Parameters<typeof updateSignupGuest>[0]["data"] | { error: string } {
   if (intent === "arrival") {
     return { arrivedAt: formData.has("arrived") ? new Date() : null };
+  }
+  if (intent === "price-share") {
+    const priceShare = formData.get("priceShare");
+    if (!isPriceShare(priceShare)) {
+      throw new Response("Bad Request", { status: 400 });
+    }
+    return { priceShare };
   }
 
   const amount = parseChfInput(String(formData.get("amount") ?? ""));
@@ -417,8 +467,9 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     return data({ saved: intent });
   }
 
-  // a person's arrival and donation, ticked and noted during the dinner
-  if (intent === "arrival" || intent === "donation") {
+  // a person's arrival and donation, ticked and noted during the dinner, and
+  // the share of their price they pay (helpers pay half or nothing)
+  if (isGuestIntent(intent)) {
     const submissionId = readSubmissionId(formData);
     const guestIndex = readGuestIndex(formData);
     const update = readGuestUpdate(intent, formData);
@@ -923,7 +974,7 @@ function RevenueSummary({
               ? "—"
               : formatCHF(revenue.averagePerPerson)
           }
-          note="Average over confirmed seats, students at the student price"
+          note="Average over confirmed seats, at the price each person pays"
         />
       </div>
     </section>
@@ -1162,6 +1213,24 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
       confirmed: confirmed.notStudents,
       waitlisted: waitlisted.notStudents,
     },
+    ...(confirmed.paysHalf + waitlisted.paysHalf > 0
+      ? [
+          {
+            label: "Paying half",
+            confirmed: confirmed.paysHalf,
+            waitlisted: waitlisted.paysHalf,
+          },
+        ]
+      : []),
+    ...(confirmed.paysNothing + waitlisted.paysNothing > 0
+      ? [
+          {
+            label: "Not paying",
+            confirmed: confirmed.paysNothing,
+            waitlisted: waitlisted.paysNothing,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -1421,6 +1490,7 @@ function GuestRow({
     ? arrival.formData.has("arrived")
     : savedArrived;
   const own = cn(CELL, arrived && "bg-primary/10");
+  const share = shareOf(party, guestIndex);
   const tags = [
     guest.vegetarian === true ? "vegetarian" : null,
     guest.isStudent ? "student" : null,
@@ -1484,7 +1554,20 @@ function GuestRow({
         </div>
       </TableCell>
       <TableCell className={cn(own, "text-right")}>
-        <PriceLines price={guest.price} />
+        <div className="flex flex-col items-end gap-1">
+          <PriceLines
+            price={priceAfterShare(guest.price, share)}
+            fullPrice={guest.price}
+          />
+          {party.isLegacy ? null : (
+            <PriceShareForm
+              party={party}
+              guest={guest}
+              guestIndex={guestIndex}
+              share={share}
+            />
+          )}
+        </div>
       </TableCell>
       <TableCell className={own}>
         {party.isLegacy ? (
@@ -1504,25 +1587,85 @@ function GuestRow({
 }
 
 /**
- * A price in whole francs, and the half that each payment comes to, unless
- * it's paid in one payment.
+ * A price, and the half that each payment comes to, unless it's paid in one
+ * payment or there's nothing to pay. A price brought down from `fullPrice`
+ * (someone paying half, or nothing) shows the full one struck through.
  */
 function PriceLines({
   price,
+  fullPrice = price,
   singlePayment = false,
 }: {
   price: number;
+  fullPrice?: number;
   singlePayment?: boolean;
 }) {
   return (
     <div className="flex flex-col items-end whitespace-nowrap tabular-nums">
-      <span className="font-semibold">{formatCHF(price)}</span>
+      <span>
+        <span className="font-semibold">{formatCHF(price)}</span>
+        {price !== fullPrice ? (
+          <s className="text-muted-foreground ml-1.5 text-xs">
+            <span className="sr-only">instead of </span>
+            {formatCHF(fullPrice)}
+          </s>
+        ) : null}
+      </span>
       <span className="text-muted-foreground text-xs">
-        {singlePayment
-          ? "in 1 payment"
-          : `half ${formatRappen(halfPrice(price))}`}
+        {price === 0
+          ? "nothing to pay"
+          : singlePayment
+            ? "in 1 payment"
+            : `half ${formatRappen(halfPrice(price))}`}
       </span>
     </div>
+  );
+}
+
+/**
+ * Whether a person pays their price in full, half of it, or nothing: for
+ * helpers, who sign up so their allergies are on the sheet. Picking one
+ * saves it.
+ */
+function PriceShareForm({
+  party,
+  guest,
+  guestIndex,
+  share,
+}: {
+  party: Party;
+  guest: BookingGuest;
+  guestIndex: number;
+  share: PriceShare;
+}) {
+  const fetcher = useFetcher();
+
+  return (
+    <fetcher.Form
+      method="post"
+      className={cn(fetcher.state !== "idle" && "opacity-60")}
+    >
+      <input type="hidden" name="intent" value="price-share" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <input type="hidden" name="guest" value={guestIndex} />
+      <select
+        key={share}
+        name="priceShare"
+        defaultValue={share}
+        aria-label={`What ${guest.name} pays`}
+        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        className={cn(
+          "bg-background focus-visible:inset-ring-ring h-8 border px-1.5 text-xs focus-visible:inset-ring-2 focus-visible:outline-hidden",
+          share !== "full" && "border-primary text-primary font-semibold",
+        )}
+      >
+        {PRICE_SHARES.map((option) => (
+          <option key={option} value={option}>
+            {PRICE_SHARE_LABELS[option]}
+          </option>
+        ))}
+      </select>
+    </fetcher.Form>
   );
 }
 
@@ -1542,7 +1685,11 @@ function PartyCells({
         {party.size}
       </TableCell>
       <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
-        <PriceLines price={party.total} singlePayment={party.singlePayment} />
+        <PriceLines
+          price={party.total}
+          fullPrice={party.fullTotal}
+          singlePayment={party.singlePayment}
+        />
       </TableCell>
       <TableCell rowSpan={rowSpan} className={CELL}>
         <PaymentTicks party={party} />
@@ -1673,7 +1820,12 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
 
       <div className="grid gap-3 md:grid-cols-2">
         {party.guests.map((guest, guestIndex) => (
-          <GuestCard key={guestIndex} guest={guest} signer={guestIndex === 0} />
+          <GuestCard
+            key={guestIndex}
+            guest={guest}
+            signer={guestIndex === 0}
+            share={shareOf(party, guestIndex)}
+          />
         ))}
       </div>
     </div>
@@ -1683,9 +1835,11 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
 function GuestCard({
   guest,
   signer,
+  share,
 }: {
   guest: BookingGuest;
   signer: boolean;
+  share: PriceShare;
 }) {
   const rows: SummaryRow[] = guest.email
     ? [["Their email", guest.email], ...guest.rows]
@@ -1703,11 +1857,17 @@ function GuestCard({
           ) : null}
         </p>
         <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
-          {formatCHF(guest.price)}
+          {formatCHF(priceAfterShare(guest.price, share))}
           {guest.isStudent ? (
             <span className="text-muted-foreground font-normal">
               {" "}
               · student
+            </span>
+          ) : null}
+          {share !== "full" ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              · {PRICE_SHARE_LABELS[share].toLowerCase()}
             </span>
           ) : null}
         </p>
@@ -1737,6 +1897,12 @@ function PaymentTicks({ party }: { party: Party }) {
 
   if (party.isLegacy) {
     return <span className="text-muted-foreground text-sm">—</span>;
+  }
+  // a party of helpers who don't pay: there's no payment to tick
+  if (party.total === 0) {
+    return (
+      <span className="text-muted-foreground text-sm">Nothing to pay</span>
+    );
   }
 
   // shows the switch at once, before the page has reloaded its data
@@ -1961,7 +2127,9 @@ function MailTicks({ party }: { party: Party }) {
   return (
     <div className="flex flex-col items-start gap-2 text-sm">
       <ConfirmationTick party={party} />
-      {party.status === "cancelled" ? null : <ReminderTick party={party} />}
+      {party.status === "cancelled" || party.total === 0 ? null : (
+        <ReminderTick party={party} />
+      )}
     </div>
   );
 }

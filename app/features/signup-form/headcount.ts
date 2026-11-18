@@ -1,3 +1,4 @@
+import type { PriceShare } from "./payments";
 import type { SignupStatus } from "./signup-status";
 
 /** What a guest's answers say about how they eat and what they pay. */
@@ -7,6 +8,8 @@ export interface HeadcountGuest {
   vegetarian: boolean | null;
   /** Ticked on the signup sheet at the door. */
   arrived?: boolean;
+  /** Set on the signup sheet; full when left out. */
+  priceShare?: PriceShare;
 }
 
 export interface HeadcountParty {
@@ -25,6 +28,9 @@ export interface Headcount {
   notStudents: number;
   /** People ticked as arrived on the night. */
   arrived: number;
+  /** People set to pay half their price, or nothing (helpers, mostly). */
+  paysHalf: number;
+  paysNothing: number;
 }
 
 export interface HeadcountSummary {
@@ -41,13 +47,15 @@ function emptyHeadcount(): Headcount {
     students: 0,
     notStudents: 0,
     arrived: 0,
+    paysHalf: 0,
+    paysNothing: 0,
   };
 }
 
 /**
  * Counts the people holding a confirmed seat and the people on the waiting
- * list, split by diet and by student status, and how many of them have
- * arrived. Cancelled signups count for nothing, like in the revenue figures.
+ * list, split by diet and by student status, how many of them have arrived,
+ * and how many pay half or nothing. Cancelled signups count for nothing, like in the revenue figures.
  */
 export function summarizeHeadcount(
   parties: HeadcountParty[],
@@ -76,6 +84,9 @@ export function summarizeHeadcount(
       else bucket.notStudents += 1;
 
       if (guest.arrived) bucket.arrived += 1;
+
+      if (guest.priceShare === "half") bucket.paysHalf += 1;
+      else if (guest.priceShare === "none") bucket.paysNothing += 1;
     }
   }
 

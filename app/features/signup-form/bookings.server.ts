@@ -7,7 +7,7 @@ import {
   type SummaryRow,
 } from "./booking-summary";
 import { EMPTY_GUEST_BOOKKEEPING, type GuestBookkeeping } from "./bookkeeping";
-import { toPaymentMethod, type PaymentMethod } from "./payments";
+import { toPaymentMethod, toPriceShare, type PaymentMethod } from "./payments";
 import { toSentSignupMail, type SentSignupMail } from "./signup-mails";
 import { toSignupStatus, type SignupStatus } from "./signup-status";
 
@@ -147,6 +147,7 @@ function perGuest(
     arrivedAt: Date | null;
     donationRappen: number | null;
     donationMethod: string;
+    priceShare: string;
   }[],
 ): GuestBookkeeping[] {
   const byIndex = new Map(rows.map((row) => [row.guestIndex, row]));
@@ -158,6 +159,7 @@ function perGuest(
       arrivedAt: row.arrivedAt,
       donation: row.donationRappen,
       donationMethod: toPaymentMethod(row.donationMethod),
+      priceShare: toPriceShare(row.priceShare),
     };
   });
 }

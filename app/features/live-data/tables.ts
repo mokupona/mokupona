@@ -37,7 +37,7 @@ export const LIVE_DATA_TABLE_LABELS: Record<LiveDataTable, string> = {
   forms: "Signup forms",
   formVersions: "Signup form versions",
   formSubmissions: "Signups",
-  signupGuests: "Arrivals and donations",
+  signupGuests: "Arrivals, donations and price shares",
   events: "Events",
   eventResponses: "Signups (legacy)",
   eventGalleryImages: "Gallery photos",
