@@ -92,3 +92,28 @@ export async function getSignupMailState({
     mails: submission.mails.flatMap(toSentSignupMail),
   };
 }
+
+/**
+ * Ticks a signup's payment reminder as sent just before it goes out, unless
+ * it's ticked already, so that a second click or a second admin can't remind
+ * the same group twice. True when this call ticked it.
+ */
+export async function claimPaymentReminder(
+  submissionId: string,
+): Promise<boolean> {
+  const { count } = await prisma.formSubmission.updateMany({
+    where: { id: submissionId, paymentReminderSent: false },
+    data: { paymentReminderSent: true },
+  });
+  return count === 1;
+}
+
+/** Unticks a reminder whose mail didn't go out, so it's due again. */
+export async function releasePaymentReminder(
+  submissionId: string,
+): Promise<void> {
+  await prisma.formSubmission.update({
+    where: { id: submissionId },
+    data: { paymentReminderSent: false },
+  });
+}

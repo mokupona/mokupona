@@ -7,7 +7,12 @@ import {
   type SummaryRow,
 } from "./booking-summary";
 import { EMPTY_GUEST_BOOKKEEPING, type GuestBookkeeping } from "./bookkeeping";
-import { toPaymentMethod, toPriceShare, type PaymentMethod } from "./payments";
+import {
+  priceAfterShare,
+  toPaymentMethod,
+  toPriceShare,
+  type PaymentMethod,
+} from "./payments";
 import { toSentSignupMail, type SentSignupMail } from "./signup-mails";
 import { toSignupStatus, type SignupStatus } from "./signup-status";
 
@@ -50,6 +55,11 @@ export interface SignupBooking {
   /** Admin bookkeeping per person, in the order of `booking.guests`. */
   guestBookkeeping: GuestBookkeeping[];
   /**
+   * What the party pays, in CHF: each person's price after the share an
+   * admin set for them. `booking.total` stays what they signed up at.
+   */
+  amountDue: number;
+  /**
    * False when the site didn't keep track of this signup's mails (it's from
    * before that, or older still): no record doesn't mean no mail.
    */
@@ -86,6 +96,10 @@ export async function getSignupBookingsForEvent(
     }
 
     const booking = summarizeBooking(formFields, answers, prices, t);
+    const guestBookkeeping = perGuest(
+      booking.guests.length,
+      submission.guestBookkeeping,
+    );
 
     return [
       {
@@ -102,10 +116,8 @@ export async function getSignupBookingsForEvent(
         confirmationMarkedSent: submission.confirmationMarkedSent,
         paymentReminderSent: submission.paymentReminderSent,
         adminNote: submission.adminNote,
-        guestBookkeeping: perGuest(
-          booking.guests.length,
-          submission.guestBookkeeping,
-        ),
+        guestBookkeeping,
+        amountDue: amountDue(booking, guestBookkeeping),
         mailsTracked: submission.mailsTracked,
         mails: submission.mails.flatMap(toSentSignupMail),
         booking,
@@ -113,29 +125,49 @@ export async function getSignupBookingsForEvent(
     ];
   });
 
-  const legacy = legacyRows.map((row): SignupBooking => ({
-    submissionId: row.id,
-    status: "confirmed",
-    createdAt: row.createdAt,
-    isLegacy: true,
-    signerEmail: row.email,
-    // pre-form signups have no bookkeeping; the page doesn't offer it
-    singlePayment: false,
-    firstHalfPaid: false,
-    secondHalfPaid: false,
-    firstHalfMethod: "twint",
-    secondHalfMethod: "twint",
-    confirmationMarkedSent: null,
-    paymentReminderSent: false,
-    adminNote: "",
-    guestBookkeeping: [EMPTY_GUEST_BOOKKEEPING],
-    mailsTracked: false,
-    mails: [],
-    booking: legacyBooking(row, prices, t),
-  }));
+  const legacy = legacyRows.map((row): SignupBooking => {
+    const booking = legacyBooking(row, prices, t);
+    return {
+      submissionId: row.id,
+      status: "confirmed",
+      createdAt: row.createdAt,
+      isLegacy: true,
+      signerEmail: row.email,
+      // pre-form signups have no bookkeeping; the page doesn't offer it
+      singlePayment: false,
+      firstHalfPaid: false,
+      secondHalfPaid: false,
+      firstHalfMethod: "twint",
+      secondHalfMethod: "twint",
+      confirmationMarkedSent: null,
+      paymentReminderSent: false,
+      adminNote: "",
+      guestBookkeeping: [EMPTY_GUEST_BOOKKEEPING],
+      amountDue: booking.total,
+      mailsTracked: false,
+      mails: [],
+      booking,
+    };
+  });
 
   return [...legacy, ...bookings].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+  );
+}
+
+/** What a party pays after each person's share of their price, in CHF. */
+function amountDue(
+  booking: BookingSummary,
+  guestBookkeeping: readonly GuestBookkeeping[],
+): number {
+  return booking.guests.reduce(
+    (sum, guest, guestIndex) =>
+      sum +
+      priceAfterShare(
+        guest.price,
+        guestBookkeeping[guestIndex]?.priceShare ?? "full",
+      ),
+    0,
   );
 }
 

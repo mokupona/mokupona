@@ -250,5 +250,6 @@ describe("formatChf", () => {
   it("reads 0 as free", () => {
     expect(formatChf(0, defaultText)).toBe("free");
     expect(formatChf(45, defaultText)).toBe("45 CHF");
+    expect(formatChf(22.5, defaultText)).toBe("22.50 CHF");
   });
 });

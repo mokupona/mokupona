@@ -6,7 +6,19 @@ const SIGNUP_VARS = {
   date: "date and time of the event",
   guests: "number of people in the signup",
   total: "total price of the signup",
+  half: "half of the total: the first payment",
 };
+
+// in a payment reminder, the prices are what the group pays after anyone
+// an admin set to pay half or nothing
+const REMINDER_VARS = {
+  ...SIGNUP_VARS,
+  total: "what the group pays in all",
+  half: "half of it: the first payment, which the reminder is about",
+};
+
+const REMINDER_HINT =
+  "The default for every event; the reminder can still be reworded for an event on its signup sheet, where it's sent from. It goes to every confirmed group that hasn't paid its first half and hasn't been reminded yet.";
 
 const FRIEND_VARS = {
   signer: "the name of the person who signed them up",
@@ -229,6 +241,33 @@ export const emailTexts = defineTexts("emails", {
     label: "Event signup: small print",
     default: "If you didn't sign up for this event, you can ignore this email.",
   },
+  "reminder.subject": {
+    label: "Payment reminder: subject",
+    default: "Reminder: your payment for {event}",
+    vars: REMINDER_VARS,
+    hint: REMINDER_HINT,
+  },
+  "reminder.message": {
+    label: "Payment reminder: message",
+    default: [
+      "Hi {name},",
+      "a quick reminder about {event} on {date}: we haven't received the first half of your payment yet. That's {half} of {total} in all; the second half is paid on the night.",
+      "Please send it as soon as you can. Thank you, and see you soon!",
+    ].join("\n\n"),
+    kind: "paragraph",
+    vars: REMINDER_VARS,
+    hint: `${REMINDER_HINT} ${SIGNUP_MESSAGE_MARKDOWN}`,
+  },
+  "reminder.button": {
+    label: "Payment reminder: button",
+    default: "View the event",
+  },
+  "reminder.note": {
+    label: "Payment reminder: small print",
+    default:
+      "You're getting this email because you signed up for {event}. Already paid? Then thank you, and just reply to let us know.",
+    vars: { event: "event title" },
+  },
   "message.button": {
     label: "Message from the signup sheet: button",
     default: "View the event",
@@ -247,7 +286,7 @@ export const emailTexts = defineTexts("emails", {
       email: "the guest's email address",
       subject: "the subject of the email they got",
     },
-    hint: "Every email to a guest (the signup mail, the note to a friend, a message from the signup sheet) also goes to the team inbox, with this subject and the line below on top.",
+    hint: "Every email to a guest (the signup mail, the note to a friend, a message or payment reminder from the signup sheet) also goes to the team inbox, with this subject and the line below on top.",
   },
   "copy.intro": {
     label: "Copy of a guest's email (to us): first line",

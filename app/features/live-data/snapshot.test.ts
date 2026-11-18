@@ -226,6 +226,30 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
   });
 
+  it("carries an event's own payment reminder across", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.events[0]).toMatchObject({
+      paymentReminderMailSubject: "Your first half for {event}",
+      paymentReminderMailMessage: null,
+    });
+  });
+
+  it("reads a live site that predates payment reminders as events with the default one", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const event of tables.events) {
+      delete event.paymentReminderMailSubject;
+      delete event.paymentReminderMailMessage;
+    }
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.events[0]).toMatchObject({
+      paymentReminderMailSubject: null,
+      paymentReminderMailMessage: null,
+    });
+  });
+
   it("reads a live site that predates recaps as events without one", () => {
     const tables = overTheWire(liveDataFixture());
     for (const event of tables.events) delete event.recap;

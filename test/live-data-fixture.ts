@@ -134,6 +134,8 @@ export function liveDataFixture(
         confirmedMailMessage: null,
         waitlistMailSubject: null,
         waitlistMailMessage: "Fingers crossed, {name}.",
+        paymentReminderMailSubject: "Your first half for {event}",
+        paymentReminderMailMessage: null,
         twintFeePercent: 1.3,
         twintFeeFixedRappen: 25,
         imageId: id("cover"),

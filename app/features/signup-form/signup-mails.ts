@@ -10,12 +10,14 @@ const SIGNUP_MAIL_RECORD_KINDS = [
   "waitlisted",
   "friend",
   "custom",
+  "reminder",
 ] as const;
 
 /**
  * "confirmed" and "waitlisted": the signup mail to the signer, with that
  * outcome. "friend": the note to a friend the signer gave an address for.
- * "custom": a message an admin wrote on the signup sheet.
+ * "custom": a message an admin wrote on the signup sheet. "reminder": the
+ * payment reminder sent from the signup sheet.
  */
 export type SignupMailRecordKind = (typeof SIGNUP_MAIL_RECORD_KINDS)[number];
 

@@ -201,6 +201,11 @@ export async function updateSignupStatus({
  * halves or in one payment, which of them are in and how they came, which
  * mails went out by hand, and a note. Touches nothing the guest or the seats
  * depend on.
+ *
+ * A first half (or the one payment) ticked as paid when it wasn't also ticks
+ * the payment reminder: a party that has paid needs no reminder, and the
+ * second half is paid on the night. Unticking it again leaves the reminder
+ * as it is, and so does saving a first half that was already ticked.
  */
 export async function updateSignupBookkeeping({
   eventId,
@@ -228,13 +233,22 @@ export async function updateSignupBookkeeping({
       `Admin notes are at most ${MAX_ADMIN_NOTE_LENGTH} characters`,
     );
   }
-  const { count } = await prisma.formSubmission.updateMany({
-    where: {
-      id: submissionId,
-      formVersion: { form: { event: { id: eventId } } },
-    },
-    data,
-  });
+  const where = {
+    id: submissionId,
+    formVersion: { form: { event: { id: eventId } } },
+  } satisfies Prisma.FormSubmissionWhereInput;
+
+  const [, { count }] = await prisma.$transaction([
+    // read before the ticks below land, so only a newly paid half counts
+    prisma.formSubmission.updateMany({
+      where: data.firstHalfPaid
+        ? { ...where, firstHalfPaid: false }
+        : // nothing newly paid: matches no row
+          { id: { in: [] } },
+      data: { paymentReminderSent: true },
+    }),
+    prisma.formSubmission.updateMany({ where, data }),
+  ]);
   if (count === 0) throw new SignupNotFoundError();
 }
 

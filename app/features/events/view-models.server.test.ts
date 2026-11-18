@@ -20,6 +20,8 @@ const event = {
   confirmedMailMessage: null,
   waitlistMailSubject: null,
   waitlistMailMessage: null,
+  paymentReminderMailSubject: null,
+  paymentReminderMailMessage: null,
   twintFeePercent: 1.5,
   twintFeeFixedRappen: 30,
   image: {

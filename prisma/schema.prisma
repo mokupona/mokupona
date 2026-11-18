@@ -136,6 +136,11 @@ model Event {
   confirmedMailMessage String?
   waitlistMailSubject  String?
   waitlistMailMessage  String?
+  // the payment reminder, written and sent from the signup sheet to every
+  // confirmed party that hasn't paid its first half; null falls back to the
+  // site-wide copy (emails.reminder.* in the site texts)
+  paymentReminderMailSubject String?
+  paymentReminderMailMessage String?
   // what TWINT keeps of each payment made through it, for the money received
   // on the signup sheet: this share of the amount plus a fixed sum. Cash
   // payments cost nothing.
@@ -238,7 +243,9 @@ model FormSubmission {
   // or lost on the way. null goes by the SignupMail records. Cleared when the
   // status changes and when the site sends that mail itself.
   confirmationMarkedSent Boolean?
-  // ticked by an admin once the party has been reminded to pay
+  // ticked once the party has been reminded to pay: by an admin, by the
+  // payment reminder going out from the signup sheet, or by the first half
+  // being ticked as paid (app/models/event-signup.server.ts)
   paymentReminderSent    Boolean  @default(false)
   // free text for the admin team, e.g. "pays by transfer, allergy call"
   adminNote String @default("")
@@ -293,7 +300,8 @@ model SignupMail {
   // "confirmed" or "waitlisted": the signup mail to the signer, with that
   // outcome (app/features/signup-form/confirmation-mail.server.ts);
   // "friend": the note to a friend the signer gave an address for;
-  // "custom": a message an admin wrote on the signup sheet
+  // "custom": a message an admin wrote on the signup sheet;
+  // "reminder": the payment reminder sent from the signup sheet
   kind      String
   recipient String
   // what an admin wrote, placeholders filled in; empty for the site's own
