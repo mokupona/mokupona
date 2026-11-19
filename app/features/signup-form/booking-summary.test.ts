@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FRIEND_EMAIL_FIELD,
   formatChf,
+  restrictionsAnswer,
   summarizeBooking,
 } from "./booking-summary";
 import { DEFAULT_FORM } from "./default-form";
@@ -41,6 +42,7 @@ describe("summarizeBooking", () => {
         vegetarian: true,
         price: 45,
         email: null,
+        restrictions: "no nuts",
         rows: [
           ["Vegan / Vegetarian", "yes"],
           ["Student", "no"],
@@ -53,6 +55,7 @@ describe("summarizeBooking", () => {
         vegetarian: false,
         price: 45,
         email: null,
+        restrictions: null,
         rows: [
           ["Vegan / Vegetarian", "no"],
           ["Student", "yes"],
@@ -251,5 +254,137 @@ describe("formatChf", () => {
     expect(formatChf(0, defaultText)).toBe("free");
     expect(formatChf(45, defaultText)).toBe("45 CHF");
     expect(formatChf(22.5, defaultText)).toBe("22.50 CHF");
+  });
+});
+
+describe("dietary restrictions", () => {
+  it("reads what each guest wrote, and a blank or a 'none' as none", () => {
+    const summary = summarizeBooking(
+      DEFAULT_FORM,
+      {
+        ...signer,
+        restrictions: "  gluten   free ",
+        friends: [
+          { name: "Grace", restrictions: "None." },
+          { name: "Alan", restrictions: "keine" },
+          { name: "Linus", restrictions: "shellfish allergy" },
+        ],
+      },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    expect(summary.guests.map((guest) => guest.restrictions)).toEqual([
+      "gluten free",
+      null,
+      null,
+      "shellfish allergy",
+    ]);
+  });
+
+  it("finds the question on a form whose admin renamed it", () => {
+    const form: FieldDescriptor[] = [
+      {
+        type: "text",
+        version: 1,
+        data: { name: "name", label: "Name", required: true },
+      },
+      {
+        type: "textarea",
+        version: 1,
+        data: {
+          name: "food",
+          label: "Allergies or intolerances",
+          required: false,
+        },
+      },
+      {
+        type: "list",
+        version: 1,
+        data: {
+          name: "friends",
+          label: "Friends",
+          required: false,
+          maxCount: 2,
+          addLabel: "Add",
+          removeLabel: "Remove",
+          itemFields: [
+            {
+              type: "text",
+              version: 1,
+              data: { name: "name", label: "Name", required: true },
+            },
+            {
+              type: "textarea",
+              version: 1,
+              data: {
+                name: "food",
+                label: "Allergies or intolerances",
+                required: false,
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const summary = summarizeBooking(
+      form,
+      {
+        name: "Ada",
+        food: "lactose",
+        friends: [{ name: "Grace", food: "nuts" }],
+      },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    expect(summary.guests.map((guest) => guest.restrictions)).toEqual([
+      "lactose",
+      "nuts",
+    ]);
+  });
+
+  it("reads a question asked once, outside the friends list, as the signer's", () => {
+    const form: FieldDescriptor[] = [
+      {
+        type: "text",
+        version: 1,
+        data: { name: "name", label: "Name", required: true },
+      },
+      {
+        type: "text",
+        version: 1,
+        data: {
+          name: "restrictions",
+          label: "Dietary restrictions",
+          required: false,
+        },
+      },
+    ];
+
+    const summary = summarizeBooking(
+      form,
+      { name: "Ada", restrictions: "vegan, no soy" },
+      { price: 45, studentDiscount: null, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    expect(summary.guests[0].restrictions).toBe("vegan, no soy");
+  });
+
+  it.each([
+    ["", null],
+    ["  ", null],
+    ["-", null],
+    ["No", null],
+    ["none!", null],
+    ["N/A", null],
+    ["Keine Allergien", null],
+    ["no nuts", "no nuts"],
+    ["Nuts", "Nuts"],
+    [42, null],
+  ] as [unknown, string | null][])("reads %j as %j", (answer, expected) => {
+    expect(restrictionsAnswer(answer)).toBe(expected);
   });
 });

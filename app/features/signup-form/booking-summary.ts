@@ -11,6 +11,38 @@ const STUDENT_FIELD = "student";
 // ticked by a guest who eats vegetarian (the checkbox reads "Vegan / Vegetarian");
 // they get the event's vegetarian discount, if any
 const VEGETARIAN_FIELD = "vegetarian";
+// what a guest can't or won't eat. The default form asks for it under this
+// key; a form whose admin renamed it is matched by its key or label instead
+const RESTRICTIONS_FIELD = "restrictions";
+const RESTRICTIONS_HINT = /restriction|allerg|intoleran|diet/i;
+/**
+ * Answers to the restrictions question that mean there are none, compared
+ * lowercased, without a trailing full stop or exclamation mark.
+ */
+const NO_RESTRICTIONS = new Set([
+  "-",
+  "--",
+  "—",
+  "–",
+  "/",
+  "x",
+  "no",
+  "nope",
+  "none",
+  "nothing",
+  "nothing special",
+  "n/a",
+  "na",
+  "no restrictions",
+  "no allergies",
+  "kein",
+  "keine",
+  "keins",
+  "nein",
+  "nichts",
+  "keine allergien",
+  "keine einschränkungen",
+]);
 /**
  * Optional, inside the friends list: where to send the friend a note that the
  * signer put them down. Read as the guest's `email`, not as a row.
@@ -30,6 +62,11 @@ export interface BookingGuest {
   price: number;
   /** Where they asked to hear about the signup; null when none was given. */
   email: string | null;
+  /**
+   * What they wrote under dietary restrictions (allergies, intolerances, …);
+   * null when they left it blank or wrote that there are none.
+   */
+  restrictions: string | null;
   /** Their personal answers (diet, student, …), in form order. */
   rows: SummaryRow[];
 }
@@ -102,6 +139,13 @@ export function summarizeBooking(
     t("emails.signup.guestFallback", { number: 1 }),
     t,
   );
+  // a form that asks about restrictions once, outside the friends list,
+  // asks the signer
+  if (signer.restrictions === null) {
+    const field = restrictionsField(topLevel);
+    if (field)
+      signer.restrictions = restrictionsAnswer(answers[field.data.name]);
+  }
 
   const friendItems = Array.isArray(answers[FRIENDS_LIST_NAME])
     ? (answers[FRIENDS_LIST_NAME] as unknown[])
@@ -146,6 +190,7 @@ function toGuest(
   );
 
   const vegetarian = asksVegetarian ? answers[VEGETARIAN_FIELD] === true : null;
+  const restrictions = restrictionsField(fields);
 
   return {
     name: typeof name === "string" && name.trim() ? name.trim() : fallbackName,
@@ -156,6 +201,9 @@ function toGuest(
       typeof friendEmail === "string" && friendEmail.trim()
         ? friendEmail.trim()
         : null,
+    restrictions: restrictions
+      ? restrictionsAnswer(answers[restrictions.data.name])
+      : null,
     rows: fields
       .filter(
         (field) =>
@@ -164,6 +212,32 @@ function toGuest(
       )
       .map((field) => toRow(field, answers, t)),
   };
+}
+
+/** The field that asks about dietary restrictions, if the form has one. */
+function restrictionsField(
+  fields: readonly NonListFieldDescriptor[],
+): NonListFieldDescriptor | undefined {
+  return (
+    fields.find((field) => field.data.name === RESTRICTIONS_FIELD) ??
+    fields.find(
+      (field) =>
+        (field.type === "text" || field.type === "textarea") &&
+        (RESTRICTIONS_HINT.test(field.data.name) ||
+          RESTRICTIONS_HINT.test(field.data.label)),
+    )
+  );
+}
+
+/**
+ * A guest's answer about their dietary restrictions, trimmed; null when they
+ * left it blank or wrote that there are none ("no", "none", "keine", …).
+ */
+export function restrictionsAnswer(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const answer = value.trim().replace(/\s+/g, " ");
+  const plain = answer.toLowerCase().replace(/[.!]+$/, "");
+  return answer && !NO_RESTRICTIONS.has(plain) ? answer : null;
 }
 
 function toRow(

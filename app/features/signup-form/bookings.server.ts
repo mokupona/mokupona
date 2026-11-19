@@ -1,5 +1,6 @@
 import {
   guestPrice,
+  restrictionsAnswer,
   summarizeBooking,
   type BookingGuest,
   type BookingPrices,
@@ -216,6 +217,7 @@ function legacyBooking(
     vegetarian: row.vegetarian === true,
     price,
     email: null,
+    restrictions: restrictionsAnswer(row.restrictions),
     rows: [
       ["Vegan / Vegetarian", yesNo(row.vegetarian === true, t)],
       ["Student", yesNo(isStudent, t)],
