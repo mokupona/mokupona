@@ -1,4 +1,4 @@
-import { CheckIcon, DownloadIcon } from "lucide-react";
+import { CheckIcon, DownloadIcon, TriangleAlertIcon } from "lucide-react";
 import type { Logger } from "pino";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { data, Form, useFetcher, useNavigation } from "react-router";
@@ -1024,6 +1024,15 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
   const overbookedBy = seats.confirmed - event.slots;
   const arrived = headcount.confirmed.arrived + headcount.waitlisted.arrived;
   const helpers = headcount.confirmed.helpers;
+  // the sheet narrowed to the people who wrote a dietary restriction
+  const [onlyRestrictions, setOnlyRestrictions] = useState(false);
+  const withRestrictions = parties
+    .filter((party) => party.status !== "cancelled")
+    .reduce(
+      (sum, party) =>
+        sum + party.guests.filter((guest) => guest.restrictions).length,
+      0,
+    );
 
   return (
     <main className="animate-page-in">
@@ -1054,7 +1063,18 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
 
       <div className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <MoneyReceivedSummary money={money} fees={twintFees} />
-        <Headcount headcount={headcount} />
+        <div className="flex flex-col gap-6">
+          <Headcount headcount={headcount} />
+          <DietaryRestrictions
+            parties={parties}
+            onShowOnSheet={() => {
+              setOnlyRestrictions(true);
+              document
+                .getElementById(SIGNUP_LISTS_ID)
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
+        </div>
       </div>
 
       <PaymentReminder reminder={reminder} mail={mail} />
@@ -1079,6 +1099,23 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
           or tick it there if it went out another way.
         </Notice>
       ) : null}
+
+      <div
+        id={SIGNUP_LISTS_ID}
+        className="mb-4 flex scroll-mt-4 flex-wrap items-center gap-3 text-sm"
+      >
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={onlyRestrictions}
+            onChange={(event) =>
+              setOnlyRestrictions(event.currentTarget.checked)
+            }
+            className="accent-primary size-4"
+          />
+          Only people with dietary restrictions ({withRestrictions})
+        </label>
+      </div>
 
       <div className="flex flex-col gap-6">
         {SECTIONS.map(({ status, title, empty }) => {
@@ -1105,8 +1142,13 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
               <PartyTable
                 parties={rows}
                 seatsLeft={seats.left}
-                emptyText={empty}
+                emptyText={
+                  onlyRestrictions
+                    ? "Nobody here wrote a dietary restriction."
+                    : empty
+                }
                 mail={mail}
+                onlyRestrictions={onlyRestrictions}
               />
             </section>
           );
@@ -1632,6 +1674,111 @@ function PaymentReminder({
   );
 }
 
+/** What a person wrote under dietary restrictions, marked so it stands out. */
+function RestrictionsNote({ restrictions }: { restrictions: string }) {
+  return (
+    <span className="border-destructive-light/40 bg-destructive/5 text-destructive-light inline-flex max-w-72 items-start gap-1 border px-1.5 py-0.5 text-xs font-semibold whitespace-normal">
+      <TriangleAlertIcon className="mt-px size-3.5 shrink-0" aria-hidden />
+      <span className="break-words">
+        <span className="sr-only">Dietary restrictions: </span>
+        {restrictions}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Everyone with a seat or on the waiting list who wrote a dietary
+ * restriction, at a glance: for the kitchen, and for a check at the door.
+ */
+function DietaryRestrictions({
+  parties,
+  onShowOnSheet,
+}: {
+  parties: Party[];
+  /** Narrows the signup lists below to these people. */
+  onShowOnSheet: () => void;
+}) {
+  // confirmed seats first, then the waiting list, each in signup order
+  const people = (["confirmed", "waitlisted"] as const).flatMap((status) =>
+    parties
+      .filter((party) => party.status === status)
+      .flatMap((party) =>
+        party.guests.flatMap((guest, guestIndex) =>
+          guest.restrictions
+            ? [
+                {
+                  party,
+                  guest,
+                  guestIndex,
+                  restrictions: guest.restrictions,
+                },
+              ]
+            : [],
+        ),
+      ),
+  );
+
+  return (
+    <section aria-labelledby="restrictions-heading">
+      <h2 id="restrictions-heading" className="mb-3 text-lg font-semibold">
+        Dietary restrictions{" "}
+        <span className="text-muted-foreground text-sm font-normal">
+          {people.length} {people.length === 1 ? "person" : "people"}
+        </span>
+      </h2>
+      <Card>
+        {people.length === 0 ? (
+          <p className="text-muted-foreground p-4 text-sm">
+            Nobody with a seat or on the waiting list has written a dietary
+            restriction.
+          </p>
+        ) : (
+          <>
+            <ul className="divide-y">
+              {people.map(({ party, guest, guestIndex, restrictions }) => {
+                const about = [
+                  party.guestBookkeeping[guestIndex]?.helper ? "helper" : null,
+                  guest.vegetarian === true ? "vegetarian" : null,
+                  guestIndex === 0 ? null : `with ${party.name}`,
+                  party.status === "waitlisted" ? "waiting list" : null,
+                ].filter(Boolean);
+
+                return (
+                  <li
+                    key={`${party.submissionId}-${guestIndex}`}
+                    className="flex flex-col gap-1 px-4 py-2.5 sm:flex-row sm:items-start sm:gap-4"
+                  >
+                    <div className="flex min-w-32 flex-col sm:w-40 sm:shrink-0">
+                      <span className="font-semibold">{guest.name}</span>
+                      {about.length > 0 ? (
+                        <span className="text-muted-foreground text-xs">
+                          {about.join(" · ")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <RestrictionsNote restrictions={restrictions} />
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="border-t p-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onShowOnSheet}
+              >
+                Show only them on the sheet
+              </Button>
+            </div>
+          </>
+        )}
+      </Card>
+    </section>
+  );
+}
+
 function Headcount({ headcount }: { headcount: HeadcountSummary }) {
   const { confirmed, waitlisted } = headcount;
 
@@ -1817,17 +1964,33 @@ const TABLE_COLUMNS = 10;
 // span all of the party's rows
 const CELL = "px-3 py-2 align-top";
 
+// the line under a party's last row: heavier than the dashed lines between
+// its people, so each signup reads as one block
+const PARTY_END = "border-b-3 border-foreground/45";
+
+// where the filter sits above the lists, for the restrictions card to jump to
+const SIGNUP_LISTS_ID = "signup-lists";
+
 function PartyTable({
-  parties,
+  parties: allParties,
   seatsLeft,
   emptyText,
   mail,
+  onlyRestrictions,
 }: {
   parties: Party[];
   seatsLeft: number;
   emptyText: string;
   mail: MailSettings;
+  /** Shows only the people who wrote a dietary restriction. */
+  onlyRestrictions: boolean;
 }) {
+  const parties = onlyRestrictions
+    ? allParties.filter((party) =>
+        party.guests.some((guest) => guest.restrictions),
+      )
+    : allParties;
+
   // the table scrolls sideways on a phone rather than being cut off
   return (
     <Card>
@@ -1865,6 +2028,7 @@ function PartyTable({
               party={party}
               seatsLeft={seatsLeft}
               mail={mail}
+              onlyRestrictions={onlyRestrictions}
             />
           ))}
           {parties.length === 0 ? (
@@ -1887,29 +2051,41 @@ function PartyRows({
   party,
   seatsLeft,
   mail,
+  onlyRestrictions,
 }: {
   party: Party;
   seatsLeft: number;
   mail: MailSettings;
+  onlyRestrictions: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const detailsId = `party-${party.submissionId}`;
-  const rowSpan = party.guests.length;
+  // each person keeps their place in the booking, whoever is shown
+  const shown = party.guests
+    .map((guest, guestIndex) => ({ guest, guestIndex }))
+    .filter(({ guest }) => !onlyRestrictions || guest.restrictions);
+  const rowSpan = shown.length;
   // the party's last row closes it off, unless its details follow
   const closingRow = open ? -1 : rowSpan - 1;
 
   return (
     <>
-      {party.guests.map((guest, guestIndex) => (
+      {shown.map(({ guest, guestIndex }, row) => (
         <GuestRow
           key={guestIndex}
           party={party}
           guest={guest}
           guestIndex={guestIndex}
-          closesParty={guestIndex === closingRow}
+          closesParty={row === closingRow}
           signerExtras={
-            guestIndex === 0 ? (
+            row === 0 ? (
               <>
+                {guestIndex !== 0 ? (
+                  // the signer is hidden by the filter: say whose group it is
+                  <span className="text-muted-foreground text-xs">
+                    in {party.name}&apos;s group
+                  </span>
+                ) : null}
                 <span className="text-muted-foreground text-xs break-all">
                   {party.email}
                 </span>
@@ -1929,13 +2105,13 @@ function PartyRows({
             ) : null
           }
         >
-          {guestIndex === 0 ? (
+          {row === 0 ? (
             <PartyCells party={party} rowSpan={rowSpan} seatsLeft={seatsLeft} />
           ) : null}
         </GuestRow>
       ))}
       {open ? (
-        <TableRow className="hover:bg-transparent">
+        <TableRow className={cn("hover:bg-transparent", PARTY_END)}>
           <TableCell
             id={detailsId}
             colSpan={TABLE_COLUMNS}
@@ -1987,7 +2163,7 @@ function GuestRow({
     <TableRow
       className={cn(
         "hover:bg-transparent",
-        !closesParty && "border-foreground/10 border-dashed",
+        closesParty ? PARTY_END : "border-foreground/10 border-dashed",
       )}
     >
       <TableCell className={cn(own, "text-center")}>
@@ -2036,6 +2212,9 @@ function GuestRow({
             <span className="text-muted-foreground text-xs">
               {tags.join(" · ")}
             </span>
+          ) : null}
+          {guest.restrictions ? (
+            <RestrictionsNote restrictions={guest.restrictions} />
           ) : null}
           {signerExtras}
           {party.isLegacy ? null : (

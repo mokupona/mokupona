@@ -160,6 +160,7 @@ describe("getSignupBookingsForEvent", () => {
         phone: "0791111111",
         vegetarian: true,
         student: true,
+        restrictions: " gluten ",
       },
     });
 
@@ -175,7 +176,14 @@ describe("getSignupBookingsForEvent", () => {
       signerEmail: "old@example.com",
       booking: {
         total: 30,
-        guests: [{ name: "Old Guest", isStudent: true, price: 30 }],
+        guests: [
+          {
+            name: "Old Guest",
+            isStudent: true,
+            price: 30,
+            restrictions: "gluten",
+          },
+        ],
         contact: expect.arrayContaining([["Email", "old@example.com"]]),
       },
     });

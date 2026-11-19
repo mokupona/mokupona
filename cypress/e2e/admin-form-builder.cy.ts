@@ -163,13 +163,20 @@ describe("admin signup form builder", () => {
       acceptPrivacyAndJoin();
 
       cy.visitAndCheck(`/admin/events/${eventId}/signups`);
-      cy.findByText(legacyName);
-      cy.findByText(v1Signer)
-        .closest("tr")
-        .within(() => {
-          cy.findByText("2");
-        });
-      cy.findByText(v2Signer);
+      cy.findByRole("region", { name: /^confirmed/i }).within(() => {
+        cy.findByText(legacyName);
+        cy.findByText(v1Signer)
+          .closest("tr")
+          .within(() => {
+            cy.findByText("2");
+          });
+        cy.findByText(v2Signer);
+      });
+      // the renamed question still counts as the dietary restrictions one
+      cy.findByRole("region", { name: /^dietary restrictions/i }).within(() => {
+        cy.findByText(v2Signer);
+        cy.findByText("pollen");
+      });
 
       cy.request(`/admin/events/${eventId}/signups.csv`).then((response) => {
         expect(response.body).to.include("Allergies");
