@@ -180,6 +180,7 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
         donationRappen: 750,
         donationMethod: "cash",
         priceShare: "half",
+        helper: true,
       }),
     ]);
     expect(parsed.events[0]).toMatchObject({
@@ -215,6 +216,15 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     const parsed = liveDataTablesSchema.parse(tables);
 
     expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
+  });
+
+  it("reads a live site that predates helpers as having none", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const guest of tables.signupGuests) delete guest.helper;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({ helper: false });
   });
 
   it("reads a price share it doesn't know as paying in full", () => {

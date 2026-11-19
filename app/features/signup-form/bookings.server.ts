@@ -180,6 +180,7 @@ function perGuest(
     donationRappen: number | null;
     donationMethod: string;
     priceShare: string;
+    helper: boolean;
   }[],
 ): GuestBookkeeping[] {
   const byIndex = new Map(rows.map((row) => [row.guestIndex, row]));
@@ -192,6 +193,7 @@ function perGuest(
       donation: row.donationRappen,
       donationMethod: toPaymentMethod(row.donationMethod),
       priceShare: toPriceShare(row.priceShare),
+      helper: row.helper,
     };
   });
 }
