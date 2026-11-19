@@ -112,6 +112,7 @@ export function liveDataFixture(
         donationRappen: 750,
         donationMethod: "cash",
         priceShare: "half",
+        helper: true,
         ...stamps,
       },
     ],

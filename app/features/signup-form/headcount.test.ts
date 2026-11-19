@@ -27,6 +27,8 @@ describe("summarizeHeadcount", () => {
 
     expect(summary.confirmed).toEqual({
       people: 3,
+      guests: 3,
+      helpers: 0,
       vegetarian: 2,
       notVegetarian: 1,
       dietNotAsked: 0,
@@ -38,6 +40,8 @@ describe("summarizeHeadcount", () => {
     });
     expect(summary.waitlisted).toEqual({
       people: 2,
+      guests: 2,
+      helpers: 0,
       vegetarian: 0,
       notVegetarian: 2,
       dietNotAsked: 0,
@@ -90,6 +94,32 @@ describe("summarizeHeadcount", () => {
 
     expect(summary.confirmed.arrived).toBe(1);
     expect(summary.waitlisted.arrived).toBe(1);
+  });
+
+  it("counts helpers apart from the guests, and with everyone who eats", () => {
+    const summary = summarizeHeadcount([
+      {
+        status: "confirmed",
+        guests: [
+          { isStudent: false, vegetarian: true, helper: true },
+          { isStudent: false, vegetarian: false, helper: false },
+          { isStudent: false, vegetarian: false },
+        ],
+      },
+      {
+        status: "waitlisted",
+        guests: [{ isStudent: false, vegetarian: false, helper: true }],
+      },
+    ]);
+
+    expect(summary.confirmed).toMatchObject({
+      people: 3,
+      guests: 2,
+      helpers: 1,
+      vegetarian: 1,
+      notVegetarian: 2,
+    });
+    expect(summary.waitlisted).toMatchObject({ guests: 0, helpers: 1 });
   });
 
   it("counts the people who pay half or nothing, per list", () => {

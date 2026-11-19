@@ -352,8 +352,10 @@ export async function sendSignupMessage({
 }
 
 /**
- * The payment reminder, sent from the signup sheet to every group that's due
- * one (payment-reminders.ts): to the person who signed the group up, with the
+ * The payment reminder, sent from the signup sheet to the groups an admin
+ * picked that are due one (payment-reminders.ts): a group picked on a stale
+ * page that has paid or been reminded since is left out. It goes to the
+ * person who signed the group up, with the
  * placeholders filled in for their group and {total} and {half} at what it
  * pays after anyone set to pay half or nothing.
  *
@@ -365,11 +367,14 @@ export async function sendSignupMessage({
  */
 export async function sendPaymentReminders({
   eventId,
+  submissionIds,
   copy,
   origin,
   sentById,
 }: {
   eventId: string;
+  /** The groups the admin picked. */
+  submissionIds: readonly string[];
   /** Markdown, placeholders still in. */
   copy: SignupMailCopy;
   origin: string;
@@ -380,9 +385,12 @@ export async function sendPaymentReminders({
   if (!event) throw new Error(`Event ${eventId} doesn't exist`);
   const t = await getText();
   const url = new URL(`/events/${event.id}`, origin).href;
+  const picked = new Set(submissionIds);
   const due = (
     await getSignupBookingsForEvent(eventId, bookingPrices(event), t)
-  ).filter(isPaymentReminderDue);
+  ).filter(
+    (signup) => picked.has(signup.submissionId) && isPaymentReminderDue(signup),
+  );
 
   const sent: string[] = [];
   const failed: string[] = [];

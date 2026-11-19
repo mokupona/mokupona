@@ -285,6 +285,49 @@ describe("getSeatCountsByEvent", () => {
       [one.event.id]: { confirmed: 2, waitlisted: 3 },
     });
   });
+
+  it("leaves helpers out: they take no seat", async () => {
+    const fixture = await createTestEvent(5);
+    const confirmed = await signUp(fixture, { friends: 2 });
+    const waiting = await signUp(fixture, { friends: 3 });
+    for (const [submissionId, guestIndex] of [
+      [confirmed.id, 1],
+      [confirmed.id, 2],
+      [waiting.id, 0],
+    ] as const) {
+      await updateSignupGuest({
+        eventId: fixture.event.id,
+        submissionId,
+        guestIndex,
+        data: { helper: true },
+      });
+    }
+
+    expect(await getSeatCounts(fixture.event.id)).toEqual({
+      confirmed: 1,
+      waitlisted: 3,
+    });
+  });
+});
+
+describe("createEventSignup with helpers", () => {
+  it("counts only the guests' seats when deciding whether a new group fits", async () => {
+    const fixture = await createTestEvent(3);
+    const first = await signUp(fixture, { friends: 2 });
+    expect(first.status).toBe("confirmed");
+
+    // full until one of them is ticked as a helper
+    expect((await signUp(fixture)).status).toBe("waitlisted");
+
+    await updateSignupGuest({
+      eventId: fixture.event.id,
+      submissionId: first.id,
+      guestIndex: 2,
+      data: { helper: true },
+    });
+
+    expect((await signUp(fixture)).status).toBe("confirmed");
+  });
 });
 
 describe("updateSignupBookkeeping", () => {

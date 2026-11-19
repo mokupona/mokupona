@@ -60,15 +60,20 @@ async function lockForSeatChanges(tx: Tx, eventId: string) {
 }
 
 async function confirmedSeatsInTx(tx: Tx, eventId: string, formId: string) {
+  const confirmed = { ...submissionsOf(formId), status: "confirmed" };
   const { _sum } = await tx.formSubmission.aggregate({
     _sum: { seats: true },
-    where: { ...submissionsOf(formId), status: "confirmed" },
+    where: confirmed,
+  });
+  // a helper in a confirmed party takes no seat
+  const helpers = await tx.signupGuest.count({
+    where: { helper: true, submission: confirmed },
   });
   // rows from before signup forms were configurable: one seat each, and all
   // of them were accepted
   const legacySeats = await tx.eventResponse.count({ where: { eventId } });
 
-  return (_sum.seats ?? 0) + legacySeats;
+  return (_sum.seats ?? 0) - helpers + legacySeats;
 }
 
 async function hasActiveSignup(
@@ -254,7 +259,8 @@ export async function updateSignupBookkeeping({
 
 /**
  * The admin's bookkeeping for one person in a signup: whether they've
- * arrived, what they gave, and what share of their price they pay. `guestIndex` is their place in the booking
+ * arrived, what they gave, what share of their price they pay, and whether
+ * they're a helper (who takes no seat). `guestIndex` is their place in the booking
  * (0 is the signer); one past the party is refused like a missing signup.
  */
 export async function updateSignupGuest({
@@ -271,6 +277,7 @@ export async function updateSignupGuest({
     donationRappen?: number | null;
     donationMethod?: PaymentMethod;
     priceShare?: PriceShare;
+    helper?: boolean;
   };
 }): Promise<void> {
   if (
@@ -305,6 +312,10 @@ export async function updateSignupGuest({
   });
 }
 
+/**
+ * The seats an event's signups take, by status. A helper (ticked on the
+ * signup sheet) takes none, so an event isn't full because of its helpers.
+ */
 export interface SeatCounts {
   confirmed: number;
   waitlisted: number;
@@ -328,6 +339,9 @@ export async function getSeatCountsByEvent(
       select: {
         status: true,
         seats: true,
+        _count: {
+          select: { guestBookkeeping: { where: { helper: true } } },
+        },
         formVersion: {
           select: { form: { select: { event: { select: { id: true } } } } },
         },
@@ -340,11 +354,11 @@ export async function getSeatCountsByEvent(
     }),
   ]);
 
-  for (const { status, seats, formVersion } of submissions) {
+  for (const { status, seats, _count, formVersion } of submissions) {
     const eventId = formVersion.form.event?.id;
     if (!eventId) continue;
     countsFor(eventId)[status === "waitlisted" ? "waitlisted" : "confirmed"] +=
-      seats;
+      seats - _count.guestBookkeeping;
   }
   for (const { eventId, _count } of legacy) {
     countsFor(eventId).confirmed += _count._all;

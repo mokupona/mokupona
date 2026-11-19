@@ -282,6 +282,11 @@ model SignupGuest {
   // their allergies are on the sheet but pay less or nothing. Their price on
   // the sheet and their party's total follow it; the mails don't.
   priceShare     String    @default("full")
+  // ticked for a helper: someone working the dinner who signed up so their
+  // allergies are on the sheet. Helpers don't take a seat (the seat counts in
+  // app/models/event-signup.server.ts leave them out) or count as guests.
+  // Separate from priceShare: a helper may still pay.
+  helper         Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

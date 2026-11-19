@@ -125,7 +125,12 @@ interface Party {
   isLegacy: boolean;
   name: string;
   email: string;
+  /** Everyone in the party, helpers too. */
   size: number;
+  /** The people in it ticked as helpers. */
+  helpers: number;
+  /** The seats it takes: everyone but the helpers. */
+  seats: number;
   /**
    * What the whole party pays, in CHF: each person's price after the share
    * an admin set for them (all of it, half, or nothing).
@@ -171,6 +176,9 @@ interface Party {
 
 function toParty(signup: SignupBooking): Party {
   const { guests, contact, total: fullTotal } = signup.booking;
+  const helpers = signup.guestBookkeeping.filter(
+    (guest) => guest.helper,
+  ).length;
 
   return {
     submissionId: signup.submissionId,
@@ -179,6 +187,8 @@ function toParty(signup: SignupBooking): Party {
     name: guests[0]?.name ?? "",
     email: signup.signerEmail,
     size: guests.length,
+    helpers,
+    seats: guests.length - helpers,
     total: signup.amountDue,
     fullTotal,
     createdAt: signup.createdAt,
@@ -263,7 +273,8 @@ export async function loader({ params }: Route.LoaderArgs) {
     revenue: summarizeRevenue(
       parties.map((party) => ({
         status: party.status,
-        people: party.size,
+        // helpers take no seat, so they don't count as people here
+        people: party.seats,
         total: party.total,
       })),
     ),
@@ -281,6 +292,7 @@ export async function loader({ params }: Route.LoaderArgs) {
           vegetarian: guest.vegetarian,
           arrived: party.guestBookkeeping[guestIndex]?.arrivedAt != null,
           priceShare: shareOf(party, guestIndex),
+          helper: party.guestBookkeeping[guestIndex]?.helper ?? false,
         })),
       })),
     ),
@@ -296,6 +308,9 @@ export async function loader({ params }: Route.LoaderArgs) {
       due: bookings.filter(isPaymentReminderDue).map((signup) => ({
         submissionId: signup.submissionId,
         name: signup.booking.guests[0]?.name ?? signup.signerEmail,
+        signedUpAt: signup.createdAt,
+        // what the reminder asks for: the first half, in Rappen
+        firstHalf: halfPrice(signup.amountDue),
       })),
     },
   };
@@ -373,7 +388,7 @@ function readGuestIndex(formData: FormData): number {
 }
 
 /** The intents that touch the bookkeeping of one person in a signup. */
-const GUEST_INTENTS = ["arrival", "donation", "price-share"] as const;
+const GUEST_INTENTS = ["arrival", "donation", "price-share", "helper"] as const;
 
 type GuestIntent = (typeof GUEST_INTENTS)[number];
 
@@ -394,6 +409,9 @@ function readGuestUpdate(
 ): Parameters<typeof updateSignupGuest>[0]["data"] | { error: string } {
   if (intent === "arrival") {
     return { arrivedAt: formData.has("arrived") ? new Date() : null };
+  }
+  if (intent === "helper") {
+    return { helper: formData.has("helper") };
   }
   if (intent === "price-share") {
     const priceShare = formData.get("priceShare");
@@ -485,8 +503,8 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     return data({ saved: intent });
   }
 
-  // a person's arrival and donation, ticked and noted during the dinner, and
-  // the share of their price they pay (helpers pay half or nothing)
+  // a person's arrival and donation, ticked and noted during the dinner, the
+  // share of their price they pay, and whether they're a helper
   if (isGuestIntent(intent)) {
     const submissionId = readSubmissionId(formData);
     const guestIndex = readGuestIndex(formData);
@@ -741,8 +759,8 @@ export async function action({ params, request, context }: Route.ActionArgs) {
 
 /**
  * The payment reminder: saving what an admin wrote for it, going back to the
- * site-wide one, or sending it to every group that's due one (which saves
- * what was sent, too).
+ * site-wide one, or sending it to the groups picked that are due one (which
+ * saves what was sent, too).
  */
 async function reminderAction({
   intent,
@@ -777,6 +795,16 @@ async function reminderAction({
   if ("error" in copy) {
     return data({ reminderError: copy.error }, { status: 400 });
   }
+  // the groups the admin picked to remind this time
+  const picked = formData
+    .getAll("group")
+    .filter((value): value is string => typeof value === "string");
+  if (intent === "send-reminders" && picked.length === 0) {
+    return data(
+      { reminderError: "Pick at least one group to remind." },
+      { status: 400 },
+    );
+  }
 
   // the site-wide text, left as it is, stays the site-wide text: an edit to
   // it under Texts still reaches this event
@@ -795,6 +823,7 @@ async function reminderAction({
   try {
     result = await sendPaymentReminders({
       eventId,
+      submissionIds: picked,
       copy,
       origin,
       sentById: userId,
@@ -815,7 +844,10 @@ async function reminderAction({
 
   if (result.sent.length === 0 && result.failed.length === 0) {
     return data(
-      { reminderError: "No group is due a reminder right now." },
+      {
+        reminderError:
+          "None of the groups you picked is due a reminder any more.",
+      },
       { status: 400 },
     );
   }
@@ -991,6 +1023,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
   ).length;
   const overbookedBy = seats.confirmed - event.slots;
   const arrived = headcount.confirmed.arrived + headcount.waitlisted.arrived;
+  const helpers = headcount.confirmed.helpers;
 
   return (
     <main className="animate-page-in">
@@ -1001,6 +1034,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
       <AdminPageHeader
         eyebrow={[
           `${seats.confirmed} / ${event.slots} seats confirmed`,
+          ...(helpers > 0 ? [helperCount(helpers)] : []),
           ...(seats.waitlisted > 0 ? [`${seats.waitlisted} waiting`] : []),
           ...(arrived > 0 ? [`${arrived} arrived`] : []),
         ].join(" · ")}
@@ -1051,7 +1085,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
           const rows = parties.filter((party) => party.status === status);
           if (status === "cancelled" && rows.length === 0) return null;
           const total = rows.reduce((sum, party) => sum + party.total, 0);
-          const people = rows.reduce((sum, party) => sum + party.size, 0);
+          const guests = rows.reduce((sum, party) => sum + party.seats, 0);
+          const helpers = rows.reduce((sum, party) => sum + party.helpers, 0);
 
           return (
             <section key={status} aria-labelledby={`signups-${status}`}>
@@ -1062,7 +1097,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                 {title}{" "}
                 <span className="text-muted-foreground text-sm font-normal">
                   {rows.length} {rows.length === 1 ? "group" : "groups"}
-                  {` · ${peopleCount(people)}`}
+                  {` · ${guestCount(guests)}`}
+                  {helpers > 0 ? ` · ${helperCount(helpers)}` : null}
                   {status === "cancelled" ? null : ` · ${formatCHF(total)}`}
                 </span>
               </h2>
@@ -1096,7 +1132,7 @@ function RevenueSummary({
         <Stat
           label="Expected revenue"
           value={formatCHF(revenue.confirmedTotal)}
-          note={`From ${peopleCount(revenue.confirmedPeople)} with a confirmed seat`}
+          note={`From ${guestCount(revenue.confirmedPeople)} with a confirmed seat`}
           emphasis
         />
         <Stat
@@ -1117,7 +1153,7 @@ function RevenueSummary({
           note={
             revenue.waitlistPeople === 0
               ? "Nobody is waiting"
-              : `What ${peopleCount(revenue.waitlistPeople)} would pay if every group got a seat`
+              : `What ${guestCount(revenue.waitlistPeople)} would pay if every group got a seat`
           }
         />
         <Stat
@@ -1127,7 +1163,7 @@ function RevenueSummary({
               ? "—"
               : formatCHF(revenue.averagePerPerson)
           }
-          note="Average over confirmed seats, at the price each person pays"
+          note="Average over confirmed guests (helpers left out), at the price each pays"
         />
       </div>
     </section>
@@ -1327,13 +1363,20 @@ interface ReminderSettings {
   message: string;
   /** False while the event uses the site-wide reminder. */
   ownCopy: boolean;
-  /** The groups it would go to. */
-  due: { submissionId: string; name: string }[];
+  /** The groups that are due one, oldest signup first. */
+  due: {
+    submissionId: string;
+    name: string;
+    signedUpAt: Date;
+    /** In Rappen. */
+    firstHalf: number;
+  }[];
 }
 
 /**
  * The payment reminder: who's due one, and the email itself, written here
- * and sent to all of them in one go.
+ * and sent in one go to the groups picked. Every group that's due starts out
+ * picked; a group that only just signed up can be left for later.
  */
 function PaymentReminder({
   reminder,
@@ -1357,6 +1400,13 @@ function PaymentReminder({
     (reply.saved === "reminder-copy" || reply.saved === "reminder-reset");
   const count = reminder.due.length;
   const groups = `${count} ${count === 1 ? "group" : "groups"}`;
+  // the groups left out of this round; a group that becomes due later
+  // starts out picked
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(new Set());
+  const picked = reminder.due.filter(
+    (party) => !skipped.has(party.submissionId),
+  );
+  const pickedGroups = `${picked.length} ${picked.length === 1 ? "group" : "groups"}`;
   // the fields start over from what's saved once it changes
   const copyKey = `${reminder.subject}\n${reminder.message}`;
 
@@ -1381,6 +1431,70 @@ function PaymentReminder({
 
         {open ? (
           <fetcher.Form method="post" className="flex flex-col gap-3">
+            {count > 0 ? (
+              <fieldset className="flex flex-col gap-1">
+                <legend className="mb-1 flex w-full flex-wrap items-baseline gap-x-3 text-sm font-semibold">
+                  Send to
+                  <span className="flex gap-2 text-xs font-normal">
+                    <button
+                      type="button"
+                      onClick={() => setSkipped(new Set())}
+                      className="text-primary hover:underline"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSkipped(
+                          new Set(
+                            reminder.due.map((party) => party.submissionId),
+                          ),
+                        )
+                      }
+                      className="text-primary hover:underline"
+                    >
+                      None
+                    </button>
+                  </span>
+                </legend>
+                {reminder.due.map((party) => (
+                  <label
+                    key={party.submissionId}
+                    className="inline-flex flex-wrap items-center gap-x-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      name="group"
+                      value={party.submissionId}
+                      checked={!skipped.has(party.submissionId)}
+                      onChange={(event) => {
+                        const { checked } = event.currentTarget;
+                        setSkipped((current) => {
+                          const next = new Set(current);
+                          if (checked) next.delete(party.submissionId);
+                          else next.add(party.submissionId);
+                          return next;
+                        });
+                      }}
+                      className="accent-primary size-4"
+                    />
+                    {party.name}
+                    <span className="text-muted-foreground text-xs">
+                      signed up{" "}
+                      <time
+                        dateTime={new Date(party.signedUpAt).toISOString()}
+                        suppressHydrationWarning
+                      >
+                        {formatAdminTimestamp(new Date(party.signedUpAt))}
+                      </time>{" "}
+                      · {formatRappen(party.firstHalf)} now
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
+
             <div className="flex flex-col gap-1">
               <label
                 htmlFor={`${id}-subject`}
@@ -1437,15 +1551,15 @@ function PaymentReminder({
                 name="intent"
                 value="send-reminders"
                 size="sm"
-                disabled={busy || count === 0}
+                disabled={busy || picked.length === 0}
                 onClick={(clickEvent) => {
                   const ok = window.confirm(
-                    `Send the payment reminder to ${groups}? Each one is ticked as reminded once it's out.`,
+                    `Send the payment reminder to ${pickedGroups}? Each one is ticked as reminded once it's out.`,
                   );
                   if (!ok) clickEvent.preventDefault();
                 }}
               >
-                {sending ? "Sending…" : `Send to ${groups}`}
+                {sending ? "Sending…" : `Send to ${pickedGroups}`}
               </Button>
               <Button
                 type="submit"
@@ -1521,13 +1635,25 @@ function PaymentReminder({
 function Headcount({ headcount }: { headcount: HeadcountSummary }) {
   const { confirmed, waitlisted } = headcount;
 
+  const anyHelpers = confirmed.helpers + waitlisted.helpers > 0;
+
   const rows = [
     {
-      label: "People",
-      confirmed: confirmed.people,
-      waitlisted: waitlisted.people,
+      label: "Guests",
+      confirmed: confirmed.guests,
+      waitlisted: waitlisted.guests,
       strong: true,
     },
+    ...(anyHelpers
+      ? [
+          {
+            label: "Helpers",
+            confirmed: confirmed.helpers,
+            waitlisted: waitlisted.helpers,
+            strong: true,
+          },
+        ]
+      : []),
     {
       label: "Arrived",
       confirmed: confirmed.arrived,
@@ -1620,13 +1746,23 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
             ))}
           </TableBody>
         </Table>
+        {anyHelpers ? (
+          <p className="text-muted-foreground border-t px-4 py-3 text-xs">
+            Helpers take no seat. They&apos;re counted in the rows from Arrived
+            down, since they eat with everyone.
+          </p>
+        ) : null}
       </Card>
     </section>
   );
 }
 
-function peopleCount(count: number) {
-  return `${count} ${count === 1 ? "person" : "people"}`;
+function guestCount(count: number) {
+  return `${count} ${count === 1 ? "guest" : "guests"}`;
+}
+
+function helperCount(count: number) {
+  return `${count} ${count === 1 ? "helper" : "helpers"}`;
 }
 
 function Stat({
@@ -1842,6 +1978,7 @@ function GuestRow({
   const own = cn(CELL, arrived && "bg-primary/10");
   const share = shareOf(party, guestIndex);
   const tags = [
+    bookkeeping.helper ? "helper" : null,
     guest.vegetarian === true ? "vegetarian" : null,
     guest.isStudent ? "student" : null,
   ].filter(Boolean);
@@ -1901,6 +2038,14 @@ function GuestRow({
             </span>
           ) : null}
           {signerExtras}
+          {party.isLegacy ? null : (
+            <HelperTick
+              party={party}
+              guest={guest}
+              guestIndex={guestIndex}
+              helper={bookkeeping.helper}
+            />
+          )}
         </div>
       </TableCell>
       <TableCell className={cn(own, "text-right")}>
@@ -1973,6 +2118,48 @@ function PriceLines({
 }
 
 /**
+ * Whether a person is a helper: someone working the dinner, who signed up so
+ * their allergies are on the sheet. A helper takes no seat and isn't counted
+ * as a guest. Ticking it saves it.
+ */
+function HelperTick({
+  party,
+  guest,
+  guestIndex,
+  helper,
+}: {
+  party: Party;
+  guest: BookingGuest;
+  guestIndex: number;
+  helper: boolean;
+}) {
+  const fetcher = useFetcher();
+
+  return (
+    <fetcher.Form
+      method="post"
+      className={cn("mt-1", fetcher.state !== "idle" && "opacity-60")}
+    >
+      <input type="hidden" name="intent" value="helper" />
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <input type="hidden" name="guest" value={guestIndex} />
+      <label className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+        <input
+          key={String(helper)}
+          type="checkbox"
+          name="helper"
+          defaultChecked={helper}
+          aria-label={`${guest.name} is a helper`}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          className="accent-primary size-3.5"
+        />
+        Helper
+      </label>
+    </fetcher.Form>
+  );
+}
+
+/**
  * Whether a person pays their price in full, half of it, or nothing: for
  * helpers, who sign up so their allergies are on the sheet. Picking one
  * saves it.
@@ -2033,6 +2220,15 @@ function PartyCells({
     <>
       <TableCell rowSpan={rowSpan} className={cn(CELL, "border-l text-center")}>
         {party.size}
+        {party.helpers > 0 ? (
+          <span className="text-muted-foreground block text-xs whitespace-nowrap">
+            {party.helpers === party.size
+              ? party.size === 1
+                ? "helper"
+                : "all helpers"
+              : `incl. ${helperCount(party.helpers)}`}
+          </span>
+        ) : null}
       </TableCell>
       <TableCell rowSpan={rowSpan} className={cn(CELL, "text-right")}>
         <PriceLines
@@ -2175,6 +2371,7 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
             guest={guest}
             signer={guestIndex === 0}
             share={shareOf(party, guestIndex)}
+            helper={party.guestBookkeeping[guestIndex]?.helper ?? false}
           />
         ))}
       </div>
@@ -2186,10 +2383,12 @@ function GuestCard({
   guest,
   signer,
   share,
+  helper,
 }: {
   guest: BookingGuest;
   signer: boolean;
   share: PriceShare;
+  helper: boolean;
 }) {
   const rows: SummaryRow[] = guest.email
     ? [["Their email", guest.email], ...guest.rows]
@@ -2203,6 +2402,11 @@ function GuestCard({
           {signer ? (
             <span className="text-muted-foreground ml-2 text-xs font-normal">
               signed up
+            </span>
+          ) : null}
+          {helper ? (
+            <span className="text-muted-foreground ml-2 text-xs font-normal">
+              helper
             </span>
           ) : null}
         </p>
@@ -2397,7 +2601,8 @@ function PartyActions({
   party: Party;
   seatsLeft: number;
 }) {
-  const overBy = party.size - seatsLeft;
+  // helpers take no seat
+  const overBy = party.seats - seatsLeft;
 
   return (
     <Form method="post" className="flex justify-end gap-2">
@@ -2412,7 +2617,7 @@ function PartyActions({
           onClick={(clickEvent) => {
             if (overBy <= 0) return;
             const ok = window.confirm(
-              `Confirming ${party.name}'s group of ${party.size} overbooks the event by ${overBy} ${overBy === 1 ? "seat" : "seats"}. Confirm anyway?`,
+              `Confirming ${party.name}'s group of ${party.seats} overbooks the event by ${overBy} ${overBy === 1 ? "seat" : "seats"}. Confirm anyway?`,
             );
             if (!ok) clickEvent.preventDefault();
           }}

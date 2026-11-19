@@ -10,6 +10,8 @@ export interface HeadcountGuest {
   arrived?: boolean;
   /** Set on the signup sheet; full when left out. */
   priceShare?: PriceShare;
+  /** Ticked on the signup sheet: works the dinner, takes no seat. */
+  helper?: boolean;
 }
 
 export interface HeadcountParty {
@@ -17,9 +19,16 @@ export interface HeadcountParty {
   guests: HeadcountGuest[];
 }
 
-/** People, counted one by one, for one group of signups. */
+/**
+ * People, counted one by one, for one group of signups. Everyone eats, so
+ * every count but `guests` and `helpers` takes the helpers in too.
+ */
 export interface Headcount {
+  /** Everyone: the guests and the helpers. */
   people: number;
+  /** The people who take a seat: everyone but the helpers. */
+  guests: number;
+  helpers: number;
   vegetarian: number;
   notVegetarian: number;
   /** Guests whose form has no diet question; they're in neither count above. */
@@ -41,6 +50,8 @@ export interface HeadcountSummary {
 function emptyHeadcount(): Headcount {
   return {
     people: 0,
+    guests: 0,
+    helpers: 0,
     vegetarian: 0,
     notVegetarian: 0,
     dietNotAsked: 0,
@@ -54,8 +65,8 @@ function emptyHeadcount(): Headcount {
 
 /**
  * Counts the people holding a confirmed seat and the people on the waiting
- * list, split by diet and by student status, how many of them have arrived,
- * and how many pay half or nothing. Cancelled signups count for nothing, like in the revenue figures.
+ * list, split into guests and helpers, by diet and by student status, how
+ * many of them have arrived, and how many pay half or nothing. Cancelled signups count for nothing, like in the revenue figures.
  */
 export function summarizeHeadcount(
   parties: HeadcountParty[],
@@ -76,6 +87,8 @@ export function summarizeHeadcount(
 
     for (const guest of party.guests) {
       bucket.people += 1;
+      if (guest.helper) bucket.helpers += 1;
+      else bucket.guests += 1;
       if (guest.vegetarian === null) bucket.dietNotAsked += 1;
       else if (guest.vegetarian) bucket.vegetarian += 1;
       else bucket.notVegetarian += 1;

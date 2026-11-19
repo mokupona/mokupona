@@ -869,8 +869,15 @@ describe("the signup sheet's money with helpers who pay less", () => {
 });
 
 describe("the payment reminder on the signup sheet", () => {
-  async function postReminder(eventId: string, body: Record<string, string>) {
-    const { result, moderator } = await callAction(eventId, body);
+  async function postReminder(
+    eventId: string,
+    body: Record<string, string>,
+    groups: readonly string[] = [],
+  ) {
+    const { result, moderator } = await callAction(eventId, [
+      ...Object.entries(body),
+      ...groups.map((id): [string, string] => ["group", id]),
+    ]);
     const reply = result as unknown as {
       data: {
         saved?: string;
@@ -886,7 +893,7 @@ describe("the payment reminder on the signup sheet", () => {
     return prisma.event.findUniqueOrThrow({ where: { id } });
   }
 
-  it("goes to every group that's due one, at what it pays, and ticks it", async () => {
+  it("goes to every group picked that's due one, at what it pays, and ticks it", async () => {
     // 20 CHF a seat, and everyone below gets a seat but the last
     const { event, signUp } = await createTestEvent(5);
     const ada = await signUp("ada@example.com", ["Grace"]);
@@ -921,11 +928,17 @@ describe("the payment reminder on the signup sheet", () => {
       paymentReminderSent: "on",
     });
 
-    const reply = await postReminder(event.id, {
-      intent: "send-reminders",
-      subject: "Your {half} for {event}",
-      message: "Hi {name},\r\n\r\nplease send {half} of {total}.",
-    });
+    // every group picked, but only Ada's is due one
+    const everyone = [ada, paid, helper, ticked, waiting].map(({ id }) => id);
+    const reply = await postReminder(
+      event.id,
+      {
+        intent: "send-reminders",
+        subject: "Your {half} for {event}",
+        message: "Hi {name},\r\n\r\nplease send {half} of {total}.",
+      },
+      everyone,
+    );
 
     expect(reply).toMatchObject({
       status: 200,
@@ -967,13 +980,17 @@ describe("the payment reminder on the signup sheet", () => {
     });
 
     // and nobody gets it twice
-    const again = await postReminder(event.id, {
-      intent: "send-reminders",
-      subject: "Your {half} for {event}",
-      message: "Please pay.",
-    });
+    const again = await postReminder(
+      event.id,
+      {
+        intent: "send-reminders",
+        subject: "Your {half} for {event}",
+        message: "Please pay.",
+      },
+      everyone,
+    );
     expect(again).toMatchObject({ status: 400 });
-    expect(again.reminderError).toMatch(/No group is due/);
+    expect(again.reminderError).toMatch(/None of the groups you picked/);
     expect(sendTemplateMock).toHaveBeenCalledTimes(1);
   });
 
@@ -983,15 +1000,53 @@ describe("the payment reminder on the signup sheet", () => {
     sendTemplateMock.mockReset();
     sendTemplateMock.mockRejectedValue(new Error("Resend is down"));
 
-    const reply = await postReminder(event.id, {
-      intent: "send-reminders",
-      subject: "Reminder",
-      message: "Please pay.",
-    });
+    const reply = await postReminder(
+      event.id,
+      { intent: "send-reminders", subject: "Reminder", message: "Please pay." },
+      [ada.id],
+    );
 
     expect(reply.reminderResult).toEqual({ sent: [], failed: ["ada"] });
     expect((await submissionOf(ada.id)).paymentReminderSent).toBe(false);
     expect(await mailsOf(ada.id)).toEqual([]);
+  });
+
+  it("goes only to the groups picked; the others stay due", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const early = await signUp("early@example.com");
+    const recent = await signUp("recent@example.com");
+
+    const none = await postReminder(event.id, {
+      intent: "send-reminders",
+      subject: "Reminder",
+      message: "Please pay.",
+    });
+    expect(none).toMatchObject({ status: 400 });
+    expect(none.reminderError).toMatch(/Pick at least one group/);
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+
+    const reply = await postReminder(
+      event.id,
+      { intent: "send-reminders", subject: "Reminder", message: "Please pay." },
+      [early.id],
+    );
+
+    expect(reply.reminderResult).toEqual({ sent: ["early"], failed: [] });
+    expect(sendTemplateMock).toHaveBeenCalledTimes(1);
+    expect((await submissionOf(early.id)).paymentReminderSent).toBe(true);
+    expect((await submissionOf(recent.id)).paymentReminderSent).toBe(false);
+
+    const sheet = await loader({
+      params: { eventId: event.id },
+    } as unknown as Parameters<typeof loader>[0]);
+    expect(sheet.reminder.due).toEqual([
+      expect.objectContaining({
+        submissionId: recent.id,
+        name: "recent",
+        firstHalf: 1000,
+        signedUpAt: expect.any(Date),
+      }),
+    ]);
   });
 
   it("keeps the site-wide text when it's saved as it is, an event's own otherwise, and goes back", async () => {
@@ -1030,11 +1085,19 @@ describe("the payment reminder on the signup sheet", () => {
     const { event, signUp } = await createTestEvent(5);
     await signUp("ada@example.com");
 
-    const reply = await postReminder(event.id, {
-      intent: "send-reminders",
-      subject: "Reminder",
-      message: "Please send {halve}.",
+    const ada = await prisma.formSubmission.findFirstOrThrow({
+      where: { email: "ada@example.com" },
+      orderBy: { createdAt: "desc" },
     });
+    const reply = await postReminder(
+      event.id,
+      {
+        intent: "send-reminders",
+        subject: "Reminder",
+        message: "Please send {halve}.",
+      },
+      [ada.id],
+    );
 
     expect(reply.status).toBe(400);
     expect(reply.reminderError).toMatch(/Unknown placeholder \{halve\}/);
@@ -1062,6 +1125,64 @@ describe("the payment reminder on the signup sheet", () => {
       ...defaultPaymentReminderCopy(defaultText),
       ownCopy: false,
       due: [{ name: "ada" }],
+    });
+  });
+});
+
+describe("helpers on the signup sheet", () => {
+  it("ticks a person as a helper and back", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "helper",
+      submissionId: signup.id,
+      guest: "1",
+      helper: "on",
+    });
+
+    expect(reply).toMatchObject({ saved: "helper", status: 200 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, helper: true },
+    ]);
+
+    await postBookkeeping(event.id, {
+      intent: "helper",
+      submissionId: signup.id,
+      guest: "1",
+    });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, helper: false },
+    ]);
+  });
+
+  it("counts helpers apart from the guests, and frees their seats", async () => {
+    // 20 CHF a seat
+    const { event, signUp } = await createTestEvent(4);
+    const ada = await signUp("ada@example.com", ["Grace", "Alan"]);
+    await updateSignupGuest({
+      eventId: event.id,
+      submissionId: ada.id,
+      guestIndex: 2,
+      data: { helper: true, priceShare: "none" },
+    });
+
+    const sheet = await loader({
+      params: { eventId: event.id },
+    } as unknown as Parameters<typeof loader>[0]);
+
+    expect(sheet.seats).toMatchObject({ confirmed: 2, left: 2 });
+    expect(sheet.parties[0]).toMatchObject({ size: 3, helpers: 1, seats: 2 });
+    expect(sheet.headcount.confirmed).toMatchObject({
+      people: 3,
+      guests: 2,
+      helpers: 1,
+    });
+    // the helper doesn't pay here, and isn't a person the average is over
+    expect(sheet.revenue).toMatchObject({
+      confirmedTotal: 40,
+      confirmedPeople: 2,
+      averagePerPerson: 20,
     });
   });
 });

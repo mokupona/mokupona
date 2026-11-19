@@ -142,6 +142,8 @@ const signupGuestRow = z.object({
   donationMethod: z.string().transform(toPaymentMethod),
   // added later: a live site on older code has everyone paying in full
   priceShare: z.string().default("full").transform(toPriceShare),
+  // added later still: nobody is a helper on a live site on older code
+  helper: z.boolean().default(false),
   createdAt: dateTime,
   updatedAt: dateTime,
 });
