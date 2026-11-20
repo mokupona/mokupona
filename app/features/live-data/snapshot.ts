@@ -131,8 +131,8 @@ const formSubmissionRow = z
     },
   );
 
-// the admin's arrivals, donations and price shares per person in a signup;
-// a person nobody ticked anything for has no row
+// the admin's arrivals, donations, price shares, helpers and cancellations
+// per person in a signup; a person nobody ticked anything for has no row
 const signupGuestRow = z.object({
   id,
   submissionId: id,
@@ -144,6 +144,8 @@ const signupGuestRow = z.object({
   priceShare: z.string().default("full").transform(toPriceShare),
   // added later still: nobody is a helper on a live site on older code
   helper: z.boolean().default(false),
+  // and later again: nobody was cancelled on their own there
+  cancelledAt: dateTime.nullable().default(null),
   createdAt: dateTime,
   updatedAt: dateTime,
 });

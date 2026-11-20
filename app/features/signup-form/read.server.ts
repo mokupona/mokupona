@@ -16,7 +16,10 @@ import { getCurrentFormVersionForEvent } from "~/models/form.server";
 
 export interface Attendee {
   submissionId: string;
-  /** Shared by everyone in a party; legacy rows read as confirmed. */
+  /**
+   * The party's, shared by everyone in it, unless this one person was
+   * cancelled on their own; legacy rows read as confirmed.
+   */
   status: SignupStatus;
   isSigner: boolean | null;
   name: string;
@@ -246,9 +249,19 @@ function flattenSubmission(
     phone: asString(topLevel["phone"]),
     createdAt: submission.createdAt,
   };
+  // the people cancelled on their own, by their place in the booking (0 is
+  // the signer)
+  const cancelled = new Set(
+    submission.guestBookkeeping
+      .filter((guest) => guest.cancelledAt)
+      .map((guest) => guest.guestIndex),
+  );
+  const statusOf = (guestIndex: number): SignupStatus =>
+    cancelled.has(guestIndex) ? "cancelled" : shared.status;
 
   const signer: Attendee = {
     ...shared,
+    status: statusOf(0),
     isSigner: true,
     name: asString(topLevel["name"]),
     answers: topLevel,
@@ -258,7 +271,7 @@ function flattenSubmission(
     ? (answers[FRIENDS_LIST_NAME] as unknown[])
     : [];
 
-  const friends = friendItems.flatMap((item): Attendee[] => {
+  const friends = friendItems.flatMap((item, friendIndex): Attendee[] => {
     const record = asRecord(item);
     if (!record) {
       drops.friendEntriesDropped += 1;
@@ -277,6 +290,7 @@ function flattenSubmission(
     return [
       {
         ...shared,
+        status: statusOf(friendIndex + 1),
         isSigner: false,
         name: asString(personal["name"]),
         answers: { ...submissionLevel, ...personal },

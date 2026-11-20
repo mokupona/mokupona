@@ -79,6 +79,27 @@ export interface BookingSummary {
   total: number;
 }
 
+/**
+ * A booking as it stands once an admin has cancelled some of its people on
+ * their own: only those still coming, and what they come to at the prices
+ * they signed up at. `cancelled` holds their places in the booking (0 is the
+ * signer).
+ */
+export function bookingWithout(
+  booking: BookingSummary,
+  cancelled: ReadonlySet<number>,
+): BookingSummary {
+  if (cancelled.size === 0) return booking;
+  const guests = booking.guests.filter(
+    (_, guestIndex) => !cancelled.has(guestIndex),
+  );
+  return {
+    ...booking,
+    guests,
+    total: guests.reduce((sum, guest) => sum + guest.price, 0),
+  };
+}
+
 export interface BookingPrices {
   price: number;
   /** CHF off for a student; null when the event has no student discount. */

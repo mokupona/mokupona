@@ -70,6 +70,7 @@ export async function getFormSubmissionsForEvent(eventId: string) {
           donationMethod: true,
           priceShare: true,
           helper: true,
+          cancelledAt: true,
         },
       },
     },

@@ -218,6 +218,26 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
   });
 
+  it("reads a live site that predates cancelling one person as nobody cancelled", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const guest of tables.signupGuests) delete guest.cancelledAt;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({ cancelledAt: null });
+  });
+
+  it("copies when someone was cancelled on their own", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.signupGuests[0].cancelledAt = "2026-11-10T09:00:00.000Z";
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0].cancelledAt).toEqual(
+      new Date("2026-11-10T09:00:00.000Z"),
+    );
+  });
+
   it("reads a live site that predates helpers as having none", () => {
     const tables = overTheWire(liveDataFixture());
     for (const guest of tables.signupGuests) delete guest.helper;

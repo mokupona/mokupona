@@ -7,6 +7,8 @@ import {
   DuplicateSignupError,
   getSeatCounts,
   getSeatCountsByEvent,
+  LastGuestError,
+  setSignupGuestCancelled,
   SignupNotFoundError,
   updateSignupBookkeeping,
   updateSignupGuest,
@@ -327,6 +329,141 @@ describe("createEventSignup with helpers", () => {
     });
 
     expect((await signUp(fixture)).status).toBe("confirmed");
+  });
+});
+
+describe("setSignupGuestCancelled", () => {
+  function cancel(
+    fixture: TestEvent,
+    submissionId: string,
+    guestIndex: number,
+    cancelled = true,
+  ) {
+    return setSignupGuestCancelled({
+      eventId: fixture.event.id,
+      submissionId,
+      guestIndex,
+      cancelled,
+    });
+  }
+
+  it("frees one person's seat while the rest of the group keeps theirs", async () => {
+    const fixture = await createTestEvent(5);
+    const group = await signUp(fixture, { friends: 2 });
+
+    expect(await cancel(fixture, group.id, 1)).toEqual({
+      changed: true,
+      status: "confirmed",
+    });
+
+    expect(await getSeatCounts(fixture.event.id)).toEqual({
+      confirmed: 2,
+      waitlisted: 0,
+    });
+    const rows = await prisma.signupGuest.findMany({
+      where: { submissionId: group.id },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ guestIndex: 1 });
+    expect(rows[0].cancelledAt).toBeInstanceOf(Date);
+    // the group itself is still in
+    expect(
+      await prisma.formSubmission.findUniqueOrThrow({
+        where: { id: group.id },
+      }),
+    ).toMatchObject({ status: "confirmed", seats: 3 });
+  });
+
+  it("lets a new group in on the seats a cancelled person left", async () => {
+    const fixture = await createTestEvent(3);
+    const group = await signUp(fixture, { friends: 2 });
+    expect((await signUp(fixture)).status).toBe("waitlisted");
+
+    await cancel(fixture, group.id, 2);
+
+    expect((await signUp(fixture)).status).toBe("confirmed");
+  });
+
+  it("can cancel the signer, and anyone but the last one left", async () => {
+    const fixture = await createTestEvent(5);
+    const group = await signUp(fixture, { friends: 2 });
+
+    await cancel(fixture, group.id, 0);
+    await cancel(fixture, group.id, 2);
+    await expect(cancel(fixture, group.id, 1)).rejects.toBeInstanceOf(
+      LastGuestError,
+    );
+    expect(await getSeatCounts(fixture.event.id)).toEqual({
+      confirmed: 1,
+      waitlisted: 0,
+    });
+
+    // someone alone can only go with the whole signup
+    const alone = await signUp(fixture);
+    await expect(cancel(fixture, alone.id, 0)).rejects.toBeInstanceOf(
+      LastGuestError,
+    );
+  });
+
+  it("brings a cancelled person back, even past capacity", async () => {
+    const fixture = await createTestEvent(2);
+    const group = await signUp(fixture, { friends: 1 });
+    await cancel(fixture, group.id, 1);
+    await signUp(fixture);
+
+    expect(await cancel(fixture, group.id, 1, false)).toEqual({
+      changed: true,
+      status: "confirmed",
+    });
+    expect(await getSeatCounts(fixture.event.id)).toEqual({
+      confirmed: 3,
+      waitlisted: 0,
+    });
+    // and nothing changes the second time
+    expect(await cancel(fixture, group.id, 1, false)).toMatchObject({
+      changed: false,
+    });
+  });
+
+  it("frees a waiting seat, and doesn't count a cancelled helper twice", async () => {
+    const fixture = await createTestEvent(2);
+    const confirmed = await signUp(fixture, { friends: 1 });
+    const waiting = await signUp(fixture, { friends: 2 });
+    await updateSignupGuest({
+      eventId: fixture.event.id,
+      submissionId: confirmed.id,
+      guestIndex: 1,
+      data: { helper: true },
+    });
+
+    await cancel(fixture, confirmed.id, 1);
+    await cancel(fixture, waiting.id, 0);
+
+    expect(await getSeatCounts(fixture.event.id)).toEqual({
+      confirmed: 1,
+      waitlisted: 2,
+    });
+    // the same seat that createEventSignup counts: one is left
+    expect((await signUp(fixture)).status).toBe("confirmed");
+  });
+
+  it("refuses a person beyond the party, and a signup of another event", async () => {
+    const fixture = await createTestEvent(5);
+    const other = await createTestEvent(5);
+    const group = await signUp(fixture, { friends: 1 });
+
+    await expect(cancel(fixture, group.id, 2)).rejects.toBeInstanceOf(
+      SignupNotFoundError,
+    );
+    await expect(cancel(fixture, group.id, -1)).rejects.toBeInstanceOf(
+      SignupNotFoundError,
+    );
+    await expect(cancel(other, group.id, 1)).rejects.toBeInstanceOf(
+      SignupNotFoundError,
+    );
+    expect(
+      await prisma.signupGuest.count({ where: { submissionId: group.id } }),
+    ).toBe(0);
   });
 });
 

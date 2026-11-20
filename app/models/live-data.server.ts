@@ -176,6 +176,7 @@ export async function readLiveDataTables({
         donationMethod: true,
         priceShare: true,
         helper: true,
+        cancelledAt: true,
         ...TIMESTAMPS,
       },
     }),
