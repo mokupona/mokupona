@@ -1186,3 +1186,202 @@ describe("helpers on the signup sheet", () => {
     });
   });
 });
+
+describe("cancelling one person in a group", () => {
+  function loadSheet(eventId: string) {
+    return loader({
+      params: { eventId },
+    } as unknown as Parameters<typeof loader>[0]);
+  }
+
+  it("cancels one person without emailing anyone, and brings them back", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const ada = await signUp("ada@example.com", ["Grace", "Alan"]);
+
+    const cancelled = await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "1",
+    });
+
+    expect(cancelled.response.status).toBe(302);
+    expect(cancelled.toast).toMatchObject({
+      title: "Cancelled one person in the group",
+      description: expect.stringContaining("Their seat is free again"),
+    });
+    expect(await getSeatCounts(event.id)).toEqual({
+      confirmed: 2,
+      waitlisted: 0,
+    });
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+
+    const restored = await post(event.id, {
+      intent: "restore-guest",
+      submissionId: ada.id,
+      guest: "1",
+    });
+
+    expect(restored.toast).toMatchObject({ title: "Back in the group" });
+    expect(await getSeatCounts(event.id)).toEqual({
+      confirmed: 3,
+      waitlisted: 0,
+    });
+    expect((await submissionOf(ada.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, cancelledAt: null },
+    ]);
+  });
+
+  it("won't cancel the last one left on their own", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const ada = await signUp("ada@example.com", ["Grace"]);
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "0",
+    });
+
+    const { toast } = await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "1",
+    });
+
+    expect(toast).toMatchObject({
+      type: "error",
+      title: "Nobody else is left in this group",
+    });
+    expect((await getSeatCounts(event.id)).confirmed).toBe(1);
+  });
+
+  it("refuses a person beyond the party, and a signup of another event", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const other = await createTestEvent(5);
+    const ada = await signUp("ada@example.com", ["Grace"]);
+    const elsewhere = await other.signUp("grace@example.com", ["Alan"]);
+
+    await expect(
+      post(event.id, {
+        intent: "cancel-guest",
+        submissionId: ada.id,
+        guest: "2",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      post(event.id, {
+        intent: "cancel-guest",
+        submissionId: elsewhere.id,
+        guest: "1",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      post(event.id, { intent: "cancel-guest", submissionId: ada.id }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("leaves them out of the sheet's seats, money, headcount and restrictions", async () => {
+    // 20 CHF a seat
+    const { event, signUp } = await createTestEvent(4);
+    const ada = await signUp("ada@example.com", ["Grace", "Alan"]);
+    await updateSignupGuest({
+      eventId: event.id,
+      submissionId: ada.id,
+      guestIndex: 2,
+      data: { helper: true },
+    });
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "2",
+    });
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "1",
+    });
+
+    const sheet = await loadSheet(event.id);
+
+    expect(sheet.seats).toMatchObject({ confirmed: 1, left: 3 });
+    // Alan was a helper, but a cancelled one isn't counted as one
+    expect(sheet.parties[0]).toMatchObject({
+      size: 3,
+      cancelled: 2,
+      helpers: 0,
+      seats: 1,
+      total: 20,
+      fullTotal: 60,
+    });
+    expect(sheet.headcount.confirmed).toMatchObject({
+      people: 1,
+      guests: 1,
+      helpers: 0,
+    });
+    expect(sheet.revenue).toMatchObject({
+      confirmedTotal: 20,
+      confirmedPeople: 1,
+    });
+  });
+
+  it("leaves them out of the seat confirmed mail, and sends them no note", async () => {
+    const { event, signUp } = await createTestEvent(1);
+    await signUp("first@example.com");
+    const waiting = await signUp("ada@example.com", [
+      { name: "Grace", friend_email: "grace@example.com" },
+      { name: "Alan", friend_email: "alan@example.com" },
+    ]);
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: waiting.id,
+      guest: "1",
+    });
+
+    await post(event.id, { intent: "confirm", submissionId: waiting.id });
+
+    const sent = sendTemplateMock.mock.calls.map(([template, to, props]) => ({
+      template,
+      to,
+      props,
+    }));
+    expect(sent.map(({ template, to }) => [template, to])).toEqual([
+      ["signupConfirmation", "ada@example.com"],
+      ["friendSignup", "alan@example.com"],
+    ]);
+    expect(sent[0].props).toMatchObject({
+      status: "confirmed",
+      cancelled: [1],
+    });
+  });
+
+  it("counts only the people still coming in the payment reminder", async () => {
+    // 20 CHF a seat
+    const { event, signUp } = await createTestEvent(5);
+    const ada = await signUp("ada@example.com", ["Grace", "Alan"]);
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "2",
+    });
+
+    const sheet = await loadSheet(event.id);
+    expect(sheet.reminder.due).toMatchObject([
+      { submissionId: ada.id, firstHalf: 2000 },
+    ]);
+
+    await callAction(event.id, [
+      ["intent", "send-reminders"],
+      ["subject", "{guests} of you"],
+      ["message", "Please send {half} of {total}."],
+      ["group", ada.id],
+    ]);
+
+    expect(sendTemplateMock).toHaveBeenCalledWith(
+      "paymentReminder",
+      "ada@example.com",
+      expect.objectContaining({
+        subject: "2 of you",
+        message: "Please send 20 CHF of 40 CHF.",
+      }),
+      expect.anything(),
+    );
+  });
+});

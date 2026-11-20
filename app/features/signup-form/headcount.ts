@@ -12,6 +12,8 @@ export interface HeadcountGuest {
   priceShare?: PriceShare;
   /** Ticked on the signup sheet: works the dinner, takes no seat. */
   helper?: boolean;
+  /** Dropped out on their own while the rest of the group still comes. */
+  cancelled?: boolean;
 }
 
 export interface HeadcountParty {
@@ -66,7 +68,9 @@ function emptyHeadcount(): Headcount {
 /**
  * Counts the people holding a confirmed seat and the people on the waiting
  * list, split into guests and helpers, by diet and by student status, how
- * many of them have arrived, and how many pay half or nothing. Cancelled signups count for nothing, like in the revenue figures.
+ * many of them have arrived, and how many pay half or nothing. Cancelled
+ * signups count for nothing, like in the revenue figures, and nor does
+ * anyone cancelled on their own while the rest of their group still comes.
  */
 export function summarizeHeadcount(
   parties: HeadcountParty[],
@@ -86,6 +90,7 @@ export function summarizeHeadcount(
     if (!bucket) continue;
 
     for (const guest of party.guests) {
+      if (guest.cancelled) continue;
       bucket.people += 1;
       if (guest.helper) bucket.helpers += 1;
       else bucket.guests += 1;

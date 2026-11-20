@@ -33,7 +33,26 @@ export class SignupNotFoundError extends Error {
   }
 }
 
+/**
+ * Cancelling this person would leave their group with nobody in it: that's
+ * cancelling the signup.
+ */
+export class LastGuestError extends Error {
+  constructor() {
+    super("The last person in a signup can't be cancelled on their own");
+    this.name = "LastGuestError";
+  }
+}
+
 type Tx = Prisma.TransactionClient;
+
+/**
+ * The people in a signup who take no seat: helpers, and anyone cancelled on
+ * their own while the rest of the group still comes.
+ */
+const SEATLESS_GUEST = {
+  OR: [{ helper: true }, { cancelledAt: { not: null } }],
+} satisfies Prisma.SignupGuestWhereInput;
 
 function submissionsOf(formId: string) {
   return { formVersion: { formId } } satisfies Prisma.FormSubmissionWhereInput;
@@ -65,15 +84,16 @@ async function confirmedSeatsInTx(tx: Tx, eventId: string, formId: string) {
     _sum: { seats: true },
     where: confirmed,
   });
-  // a helper in a confirmed party takes no seat
-  const helpers = await tx.signupGuest.count({
-    where: { helper: true, submission: confirmed },
+  // a helper in a confirmed party takes no seat, and nor does someone in it
+  // who was cancelled on their own
+  const seatless = await tx.signupGuest.count({
+    where: { ...SEATLESS_GUEST, submission: confirmed },
   });
   // rows from before signup forms were configurable: one seat each, and all
   // of them were accepted
   const legacySeats = await tx.eventResponse.count({ where: { eventId } });
 
-  return (_sum.seats ?? 0) - helpers + legacySeats;
+  return (_sum.seats ?? 0) - seatless + legacySeats;
 }
 
 async function hasActiveSignup(
@@ -313,8 +333,74 @@ export async function updateSignupGuest({
 }
 
 /**
+ * An admin cancelling one person in a group while the rest keep their place,
+ * or bringing them back. A cancelled person takes no seat and pays nothing.
+ * The last person still in a group can't be cancelled on their own: that's
+ * cancelling the signup. Bringing someone back to a confirmed group may
+ * overbook the event, like confirming a group may. `guestIndex` is their
+ * place in the booking (0 is the signer); one past the party is refused like
+ * a missing signup.
+ */
+export async function setSignupGuestCancelled({
+  eventId,
+  submissionId,
+  guestIndex,
+  cancelled,
+}: {
+  eventId: string;
+  submissionId: string;
+  guestIndex: number;
+  cancelled: boolean;
+}): Promise<{ changed: boolean; status: SignupStatus }> {
+  return prisma.$transaction(async (tx) => {
+    const { formId } = await lockForSeatChanges(tx, eventId);
+
+    const submission = await tx.formSubmission.findFirst({
+      where: { id: submissionId, ...submissionsOf(formId) },
+      select: {
+        seats: true,
+        status: true,
+        guestBookkeeping: {
+          where: { cancelledAt: { not: null } },
+          select: { guestIndex: true },
+        },
+      },
+    });
+    if (
+      !submission ||
+      !Number.isInteger(guestIndex) ||
+      guestIndex < 0 ||
+      guestIndex >= submission.seats
+    ) {
+      throw new SignupNotFoundError();
+    }
+
+    const status = toSignupStatus(submission.status);
+    const cancelledBefore = submission.guestBookkeeping.map(
+      (guest) => guest.guestIndex,
+    );
+    if (cancelledBefore.includes(guestIndex) === cancelled) {
+      return { changed: false, status };
+    }
+    if (cancelled && submission.seats - cancelledBefore.length <= 1) {
+      throw new LastGuestError();
+    }
+
+    const cancelledAt = cancelled ? new Date() : null;
+    await tx.signupGuest.upsert({
+      where: { submissionId_guestIndex: { submissionId, guestIndex } },
+      create: { submissionId, guestIndex, cancelledAt },
+      update: { cancelledAt },
+    });
+
+    return { changed: true, status };
+  });
+}
+
+/**
  * The seats an event's signups take, by status. A helper (ticked on the
- * signup sheet) takes none, so an event isn't full because of its helpers.
+ * signup sheet) takes none, so an event isn't full because of its helpers,
+ * and nor does someone cancelled on their own while their group still comes.
  */
 export interface SeatCounts {
   confirmed: number;
@@ -340,7 +426,7 @@ export async function getSeatCountsByEvent(
         status: true,
         seats: true,
         _count: {
-          select: { guestBookkeeping: { where: { helper: true } } },
+          select: { guestBookkeeping: { where: SEATLESS_GUEST } },
         },
         formVersion: {
           select: { form: { select: { event: { select: { id: true } } } } },
@@ -379,6 +465,11 @@ export async function getSignupForMail(submissionId: string) {
     select: {
       answers: true,
       email: true,
+      // the people cancelled on their own, whom the mail leaves out
+      guestBookkeeping: {
+        where: { cancelledAt: { not: null } },
+        select: { guestIndex: true },
+      },
       formVersion: {
         select: {
           id: true,

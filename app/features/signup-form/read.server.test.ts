@@ -78,6 +78,28 @@ describe("getAttendeesForEvent", () => {
     expect(attendees[1].answers.restrictions).toBe("");
   });
 
+  it("marks only the person cancelled on their own as cancelled", async () => {
+    const event = await createEventWithSubmission();
+    const submission = await prisma.formSubmission.findFirstOrThrow({
+      where: { formVersion: { formId: event.formId } },
+    });
+    await prisma.signupGuest.create({
+      data: {
+        submissionId: submission.id,
+        guestIndex: 2,
+        cancelledAt: new Date(),
+      },
+    });
+
+    const attendees = await getAttendeesForEvent(event.id);
+
+    expect(attendees.map(({ name, status }) => [name, status])).toEqual([
+      ["Ada Signer", "confirmed"],
+      ["Grace Friend", "confirmed"],
+      ["Alan Friend", "cancelled"],
+    ]);
+  });
+
   it("merges legacy rows with isSigner: null and identity-mapped answers", async () => {
     const event = await createEvent(await buildEventData());
     await prisma.eventResponse.create({

@@ -104,6 +104,8 @@ import { cn } from "~/lib/utils";
 import {
   DuplicateSignupError,
   getSeatCounts,
+  LastGuestError,
+  setSignupGuestCancelled,
   SignupNotFoundError,
   updateSignupBookkeeping,
   updateSignupGuest,
@@ -125,15 +127,18 @@ interface Party {
   isLegacy: boolean;
   name: string;
   email: string;
-  /** Everyone in the party, helpers too. */
+  /** Everyone signed up in the party, helpers and cancelled people too. */
   size: number;
-  /** The people in it ticked as helpers. */
+  /** The people in it cancelled on their own; the rest still come. */
+  cancelled: number;
+  /** The people still in it ticked as helpers. */
   helpers: number;
-  /** The seats it takes: everyone but the helpers. */
+  /** The seats it takes: everyone still in it but the helpers. */
   seats: number;
   /**
    * What the whole party pays, in CHF: each person's price after the share
-   * an admin set for them (all of it, half, or nothing).
+   * an admin set for them (all of it, half, or nothing), and nothing for
+   * anyone cancelled on their own.
    */
   total: number;
   /** What the party would pay if everyone paid in full, in CHF. */
@@ -176,8 +181,11 @@ interface Party {
 
 function toParty(signup: SignupBooking): Party {
   const { guests, contact, total: fullTotal } = signup.booking;
+  const cancelled = signup.guestBookkeeping.filter(
+    (guest) => guest.cancelledAt,
+  ).length;
   const helpers = signup.guestBookkeeping.filter(
-    (guest) => guest.helper,
+    (guest) => guest.helper && !guest.cancelledAt,
   ).length;
 
   return {
@@ -187,8 +195,9 @@ function toParty(signup: SignupBooking): Party {
     name: guests[0]?.name ?? "",
     email: signup.signerEmail,
     size: guests.length,
+    cancelled,
     helpers,
-    seats: guests.length - helpers,
+    seats: guests.length - cancelled - helpers,
     total: signup.amountDue,
     fullTotal,
     createdAt: signup.createdAt,
@@ -218,6 +227,14 @@ function toParty(signup: SignupBooking): Party {
       ? []
       : messageRecipients(guests, signup.signerEmail),
   };
+}
+
+/** Whether one person in a party was cancelled on their own. */
+function isCancelled(
+  party: Pick<Party, "guestBookkeeping">,
+  guestIndex: number,
+): boolean {
+  return party.guestBookkeeping[guestIndex]?.cancelledAt != null;
 }
 
 /** What share of their price one person in a party pays. */
@@ -273,7 +290,8 @@ export async function loader({ params }: Route.LoaderArgs) {
     revenue: summarizeRevenue(
       parties.map((party) => ({
         status: party.status,
-        // helpers take no seat, so they don't count as people here
+        // helpers and anyone cancelled on their own take no seat, so they
+        // don't count as people here
         people: party.seats,
         total: party.total,
       })),
@@ -293,6 +311,7 @@ export async function loader({ params }: Route.LoaderArgs) {
           arrived: party.guestBookkeeping[guestIndex]?.arrivedAt != null,
           priceShare: shareOf(party, guestIndex),
           helper: party.guestBookkeeping[guestIndex]?.helper ?? false,
+          cancelled: isCancelled(party, guestIndex),
         })),
       })),
     ),
@@ -380,7 +399,10 @@ function readMethod(
 }
 
 function readGuestIndex(formData: FormData): number {
-  const index = Number(formData.get("guest"));
+  const value = formData.get("guest");
+  // a missing field isn't the signer
+  const index =
+    typeof value === "string" && value.trim() !== "" ? Number(value) : NaN;
   if (!Number.isInteger(index) || index < 0) {
     throw new Response("Bad Request", { status: 400 });
   }
@@ -539,6 +561,55 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     );
 
     return data({ saved: intent });
+  }
+
+  // one person in a group dropping out, or coming back, while the rest of
+  // the group keeps its place
+  if (intent === "cancel-guest" || intent === "restore-guest") {
+    const submissionId = readSubmissionId(formData);
+    const guestIndex = readGuestIndex(formData);
+    const cancelled = intent === "cancel-guest";
+
+    let result: Awaited<ReturnType<typeof setSignupGuestCancelled>>;
+    try {
+      result = await setSignupGuestCancelled({
+        eventId,
+        submissionId,
+        guestIndex,
+        cancelled,
+      });
+    } catch (reason) {
+      if (reason instanceof SignupNotFoundError) {
+        throw new Response("Not Found", { status: 404 });
+      }
+      if (reason instanceof LastGuestError) {
+        return redirectWithToast(page, {
+          type: "error",
+          title: "Nobody else is left in this group",
+          description: "Cancel the whole signup instead.",
+        });
+      }
+      throw reason;
+    }
+
+    if (!result.changed) {
+      return redirectWithToast(page, { title: "Nothing changed" });
+    }
+
+    log.info(
+      {
+        userId: user.id,
+        event: eventId,
+        submission: submissionId,
+        guest: guestIndex,
+        cancelled,
+      },
+      cancelled
+        ? "Admin cancelled one person in a signup"
+        : "Admin brought back a person cancelled from a signup",
+    );
+
+    return redirectWithToast(page, guestCancelToast(cancelled, result.status));
   }
 
   if (intent === "twint-fees") {
@@ -979,6 +1050,28 @@ function statusToast(
   }
 }
 
+function guestCancelToast(
+  cancelled: boolean,
+  status: SignupStatus,
+): ToastInput {
+  if (cancelled) {
+    return {
+      title: "Cancelled one person in the group",
+      description:
+        status === "confirmed"
+          ? "Their seat is free again; the rest of the group keeps theirs. Nobody has been emailed."
+          : "The rest of the group keeps its place. Nobody has been emailed.",
+    };
+  }
+  return {
+    title: "Back in the group",
+    description:
+      status === "confirmed"
+        ? "They take a seat again. They haven't been emailed."
+        : "They haven't been emailed.",
+  };
+}
+
 // the sheet is used at the door during the dinner, so it takes the whole
 // window to show as much of the list at once as it can
 export const handle = { wideLayout: "full" };
@@ -1030,7 +1123,10 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
     .filter((party) => party.status !== "cancelled")
     .reduce(
       (sum, party) =>
-        sum + party.guests.filter((guest) => guest.restrictions).length,
+        sum +
+        party.guests.filter((guest, guestIndex) =>
+          hasRestrictions(party, guest, guestIndex),
+        ).length,
       0,
     );
 
@@ -1124,6 +1220,11 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
           const total = rows.reduce((sum, party) => sum + party.total, 0);
           const guests = rows.reduce((sum, party) => sum + party.seats, 0);
           const helpers = rows.reduce((sum, party) => sum + party.helpers, 0);
+          // people cancelled on their own; in a cancelled group, everyone is
+          const cancelled =
+            status === "cancelled"
+              ? 0
+              : rows.reduce((sum, party) => sum + party.cancelled, 0);
 
           return (
             <section key={status} aria-labelledby={`signups-${status}`}>
@@ -1136,6 +1237,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
                   {rows.length} {rows.length === 1 ? "group" : "groups"}
                   {` · ${guestCount(guests)}`}
                   {helpers > 0 ? ` · ${helperCount(helpers)}` : null}
+                  {cancelled > 0 ? ` · ${cancelled} cancelled` : null}
                   {status === "cancelled" ? null : ` · ${formatCHF(total)}`}
                 </span>
               </h2>
@@ -1688,6 +1790,18 @@ function RestrictionsNote({ restrictions }: { restrictions: string }) {
 }
 
 /**
+ * Whether one person in a party wrote a dietary restriction the kitchen
+ * should know about: someone cancelled on their own won't be eating.
+ */
+function hasRestrictions(
+  party: Party,
+  guest: BookingGuest,
+  guestIndex: number,
+): boolean {
+  return guest.restrictions !== null && !isCancelled(party, guestIndex);
+}
+
+/**
  * Everyone with a seat or on the waiting list who wrote a dietary
  * restriction, at a glance: for the kitchen, and for a check at the door.
  */
@@ -1705,7 +1819,7 @@ function DietaryRestrictions({
       .filter((party) => party.status === status)
       .flatMap((party) =>
         party.guests.flatMap((guest, guestIndex) =>
-          guest.restrictions
+          guest.restrictions && hasRestrictions(party, guest, guestIndex)
             ? [
                 {
                   party,
@@ -1987,7 +2101,9 @@ function PartyTable({
 }) {
   const parties = onlyRestrictions
     ? allParties.filter((party) =>
-        party.guests.some((guest) => guest.restrictions),
+        party.guests.some((guest, guestIndex) =>
+          hasRestrictions(party, guest, guestIndex),
+        ),
       )
     : allParties;
 
@@ -2063,7 +2179,10 @@ function PartyRows({
   // each person keeps their place in the booking, whoever is shown
   const shown = party.guests
     .map((guest, guestIndex) => ({ guest, guestIndex }))
-    .filter(({ guest }) => !onlyRestrictions || guest.restrictions);
+    .filter(
+      ({ guest, guestIndex }) =>
+        !onlyRestrictions || hasRestrictions(party, guest, guestIndex),
+    );
   const rowSpan = shown.length;
   // the party's last row closes it off, unless its details follow
   const closingRow = open ? -1 : rowSpan - 1;
@@ -2076,6 +2195,7 @@ function PartyRows({
           party={party}
           guest={guest}
           guestIndex={guestIndex}
+          seatsLeft={seatsLeft}
           closesParty={row === closingRow}
           signerExtras={
             row === 0 ? (
@@ -2125,11 +2245,16 @@ function PartyRows({
   );
 }
 
-/** One person's cells: their arrival, name, price and donation. */
+/**
+ * One person's cells: their arrival, name, price and donation. Someone
+ * cancelled on their own stays on the sheet, struck through, with nothing to
+ * tick, so they can be brought back.
+ */
 function GuestRow({
   party,
   guest,
   guestIndex,
+  seatsLeft,
   closesParty,
   signerExtras,
   children,
@@ -2137,6 +2262,7 @@ function GuestRow({
   party: Party;
   guest: BookingGuest;
   guestIndex: number;
+  seatsLeft: number;
   closesParty: boolean;
   signerExtras: React.ReactNode;
   /** The party's own cells, on its first row. */
@@ -2151,13 +2277,20 @@ function GuestRow({
   const arrived = arrival.formData
     ? arrival.formData.has("arrived")
     : savedArrived;
-  const own = cn(CELL, arrived && "bg-primary/10");
+  const cancelled = bookkeeping.cancelledAt !== null;
+  const own = cn(CELL, arrived && !cancelled && "bg-primary/10");
   const share = shareOf(party, guestIndex);
   const tags = [
+    cancelled ? "cancelled" : null,
     bookkeeping.helper ? "helper" : null,
     guest.vegetarian === true ? "vegetarian" : null,
     guest.isStudent ? "student" : null,
   ].filter(Boolean);
+  // the last one still in a group can only go with the whole signup
+  const canCancelAlone =
+    !party.isLegacy &&
+    party.status !== "cancelled" &&
+    (cancelled || party.size - party.cancelled > 1);
 
   return (
     <TableRow
@@ -2167,7 +2300,7 @@ function GuestRow({
       )}
     >
       <TableCell className={cn(own, "text-center")}>
-        {party.isLegacy ? (
+        {party.isLegacy || cancelled ? (
           <span className="text-muted-foreground text-sm">—</span>
         ) : (
           <arrival.Form method="post" className="flex justify-center pt-0.5">
@@ -2193,7 +2326,16 @@ function GuestRow({
       </TableCell>
       <TableCell className={own}>
         <div className="flex min-w-36 flex-col items-start gap-0.5">
-          {party.isLegacy ? (
+          {cancelled ? (
+            <s
+              className={cn(
+                "text-muted-foreground",
+                guestIndex === 0 && "font-semibold",
+              )}
+            >
+              {guest.name}
+            </s>
+          ) : party.isLegacy ? (
             <span className={cn(guestIndex === 0 && "font-semibold")}>
               {guest.name}
             </span>
@@ -2213,11 +2355,11 @@ function GuestRow({
               {tags.join(" · ")}
             </span>
           ) : null}
-          {guest.restrictions ? (
+          {guest.restrictions && !cancelled ? (
             <RestrictionsNote restrictions={guest.restrictions} />
           ) : null}
           {signerExtras}
-          {party.isLegacy ? null : (
+          {party.isLegacy || cancelled ? null : (
             <HelperTick
               party={party}
               guest={guest}
@@ -2225,15 +2367,24 @@ function GuestRow({
               helper={bookkeeping.helper}
             />
           )}
+          {canCancelAlone ? (
+            <GuestCancelForm
+              party={party}
+              guest={guest}
+              guestIndex={guestIndex}
+              cancelled={cancelled}
+              seatsLeft={seatsLeft}
+            />
+          ) : null}
         </div>
       </TableCell>
       <TableCell className={cn(own, "text-right")}>
         <div className="flex flex-col items-end gap-1">
           <PriceLines
-            price={priceAfterShare(guest.price, share)}
+            price={cancelled ? 0 : priceAfterShare(guest.price, share)}
             fullPrice={guest.price}
           />
-          {party.isLegacy ? null : (
+          {party.isLegacy || cancelled ? null : (
             <PriceShareForm
               party={party}
               guest={guest}
@@ -2244,7 +2395,7 @@ function GuestRow({
         </div>
       </TableCell>
       <TableCell className={own}>
-        {party.isLegacy ? (
+        {party.isLegacy || (cancelled && bookkeeping.donation === null) ? (
           <span className="text-muted-foreground text-sm">—</span>
         ) : (
           <DonationForm
@@ -2339,6 +2490,60 @@ function HelperTick({
 }
 
 /**
+ * Cancels one person while the rest of their group keeps its place, or
+ * brings them back. Bringing someone back to a confirmed group takes a seat
+ * again (unless they're a helper), which may overbook the event.
+ */
+function GuestCancelForm({
+  party,
+  guest,
+  guestIndex,
+  cancelled,
+  seatsLeft,
+}: {
+  party: Party;
+  guest: BookingGuest;
+  guestIndex: number;
+  cancelled: boolean;
+  seatsLeft: number;
+}) {
+  const takesSeat =
+    party.status === "confirmed" &&
+    !(party.guestBookkeeping[guestIndex]?.helper ?? false);
+
+  return (
+    <Form method="post" preventScrollReset className="mt-1">
+      <input type="hidden" name="submissionId" value={party.submissionId} />
+      <input type="hidden" name="guest" value={guestIndex} />
+      <button
+        type="submit"
+        name="intent"
+        value={cancelled ? "restore-guest" : "cancel-guest"}
+        aria-label={
+          cancelled ? `Restore ${guest.name}` : `Cancel only ${guest.name}`
+        }
+        onClick={(clickEvent) => {
+          const question = !cancelled
+            ? `Cancel only ${guest.name}? The rest of the group keeps its place, and nobody is emailed.`
+            : takesSeat && seatsLeft < 1
+              ? `Bringing ${guest.name} back overbooks the event by 1 seat. Bring them back anyway?`
+              : null;
+          if (question && !window.confirm(question)) {
+            clickEvent.preventDefault();
+          }
+        }}
+        className={cn(
+          "text-xs hover:underline",
+          cancelled ? "text-primary" : "text-destructive-light",
+        )}
+      >
+        {cancelled ? "Restore" : "Cancel only them"}
+      </button>
+    </Form>
+  );
+}
+
+/**
  * Whether a person pays their price in full, half of it, or nothing: for
  * helpers, who sign up so their allergies are on the sheet. Picking one
  * saves it.
@@ -2395,17 +2600,25 @@ function PartyCells({
   rowSpan: number;
   seatsLeft: number;
 }) {
+  // the people still in it; anyone cancelled on their own is counted apart
+  const size = party.size - party.cancelled;
+
   return (
     <>
       <TableCell rowSpan={rowSpan} className={cn(CELL, "border-l text-center")}>
-        {party.size}
+        {size}
         {party.helpers > 0 ? (
           <span className="text-muted-foreground block text-xs whitespace-nowrap">
-            {party.helpers === party.size
-              ? party.size === 1
+            {party.helpers === size
+              ? size === 1
                 ? "helper"
                 : "all helpers"
               : `incl. ${helperCount(party.helpers)}`}
+          </span>
+        ) : null}
+        {party.cancelled > 0 ? (
+          <span className="text-muted-foreground block text-xs whitespace-nowrap">
+            {party.cancelled} cancelled
           </span>
         ) : null}
       </TableCell>
@@ -2551,6 +2764,7 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
             signer={guestIndex === 0}
             share={shareOf(party, guestIndex)}
             helper={party.guestBookkeeping[guestIndex]?.helper ?? false}
+            cancelled={isCancelled(party, guestIndex)}
           />
         ))}
       </div>
@@ -2563,11 +2777,14 @@ function GuestCard({
   signer,
   share,
   helper,
+  cancelled,
 }: {
   guest: BookingGuest;
   signer: boolean;
   share: PriceShare;
   helper: boolean;
+  /** Cancelled on their own: they pay nothing. */
+  cancelled: boolean;
 }) {
   const rows: SummaryRow[] = guest.email
     ? [["Their email", guest.email], ...guest.rows]
@@ -2588,9 +2805,14 @@ function GuestCard({
               helper
             </span>
           ) : null}
+          {cancelled ? (
+            <span className="text-destructive-light ml-2 text-xs font-normal">
+              cancelled
+            </span>
+          ) : null}
         </p>
         <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
-          {formatCHF(priceAfterShare(guest.price, share))}
+          {formatCHF(cancelled ? 0 : priceAfterShare(guest.price, share))}
           {guest.isStudent ? (
             <span className="text-muted-foreground font-normal">
               {" "}
@@ -3134,6 +3356,9 @@ function MessageForm({
             />
             {recipient.name}
             <span className="text-muted-foreground">{recipient.email}</span>
+            {isCancelled(party, recipient.guestIndex) ? (
+              <span className="text-muted-foreground text-xs">cancelled</span>
+            ) : null}
           </label>
         ))}
       </fieldset>

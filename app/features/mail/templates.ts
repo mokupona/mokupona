@@ -11,6 +11,7 @@ import {
 
 import { formatEventMailDate } from "~/features/events/date-format";
 import {
+  bookingWithout,
   formatChf,
   type BookingGuest,
   type BookingSummary,
@@ -42,6 +43,12 @@ export interface SignupConfirmationProps {
     mailMessage: string | null;
   };
   booking: BookingSummary;
+  /**
+   * The places in the booking (0 is the signer) of the people an admin
+   * cancelled on their own: the mail is about the rest of the group. The
+   * signer still gets it, as the one who signed the group up.
+   */
+  cancelled?: readonly number[];
 }
 
 function options(t: Text) {
@@ -106,11 +113,14 @@ export function fillSignupMailCopy(
 }
 
 function signupConfirmation(
-  { status, event, booking }: SignupConfirmationProps,
+  { status, event, booking: signedUp, cancelled = [] }: SignupConfirmationProps,
   t: Text,
 ) {
   const defaults = defaultSignupMailCopy(t)[status];
-  const [signer] = booking.guests;
+  // the mail is for the signer, even when they're the one who dropped out
+  const [signer] = signedUp.guests;
+  const booking = bookingWithout(signedUp, new Set(cancelled));
+  const signerComing = !cancelled.includes(0);
   const { subject, message } = fillSignupMailCopy(
     {
       subject: event.mailSubject?.trim() || defaults.subject,
@@ -130,10 +140,12 @@ function signupConfirmation(
       markdown(message),
       ...booking.guests.map((guest, index) =>
         details(
-          t(index === 0 ? "emails.signup.guestSelf" : "emails.signup.guest", {
-            number: index + 1,
-            name: guest.name,
-          }),
+          t(
+            index === 0 && signerComing
+              ? "emails.signup.guestSelf"
+              : "emails.signup.guest",
+            { number: index + 1, name: guest.name },
+          ),
           // the signer sees where the friend's note went
           guest.email
             ? [...guest.rows, [t("emails.signup.guestEmail"), guest.email]]

@@ -147,6 +147,34 @@ describe("summarizeHeadcount", () => {
     expect(summary.waitlisted).toMatchObject({ paysHalf: 1, paysNothing: 0 });
   });
 
+  it("leaves out anyone cancelled on their own, the rest of the group counting", () => {
+    const summary = summarizeHeadcount([
+      {
+        status: "confirmed",
+        guests: [
+          { isStudent: false, vegetarian: true, cancelled: true },
+          { isStudent: true, vegetarian: false, arrived: true },
+          {
+            isStudent: false,
+            vegetarian: false,
+            helper: true,
+            cancelled: true,
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.confirmed).toMatchObject({
+      people: 1,
+      guests: 1,
+      helpers: 0,
+      vegetarian: 0,
+      notVegetarian: 1,
+      students: 1,
+      arrived: 1,
+    });
+  });
+
   it("leaves cancelled signups out", () => {
     const summary = summarizeHeadcount([
       { status: "cancelled", guests: [{ isStudent: true, vegetarian: true }] },

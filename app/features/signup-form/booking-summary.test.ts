@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bookingWithout,
   FRIEND_EMAIL_FIELD,
   formatChf,
   restrictionsAnswer,
@@ -246,6 +247,35 @@ describe("summarizeBooking", () => {
       "Guest 2",
       "Guest 3",
     ]);
+  });
+});
+
+describe("bookingWithout", () => {
+  const booking = summarizeBooking(
+    DEFAULT_FORM,
+    {
+      ...signer,
+      student: true,
+      friends: [
+        { name: "Grace", vegetarian: false, student: false },
+        { name: "Alan", vegetarian: false, student: true },
+      ],
+    },
+    { price: 45, studentDiscount: 15, vegetarianDiscount: null },
+    defaultText,
+  );
+
+  it("leaves out the people cancelled on their own, and what they'd pay", () => {
+    const standing = bookingWithout(booking, new Set([0, 2]));
+
+    expect(standing.guests.map((guest) => guest.name)).toEqual(["Grace"]);
+    expect(standing.total).toBe(45);
+    expect(standing.contact).toEqual(booking.contact);
+  });
+
+  it("keeps a booking nobody was cancelled from as it is", () => {
+    expect(bookingWithout(booking, new Set())).toBe(booking);
+    expect(booking.total).toBe(105);
   });
 });
 

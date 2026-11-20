@@ -287,6 +287,12 @@ model SignupGuest {
   // app/models/event-signup.server.ts leave them out) or count as guests.
   // Separate from priceShare: a helper may still pay.
   helper         Boolean   @default(false)
+  // set when this one person dropped out while the rest of their group still
+  // comes (a whole group cancelled is FormSubmission.status). A cancelled
+  // person takes no seat, pays nothing and is left out of the group's mails
+  // (app/models/event-signup.server.ts). The last one still in a group can't
+  // be cancelled on their own. null while they're in.
+  cancelledAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
