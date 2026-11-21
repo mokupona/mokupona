@@ -57,7 +57,8 @@ export interface SignupBooking {
   guestBookkeeping: GuestBookkeeping[];
   /**
    * What the party pays, in CHF: each person's price after the share an
-   * admin set for them. `booking.total` stays what they signed up at.
+   * admin set for them, and nothing for anyone cancelled on their own.
+   * `booking.total` stays what they signed up at.
    */
   amountDue: number;
   /**
@@ -156,20 +157,21 @@ export async function getSignupBookingsForEvent(
   );
 }
 
-/** What a party pays after each person's share of their price, in CHF. */
+/**
+ * What a party pays after each person's share of their price, in CHF.
+ * Someone cancelled on their own pays nothing.
+ */
 function amountDue(
   booking: BookingSummary,
   guestBookkeeping: readonly GuestBookkeeping[],
 ): number {
-  return booking.guests.reduce(
-    (sum, guest, guestIndex) =>
-      sum +
-      priceAfterShare(
-        guest.price,
-        guestBookkeeping[guestIndex]?.priceShare ?? "full",
-      ),
-    0,
-  );
+  return booking.guests.reduce((sum, guest, guestIndex) => {
+    const bookkeeping = guestBookkeeping[guestIndex];
+    if (bookkeeping?.cancelledAt) return sum;
+    return (
+      sum + priceAfterShare(guest.price, bookkeeping?.priceShare ?? "full")
+    );
+  }, 0);
 }
 
 /** The stored rows laid out by guest; a guest without a row has nothing yet. */
@@ -182,6 +184,7 @@ function perGuest(
     donationMethod: string;
     priceShare: string;
     helper: boolean;
+    cancelledAt: Date | null;
   }[],
 ): GuestBookkeeping[] {
   const byIndex = new Map(rows.map((row) => [row.guestIndex, row]));
@@ -195,6 +198,7 @@ function perGuest(
       donationMethod: toPaymentMethod(row.donationMethod),
       priceShare: toPriceShare(row.priceShare),
       helper: row.helper,
+      cancelledAt: row.cancelledAt,
     };
   });
 }

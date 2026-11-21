@@ -150,6 +150,45 @@ describe("getSignupBookingsForEvent", () => {
     });
   });
 
+  it("charges nothing for someone cancelled on their own", async () => {
+    const { eventId, versionId } = await eventWithPrices();
+    const cancelledAt = new Date("2026-11-10T09:00:00Z");
+    await prisma.formSubmission.create({
+      data: {
+        formVersionId: versionId,
+        seats: 3,
+        email: "ada@example.com",
+        answers: {
+          name: "Ada",
+          email: "ada@example.com",
+          phone: "0791234567",
+          friends: [{ name: "Grace" }, { name: "Alan" }],
+        },
+        guestBookkeeping: {
+          create: [
+            { guestIndex: 1, cancelledAt },
+            { guestIndex: 2, priceShare: "half" },
+          ],
+        },
+      },
+    });
+
+    const [signup] = await getSignupBookingsForEvent(
+      eventId,
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    // Ada in full, Alan half, Grace nothing; the booking keeps all three
+    expect(signup.amountDue).toBe(67.5);
+    expect(signup.booking.total).toBe(135);
+    expect(signup.guestBookkeeping.map((guest) => guest.cancelledAt)).toEqual([
+      null,
+      cancelledAt,
+      null,
+    ]);
+  });
+
   it("reads a signup from before forms as one guest, confirmed", async () => {
     const { eventId } = await eventWithPrices();
     await prisma.eventResponse.create({

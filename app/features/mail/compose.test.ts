@@ -310,6 +310,35 @@ describe("signupConfirmation", () => {
 
     expect(subject).toBe("Your seat for Winter table is confirmed");
   });
+
+  it("leaves out a friend cancelled on their own, and what they'd pay", () => {
+    const { subject, text } = mailTemplates.signupConfirmation(
+      {
+        ...props({ mailSubject: "{name}, {guests} at {event} for {total}" }),
+        cancelled: [1],
+      },
+      defaultText,
+    );
+
+    expect(subject).toBe("Ada, 1 at Winter table for 45 CHF");
+    expect(text).toContain("Guest 1: Ada (you)");
+    expect(text).not.toContain("Grace");
+    expect(text).toContain("Price\nAda: 45 CHF\nTotal for 1 person: 45 CHF");
+  });
+
+  it("still writes to the signer once they've dropped out, about the rest", () => {
+    const { text } = mailTemplates.signupConfirmation(
+      { ...props(), cancelled: [0] },
+      defaultText,
+    );
+
+    expect(text).toContain("Hi Ada,");
+    expect(text).toContain("Guest 1: Grace <3\nVegan / Vegetarian: no");
+    expect(text).not.toContain("(you)");
+    expect(text).toContain(
+      "Price\nGrace <3 (student): 30 CHF\nTotal for 1 person: 30 CHF",
+    );
+  });
 });
 
 describe("mail copy from the site texts", () => {

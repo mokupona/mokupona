@@ -1,5 +1,6 @@
 import {
   bookingPrices,
+  bookingWithout,
   summarizeBooking,
   type BookingSummary,
 } from "./booking-summary";
@@ -96,7 +97,8 @@ async function recordSentMail(mail: {
 /**
  * Tells the person who signed up whether they have a seat or are on the
  * waiting list, and what we stored, guest by guest, with prices. Each mail
- * that goes out is kept on the signup's record.
+ * that goes out is kept on the signup's record. Anyone an admin cancelled on
+ * their own is left out of the mail, and gets no note of their own.
  */
 export async function sendSignupConfirmation({
   submissionId,
@@ -105,6 +107,7 @@ export async function sendSignupConfirmation({
   event,
   formFields,
   answers,
+  cancelled = [],
   origin,
   sentById = null,
 }: {
@@ -114,6 +117,8 @@ export async function sendSignupConfirmation({
   event: SignupMailEvent;
   formFields: FieldDescriptor[];
   answers: Record<string, unknown>;
+  /** The places in the booking of the people cancelled on their own. */
+  cancelled?: readonly number[];
   /** This site's origin, for the link back to the event page. */
   origin: string;
   /** The admin who had it sent; null when it goes out at signup. */
@@ -140,6 +145,7 @@ export async function sendSignupConfirmation({
         ...mailCopyFor(event, status),
       },
       booking,
+      cancelled,
     },
     { from: eventSignupMailFrom() },
   );
@@ -151,6 +157,7 @@ export async function sendSignupConfirmation({
     status,
     event: { title: event.title, date: event.date, url },
     booking,
+    cancelled,
     signerEmail: to,
     sentById,
   });
@@ -159,7 +166,8 @@ export async function sendSignupConfirmation({
 /**
  * Tells each friend the signer gave an address for that they've been signed
  * up. Each address gets one mail, never the signer's own, and a friend who
- * can't be reached doesn't hold up the signup: failures are logged.
+ * can't be reached doesn't hold up the signup: failures are logged. A friend
+ * cancelled on their own gets none.
  */
 async function sendFriendSignupMails({
   submissionId,
@@ -167,6 +175,7 @@ async function sendFriendSignupMails({
   status,
   event,
   booking,
+  cancelled,
   signerEmail,
   sentById,
 }: {
@@ -175,13 +184,16 @@ async function sendFriendSignupMails({
   status: SignupMailKind;
   event: { title: string; date: Date; url: string };
   booking: BookingSummary;
+  cancelled: readonly number[];
   signerEmail: string;
   sentById: string | null;
 }): Promise<void> {
   const [signer, ...friends] = booking.guests;
   const reached = new Set([signerEmail.trim().toLowerCase()]);
 
-  const recipients = friends.flatMap((guest) => {
+  const recipients = friends.flatMap((guest, friendIndex) => {
+    // the signer is 0 in the booking, their friends from 1
+    if (cancelled.includes(friendIndex + 1)) return [];
     if (!guest.email) return [];
     const key = guest.email.toLowerCase();
     if (reached.has(key)) return [];
@@ -219,7 +231,8 @@ async function sendFriendSignupMails({
 
 /**
  * A stored signup read back for a mail: its event, the form version it was
- * given against, the answers, and where the signer's mail goes.
+ * given against, the answers, where the signer's mail goes, and the places
+ * in the booking of anyone cancelled on their own.
  */
 async function readSignupForMail(submissionId: string) {
   const signup = await getSignupForMail(submissionId);
@@ -244,7 +257,9 @@ async function readSignupForMail(submissionId: string) {
       ? answers.email.trim()
       : signup.email;
 
-  return { event, formFields, answers, signerEmail };
+  const cancelled = signup.guestBookkeeping.map((guest) => guest.guestIndex);
+
+  return { event, formFields, answers, signerEmail, cancelled };
 }
 
 /**
@@ -264,7 +279,7 @@ export async function sendStoredSignupMail({
   /** The admin who had it sent. */
   sentById: string;
 }): Promise<void> {
-  const { event, formFields, answers, signerEmail } =
+  const { event, formFields, answers, signerEmail, cancelled } =
     await readSignupForMail(submissionId);
   if (!signerEmail) {
     throw new Error(`Signup ${submissionId} has no email address`);
@@ -277,6 +292,7 @@ export async function sendStoredSignupMail({
     event,
     formFields,
     answers,
+    cancelled,
     origin,
     sentById,
   });
@@ -285,8 +301,10 @@ export async function sendStoredSignupMail({
 /**
  * A message an admin wrote on the signup sheet, sent to each guest picked
  * (by their place in the booking) as a mail of its own, with the
- * placeholders filled in for them. Each one that goes out is kept on the
- * signup's record; a guest whose mail fails doesn't stop the others.
+ * placeholders filled in for them: {guests} and {total} for the group as it
+ * stands, without anyone cancelled on their own. Each one that goes out is
+ * kept on the signup's record; a guest whose mail fails doesn't stop the
+ * others.
  */
 export async function sendSignupMessage({
   submissionId,
@@ -305,18 +323,20 @@ export async function sendSignupMessage({
   /** The admin who wrote it. */
   sentById: string;
 }): Promise<{ sent: MessageRecipient[]; failed: MessageRecipient[] }> {
-  const { event, formFields, answers, signerEmail } =
+  const { event, formFields, answers, signerEmail, cancelled } =
     await readSignupForMail(submissionId);
   const t = await getText();
-  const booking = summarizeBooking(
+  const signedUp = summarizeBooking(
     formFields,
     answers,
     bookingPrices(event),
     t,
   );
+  const booking = bookingWithout(signedUp, new Set(cancelled));
   const url = new URL(`/events/${event.id}`, origin).href;
 
-  const recipients = messageRecipients(booking.guests, signerEmail).filter(
+  // someone cancelled on their own can still be written to, when picked
+  const recipients = messageRecipients(signedUp.guests, signerEmail).filter(
     (recipient) => guestIndexes.includes(recipient.guestIndex),
   );
 
@@ -400,10 +420,21 @@ export async function sendPaymentReminders({
     // someone else got there first
     if (!(await claimPaymentReminder(signup.submissionId))) continue;
 
+    // {guests} counts only the people still coming, as amountDue does
+    const cancelled = new Set(
+      signup.guestBookkeeping.flatMap((guest, guestIndex) =>
+        guest.cancelledAt ? [guestIndex] : [],
+      ),
+    );
     const filled = fillSignupMailCopy(
       copy,
       signupMailValues(
-        { name, event, booking: signup.booking, total: signup.amountDue },
+        {
+          name,
+          event,
+          booking: bookingWithout(signup.booking, cancelled),
+          total: signup.amountDue,
+        },
         t,
       ),
     );
