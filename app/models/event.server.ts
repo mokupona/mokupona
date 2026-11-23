@@ -35,6 +35,8 @@ export interface EventCreateData {
   recap?: string | null;
   date: Date;
   slots: number;
+  /** true tells guests how many seats are still free; false (the default) doesn't. */
+  showSeatsLeft?: boolean;
   price: number;
   studentDiscount?: number | null;
   vegetarianDiscount?: number | null;

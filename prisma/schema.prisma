@@ -121,6 +121,10 @@ model Event {
   recap               String?
   date                DateTime
   slots               Int
+  // whether the event page says how many seats are still free ("3 of 12
+  // seats left"); off, it only shows the number of seats, and once the
+  // event is full that it's fully booked
+  showSeatsLeft       Boolean  @default(false)
   // a draft (false) is only visible in the admin area: the public pages,
   // the signup form and the gallery all leave it out
   published           Boolean  @default(true)

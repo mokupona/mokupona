@@ -97,7 +97,8 @@ export function EventStory({ event }: EventViewProps) {
 export function EventFactList({
   event,
   seatsLeft = null,
-}: EventViewProps & { seatsLeft?: number | null }) {
+  fullyBooked = false,
+}: EventViewProps & { seatsLeft?: number | null; fullyBooked?: boolean }) {
   const t = useText();
   const eventDate = new Date(event.date);
 
@@ -136,7 +137,11 @@ export function EventFactList({
         </Popover>
       </div>
 
-      <EventSeatsFact slots={event.slots} seatsLeft={seatsLeft} />
+      <EventSeatsFact
+        slots={event.slots}
+        seatsLeft={seatsLeft}
+        fullyBooked={fullyBooked}
+      />
     </div>
   );
 }

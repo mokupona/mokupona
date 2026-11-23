@@ -13,7 +13,12 @@ import type { AddressOptionModel } from "../view-models";
 
 import { CoverPhotoField } from "./cover-photo-field";
 
-import { Field, SelectField, TextareaField } from "~/components/forms";
+import {
+  CheckboxField,
+  Field,
+  SelectField,
+  TextareaField,
+} from "~/components/forms";
 import { BackLink, pageTitleClassName } from "~/components/section";
 import { SectionNav } from "~/components/section-nav";
 import { SignupFormBuilder } from "~/components/signup-form-builder";
@@ -387,6 +392,15 @@ export function AdminEventForm({
                 errors={fields.price.errors}
               />
             </div>
+
+            <CheckboxField
+              labelProps={{ children: "Show how many seats are left" }}
+              buttonProps={getInputProps(fields.showSeatsLeft, {
+                type: "checkbox",
+              })}
+              description="Ticked, the event page says how many seats are still free (“3 of 12 seats left”) and warns a group that's too big for them. Unticked, it only shows the number of seats, and that the event is fully booked once it is."
+              errors={fields.showSeatsLeft.errors}
+            />
 
             <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
               <Field

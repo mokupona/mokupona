@@ -15,7 +15,7 @@ import { sendTemplate } from "~/features/mail/mail.server";
 import { defaultText } from "~/features/site-text/text";
 import { createEvent } from "~/models/event.server";
 import { getCurrentFormVersion } from "~/models/form.server";
-import { action } from "~/routes/events_.$eventId";
+import { action, loader } from "~/routes/events_.$eventId";
 
 vi.mock("~/features/mail/mail.server", () => ({ sendTemplate: vi.fn() }));
 const sendTemplateMock = vi.mocked(sendTemplate);
@@ -372,6 +372,46 @@ describe("event signup action", () => {
       await submit(eventId, fromBrowser({ formVersionId: "stale" }), browser);
 
       expect(await signupHits(eventId)).toHaveLength(0);
+    });
+  });
+});
+
+describe("event page loader", () => {
+  function load(eventId: string) {
+    return loader({ params: { eventId } } as unknown as Parameters<
+      typeof loader
+    >[0]);
+  }
+
+  it("keeps the seats left to itself unless the event shows them", async () => {
+    const { eventId } = await createTestEvent({ slots: 12 });
+
+    expect(await load(eventId)).toMatchObject({
+      seatsLeft: null,
+      fullyBooked: false,
+    });
+  });
+
+  it("tells an event that shows them how many seats are left", async () => {
+    const { eventId, versionId } = await createTestEvent({
+      slots: 12,
+      showSeatsLeft: true,
+    });
+    await submit(eventId, fromBrowser(answers(versionId)));
+
+    expect(await load(eventId)).toMatchObject({
+      seatsLeft: 11,
+      fullyBooked: false,
+    });
+  });
+
+  it("still says a full event is fully booked without the count", async () => {
+    const { eventId, versionId } = await createTestEvent({ slots: 1 });
+    await submit(eventId, fromBrowser(answers(versionId)));
+
+    expect(await load(eventId)).toMatchObject({
+      seatsLeft: null,
+      fullyBooked: true,
     });
   });
 });

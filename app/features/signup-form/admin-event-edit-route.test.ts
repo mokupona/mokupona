@@ -231,4 +231,22 @@ describe("admin event edit action", () => {
     await submit(eventId, body, await moderator());
     expect(await recapOf()).toBeNull();
   });
+
+  it("shows the seats left once ticked, and hides them again once unticked", async () => {
+    const { eventId, addressId } = await createTestEvent();
+    const showsSeatsLeft = async () =>
+      (await prisma.event.findUniqueOrThrow({ where: { id: eventId } }))
+        .showSeatsLeft;
+    expect(await showsSeatsLeft()).toBe(false);
+
+    const body = editBody(addressId, defaultBuilderRows());
+    body.set("showSeatsLeft", "on");
+    await submit(eventId, body, await moderator());
+    expect(await showsSeatsLeft()).toBe(true);
+
+    // an unticked checkbox isn't sent at all
+    body.delete("showSeatsLeft");
+    await submit(eventId, body, await moderator());
+    expect(await showsSeatsLeft()).toBe(false);
+  });
 });

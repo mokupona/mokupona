@@ -77,14 +77,20 @@ export function EventPriceFact({
 export function EventSeatsFact({
   slots,
   seatsLeft = null,
+  fullyBooked = false,
 }: {
   slots: number;
-  /** Omitted where the page doesn't know how many seats are taken. */
+  /**
+   * Omitted where the page doesn't know how many seats are taken, or the
+   * event keeps the count to itself.
+   */
   seatsLeft?: number | null;
+  /** Known even where the count isn't shown. */
+  fullyBooked?: boolean;
 }) {
   const t = useText();
   let label = t("events.facts.seats", { slots });
-  if (seatsLeft === 0) label = t("events.facts.fullyBooked");
+  if (fullyBooked || seatsLeft === 0) label = t("events.facts.fullyBooked");
   else if (seatsLeft !== null) {
     label = t("events.facts.seatsLeft", { left: seatsLeft, slots });
   }
