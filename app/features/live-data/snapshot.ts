@@ -161,6 +161,9 @@ const eventRow = z
     recap: nullableText.default(null),
     date: dateTime,
     slots: int,
+    // added later: a live site on older code has no such switch, so the
+    // copy keeps the count to itself like any new event
+    showSeatsLeft: z.boolean().default(false),
     // added after format version 1 shipped: a live site on older code has no
     // drafts, so every event it sends is public
     published: z.boolean().default(true),

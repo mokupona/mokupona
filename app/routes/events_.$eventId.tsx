@@ -88,13 +88,17 @@ export async function loader({ params }: Route.LoaderArgs) {
     isPast ? listVolunteersForEvent(event.id) : [],
     isPast ? null : getSeatCounts(event.id),
   ]);
+  // a snapshot for the page; the action decides again under a lock
+  const left = seats ? seatsLeft(event.slots, seats.confirmed) : null;
 
   return {
     event: toEventDetailModel(event),
     formFields: parseStoredFormSchemaOrLog(version),
     formVersionId: version.id,
-    // a snapshot for the page; the action decides again under a lock
-    seatsLeft: seats ? seatsLeft(event.slots, seats.confirmed) : null,
+    // the count only leaves the server for an event that shows it; any
+    // other page learns no more than whether it's full
+    seatsLeft: event.showSeatsLeft ? left : null,
+    fullyBooked: left === 0,
     gallery,
     volunteers: volunteers.map((volunteer) =>
       toPerson(volunteer, volunteer.role),
@@ -327,8 +331,15 @@ export default function EventPage({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { event, formFields, formVersionId, seatsLeft, gallery, volunteers } =
-    loaderData;
+  const {
+    event,
+    formFields,
+    formVersionId,
+    seatsLeft,
+    fullyBooked,
+    gallery,
+    volunteers,
+  } = loaderData;
   const t = useText();
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
@@ -359,7 +370,11 @@ export default function EventPage({
                 sits on a wrapper: the halo positions its element relative,
                 which would undo the aside's sticky. */}
             <div data-halo className="flex flex-col gap-4">
-              <EventFactList event={event} seatsLeft={seatsLeft} />
+              <EventFactList
+                event={event}
+                seatsLeft={seatsLeft}
+                fullyBooked={fullyBooked}
+              />
 
               <div aria-hidden className="bg-border h-px" />
 
@@ -370,6 +385,7 @@ export default function EventPage({
                 formFields={signupFields}
                 formVersionId={formVersionId}
                 seatsLeft={seatsLeft}
+                fullyBooked={fullyBooked}
                 lastResult={actionData}
               />
             </div>
@@ -388,11 +404,14 @@ function SignupForm({
   formFields,
   formVersionId,
   seatsLeft,
+  fullyBooked,
   lastResult,
 }: {
   formFields: FieldDescriptor[];
   formVersionId: string;
+  /** null where the event keeps the count to itself */
   seatsLeft: number | null;
+  fullyBooked: boolean;
   lastResult: Route.ComponentProps["actionData"];
 }) {
   const t = useText();
@@ -411,9 +430,10 @@ function SignupForm({
   });
 
   // the server decides again when the form arrives; this only says what to
-  // expect with the seats left when the page loaded
+  // expect with the seats left when the page loaded. Without the count, a
+  // group too big for the last seats learns it from the reply.
   const party = partySize(form.value ?? {});
-  const willWait = seatsLeft !== null && party > seatsLeft;
+  const willWait = fullyBooked || (seatsLeft !== null && party > seatsLeft);
 
   // the statistics' signup funnel: the first touch of the form, then every
   // press of submit (valid or not; the stored signup is counted server-side)
@@ -496,7 +516,7 @@ function SignupForm({
         </Button>
 
         <p className="text-muted-foreground text-center text-xs leading-normal">
-          {seatsLeft === 0 ? t("signup.footnoteFull") : t("signup.footnote")}
+          {fullyBooked ? t("signup.footnoteFull") : t("signup.footnote")}
         </p>
       </Form>
     </FormProvider>

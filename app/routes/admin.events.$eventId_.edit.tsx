@@ -75,6 +75,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         description,
         date,
         slots,
+        showSeatsLeft,
         price,
         studentDiscount,
         vegetarianDiscount,
@@ -124,6 +125,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           ...(recapUpdateValue !== undefined && { recap: recapUpdateValue }),
           date: toUtcEventDate(date),
           slots,
+          // an unticked checkbox sends nothing, which means "hide"
+          showSeatsLeft: showSeatsLeft ?? false,
           price,
           // the form always sends these, so an empty field means "clear it"
           studentDiscount: studentDiscount ?? null,

@@ -289,6 +289,21 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.events[0]).toMatchObject({ recap: null });
   });
 
+  it("carries whether the event shows its seats left", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.events[0]).toMatchObject({ showSeatsLeft: true });
+  });
+
+  it("reads a live site that predates the seats-left switch as events that keep the count hidden", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const event of tables.events) delete event.showSeatsLeft;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.events[0]).toMatchObject({ showSeatsLeft: false });
+  });
+
   it("carries the recap across", () => {
     const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
 

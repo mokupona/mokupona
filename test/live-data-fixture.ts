@@ -127,6 +127,7 @@ export function liveDataFixture(
         recap: "Thank you for a warm evening.",
         date: new Date("2025-02-01T18:00:00.000Z"),
         slots: 12,
+        showSeatsLeft: true,
         published: true,
         price: 30,
         studentDiscount: 10,

@@ -11,6 +11,7 @@ const event = {
   recap: null,
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
+  showSeatsLeft: false,
   published: true,
   price: 30,
   studentDiscount: 10,

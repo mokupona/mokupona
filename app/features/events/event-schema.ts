@@ -50,6 +50,8 @@ export const EventSchema = z.object({
     .number({ error: "Slots is required" })
     .min(0, "Slots cannot be less than 0")
     .int(),
+  // a checkbox: ticked arrives as true, unticked not at all
+  showSeatsLeft: z.boolean().optional(),
   price: z
     .number({ error: "Price is required" })
     .min(0, "Price cannot be less than 0")
