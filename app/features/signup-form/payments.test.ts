@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  amountReceived,
   halfPrice,
   parseChfInput,
   parsePercentInput,
@@ -309,5 +310,110 @@ describe("summarizeMoneyReceived", () => {
 
     expect(money.outstanding).toBe(4000);
     expect(money.outstandingParties).toBe(1);
+  });
+});
+
+describe("payments that came in at another amount", () => {
+  it("counts what came in for a single payment, and owes the rest", () => {
+    // 95 CHF asked for in one payment, 90 CHF came in through TWINT
+    const money = summarizeMoneyReceived(
+      [
+        party({
+          total: 95,
+          singlePayment: true,
+          firstHalf: { paid: true, method: "twint", received: 9000 },
+        }),
+      ],
+      FEES,
+    );
+
+    expect(money.payments.twint).toBe(9000);
+    // 1.5% of 90 CHF is 135 Rappen, plus 30
+    expect(money.twintFees).toBe(165);
+    expect(money.net).toBe(9000 - 165);
+    expect(money.outstanding).toBe(500);
+    expect(money.outstandingParties).toBe(1);
+  });
+
+  it("counts each half at what came in for it", () => {
+    const money = summarizeMoneyReceived(
+      [
+        party({
+          total: 95,
+          firstHalf: { paid: true, method: "cash", received: 4000 },
+          secondHalf: { paid: true, method: "twint" },
+        }),
+      ],
+      FEES,
+    );
+
+    // 40 CHF in cash for the first half, the 47.50 CHF asked for the second
+    expect(money.payments).toEqual({ twint: 4750, cash: 4000 });
+    expect(money.outstanding).toBe(750);
+  });
+
+  it("owes nothing more after a payment that came in over", () => {
+    const money = summarizeMoneyReceived(
+      [
+        party({
+          total: 95,
+          singlePayment: true,
+          firstHalf: { paid: true, method: "cash", received: 10000 },
+        }),
+      ],
+      FEES,
+    );
+
+    expect(money.payments.cash).toBe(10000);
+    expect(money.outstanding).toBe(0);
+    expect(money.outstandingParties).toBe(0);
+  });
+
+  it("counts a half that came in over against the half still to come", () => {
+    // 60 CHF came in for a first half of 40 CHF: 20 CHF of 80 are still owed
+    const money = summarizeMoneyReceived(
+      [party({ firstHalf: { paid: true, method: "cash", received: 6000 } })],
+      FEES,
+    );
+
+    expect(money.outstanding).toBe(2000);
+  });
+
+  it("ignores an amount on a payment that isn't ticked", () => {
+    const money = summarizeMoneyReceived(
+      [party({ firstHalf: { paid: false, method: "cash", received: 1000 } })],
+      FEES,
+    );
+
+    expect(money.gross).toBe(0);
+    expect(money.outstanding).toBe(8000);
+  });
+
+  it("counts nothing a party with nothing to pay ticked", () => {
+    const money = summarizeMoneyReceived(
+      [
+        party({
+          total: 0,
+          singlePayment: true,
+          firstHalf: { paid: true, method: "cash", received: 2000 },
+        }),
+      ],
+      FEES,
+    );
+
+    expect(money.gross).toBe(0);
+  });
+
+  it("adds up what came in of a party's price", () => {
+    expect(
+      amountReceived(
+        party({
+          total: 95,
+          firstHalf: { paid: true, method: "cash", received: 4000 },
+          secondHalf: { paid: true, method: "twint" },
+        }),
+      ),
+    ).toBe(8750);
+    expect(amountReceived(party())).toBe(0);
   });
 });

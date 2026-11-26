@@ -1,6 +1,7 @@
 // The money side of the signup sheet: how each payment came in, what TWINT
 // keeps of it, and what has come in so far. A party pays its price in two
-// halves, or the whole of it in one payment. Amounts here are in Rappen
+// halves, or the whole of it in one payment, and a payment can come in at
+// another amount than the one asked for (90 CHF of 95). Amounts here are in Rappen
 // (100 to the franc), so halves, donations and fees add up without rounding
 // drift; the prices on an event stay whole francs, a person an admin set to
 // pay half pays half of theirs, and one an admin set an amount for pays that
@@ -48,6 +49,9 @@ export const PRICE_SHARE_LABELS: Record<PriceShare, string> = {
 
 /** Largest amount an admin can set for one person to pay: 10 000 CHF. */
 export const MAX_CUSTOM_PRICE_RAPPEN = 1_000_000;
+
+/** Largest amount the sheet takes as one payment that came in: 10 000 CHF. */
+export const MAX_RECEIVED_RAPPEN = 1_000_000;
 
 export function isPriceShare(value: unknown): value is PriceShare {
   return (
@@ -148,6 +152,12 @@ export function rappenToInput(amount: number | null): string {
 export interface PaymentHalf {
   paid: boolean;
   method: PaymentMethod;
+  /**
+   * What actually came in, in Rappen, when an admin noted that it wasn't the
+   * amount asked for; null or left out, the amount asked for came in. Counts
+   * only while the payment is ticked.
+   */
+  received?: number | null;
 }
 
 /** One signup, as far as the money that came in is concerned. */
@@ -172,7 +182,10 @@ export interface MethodTotals {
 }
 
 export interface MoneyReceived {
-  /** The ticked payments of the party prices, by how they came in. */
+  /**
+   * The ticked payments of the party prices, by how they came in, at what
+   * actually came in.
+   */
   payments: MethodTotals;
   donations: MethodTotals;
   /** Everything that came in, before TWINT's fees. */
@@ -182,16 +195,20 @@ export interface MoneyReceived {
   twintTransactions: number;
   /** What we keep: everything that came in, less TWINT's fees. */
   net: number;
-  /** The unticked payments of the confirmed parties: money still to come. */
+  /**
+   * What the confirmed parties still owe: their price less what came in, so
+   * the unticked payments and anything a ticked one came in short.
+   */
   outstanding: number;
   outstandingParties: number;
 }
 
 /**
  * Adds up the money that came in, in Rappen. Each ticked half, each price
- * paid in one go and each donation is one payment, and each TWINT payment
- * loses its fee. A ticked payment counts whatever the signup's status, since
- * the money is in; only a confirmed party still owes what isn't ticked.
+ * paid in one go and each donation is one payment, at what actually came in,
+ * and each TWINT payment loses its fee on that. A ticked payment counts
+ * whatever the signup's status, since the money is in; only a confirmed
+ * party still owes the rest of its price.
  */
 export function summarizeMoneyReceived(
   parties: readonly PaymentParty[],
@@ -218,18 +235,18 @@ export function summarizeMoneyReceived(
   };
 
   for (const party of parties) {
-    let unpaid = 0;
-
-    for (const { amount, paid, method } of partyPayments(party)) {
-      if (paid) receive(payments, amount, method);
-      else unpaid += amount;
+    for (const payment of partyPayments(party)) {
+      if (payment.paid) {
+        receive(payments, amountIn(payment), payment.method);
+      }
     }
     for (const donation of party.donations) {
       receive(donations, donation.amount ?? 0, donation.method);
     }
 
-    if (party.status === "confirmed" && unpaid > 0) {
-      outstanding += unpaid;
+    const owed = chfToRappen(party.total) - amountReceived(party);
+    if (party.status === "confirmed" && owed > 0) {
+      outstanding += owed;
       outstandingParties += 1;
     }
   }
@@ -249,11 +266,16 @@ export function summarizeMoneyReceived(
   };
 }
 
-/** The payments a party's price comes in: two halves, or the whole of it. */
-function partyPayments(
-  party: PaymentParty,
-): (PaymentHalf & { amount: number })[] {
+/** One payment of a party's price, with the amount asked for, in Rappen. */
+export type PartyPayment = PaymentHalf & { amount: number };
+
+/**
+ * The payments a party's price comes in: two halves, or the whole of it. A
+ * party with nothing to pay has none, so nothing it ticked counts.
+ */
+export function partyPayments(party: PaymentParty): PartyPayment[] {
   const total = chfToRappen(party.total);
+  if (total === 0) return [];
   if (party.singlePayment) {
     return [{ ...party.firstHalf, amount: total }];
   }
@@ -262,4 +284,16 @@ function partyPayments(
     { ...party.firstHalf, amount: firstHalf },
     { ...party.secondHalf, amount: total - firstHalf },
   ];
+}
+
+/** What came in for one ticked payment, in Rappen. */
+function amountIn(payment: PartyPayment): number {
+  return payment.received ?? payment.amount;
+}
+
+/** What came in of a party's price, in Rappen: its ticked payments. */
+export function amountReceived(party: PaymentParty): number {
+  return partyPayments(party)
+    .filter((payment) => payment.paid)
+    .reduce((sum, payment) => sum + amountIn(payment), 0);
 }

@@ -601,6 +601,119 @@ describe("updateSignupBookkeeping", () => {
     });
   });
 
+  it("keeps what came in for a payment, and drops it when the payment is unticked", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+    const read = () =>
+      prisma.formSubmission.findUniqueOrThrow({ where: { id: signup.id } });
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        singlePayment: false,
+        firstHalfPaid: true,
+        firstHalfReceivedRappen: 4000,
+        secondHalfPaid: false,
+        secondHalfReceivedRappen: null,
+      },
+    });
+    expect(await read()).toMatchObject({
+      firstHalfPaid: true,
+      firstHalfReceivedRappen: 4000,
+      secondHalfReceivedRappen: null,
+    });
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        singlePayment: false,
+        firstHalfPaid: false,
+        firstHalfReceivedRappen: null,
+      },
+    });
+    expect(await read()).toMatchObject({
+      firstHalfPaid: false,
+      firstHalfReceivedRappen: null,
+    });
+  });
+
+  it("drops what came in once the party switches between halves and one payment", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+    const read = () =>
+      prisma.formSubmission.findUniqueOrThrow({ where: { id: signup.id } });
+
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        singlePayment: false,
+        firstHalfPaid: true,
+        firstHalfReceivedRappen: 4000,
+        secondHalfPaid: true,
+        secondHalfReceivedRappen: 3000,
+      },
+    });
+
+    // the form still holds the first half's 40 CHF as it switches: in one
+    // payment it would stand for the whole price
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        singlePayment: true,
+        firstHalfPaid: true,
+        firstHalfReceivedRappen: 4000,
+      },
+    });
+    expect(await read()).toMatchObject({
+      singlePayment: true,
+      firstHalfPaid: true,
+      firstHalfReceivedRappen: null,
+      secondHalfReceivedRappen: null,
+    });
+
+    // and once it pays in one payment, an amount sticks again
+    await updateSignupBookkeeping({
+      eventId: fixture.event.id,
+      submissionId: signup.id,
+      data: {
+        singlePayment: true,
+        firstHalfPaid: true,
+        firstHalfReceivedRappen: 9000,
+      },
+    });
+    expect(await read()).toMatchObject({ firstHalfReceivedRappen: 9000 });
+  });
+
+  it("refuses an amount that came in for an unpaid payment, or out of range", async () => {
+    const fixture = await createTestEvent(4);
+    const signup = await signupFor(fixture);
+
+    for (const data of [
+      { firstHalfPaid: false, firstHalfReceivedRappen: 4000 },
+      { secondHalfPaid: false, secondHalfReceivedRappen: 4000 },
+      { firstHalfPaid: true, firstHalfReceivedRappen: -100 },
+      { firstHalfPaid: true, firstHalfReceivedRappen: 12.5 },
+      { firstHalfPaid: true, firstHalfReceivedRappen: 1_000_001 },
+    ]) {
+      await expect(
+        updateSignupBookkeeping({
+          eventId: fixture.event.id,
+          submissionId: signup.id,
+          data,
+        }),
+      ).rejects.toBeInstanceOf(RangeError);
+    }
+    expect(
+      await prisma.formSubmission.findUniqueOrThrow({
+        where: { id: signup.id },
+      }),
+    ).toMatchObject({ firstHalfPaid: false, firstHalfReceivedRappen: null });
+  });
+
   it("refuses a note longer than the limit", async () => {
     const fixture = await createTestEvent(4);
     const signup = await signupFor(fixture);

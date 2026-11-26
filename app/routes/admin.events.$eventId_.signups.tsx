@@ -60,16 +60,19 @@ import {
 } from "~/features/signup-form/headcount";
 import { isPaymentReminderDue } from "~/features/signup-form/payment-reminders";
 import {
+  amountReceived,
   chfToRappen,
   halfPrice,
   isPaymentMethod,
   isPriceShare,
   MAX_CUSTOM_PRICE_RAPPEN,
   MAX_DONATION_RAPPEN,
+  MAX_RECEIVED_RAPPEN,
   MAX_TWINT_FEE_FIXED_RAPPEN,
   MAX_TWINT_FEE_PERCENT,
   parseChfInput,
   parsePercentInput,
+  partyPayments,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHODS,
   priceAfterShare,
@@ -79,6 +82,7 @@ import {
   summarizeMoneyReceived,
   type MoneyReceived,
   type PaymentMethod,
+  type PartyPayment,
   type PaymentParty,
   type PriceShare,
   type TwintFees,
@@ -162,6 +166,12 @@ interface Party {
   secondHalfPaid: boolean;
   firstHalfMethod: PaymentMethod;
   secondHalfMethod: PaymentMethod;
+  /**
+   * Admin bookkeeping: what actually came in for each payment, in Rappen,
+   * when it wasn't the amount asked for; null when it was.
+   */
+  firstHalfReceived: number | null;
+  secondHalfReceived: number | null;
   /** Admin bookkeeping: whether the party was reminded to pay. */
   paymentReminderSent: boolean;
   /** Admin bookkeeping: free text for the team, never shown to the guest. */
@@ -210,6 +220,8 @@ function toParty(signup: SignupBooking): Party {
     secondHalfPaid: signup.secondHalfPaid,
     firstHalfMethod: signup.firstHalfMethod,
     secondHalfMethod: signup.secondHalfMethod,
+    firstHalfReceived: signup.firstHalfReceived,
+    secondHalfReceived: signup.secondHalfReceived,
     paymentReminderSent: signup.paymentReminderSent,
     adminNote: signup.adminNote,
     guestBookkeeping: signup.guestBookkeeping,
@@ -272,8 +284,16 @@ function toPaymentParty(party: Party): PaymentParty {
     status: party.status,
     total: party.total,
     singlePayment: party.singlePayment,
-    firstHalf: { paid: party.firstHalfPaid, method: party.firstHalfMethod },
-    secondHalf: { paid: party.secondHalfPaid, method: party.secondHalfMethod },
+    firstHalf: {
+      paid: party.firstHalfPaid,
+      method: party.firstHalfMethod,
+      received: party.firstHalfReceived,
+    },
+    secondHalf: {
+      paid: party.secondHalfPaid,
+      method: party.secondHalfMethod,
+      received: party.secondHalfReceived,
+    },
     donations: party.guestBookkeeping.map((guest) => ({
       amount: guest.donation,
       method: guest.donationMethod,
@@ -376,7 +396,7 @@ function isBookkeepingIntent(value: unknown): value is BookkeepingIntent {
 function readBookkeeping(
   intent: BookkeepingIntent,
   formData: FormData,
-): Parameters<typeof updateSignupBookkeeping>[0]["data"] {
+): Parameters<typeof updateSignupBookkeeping>[0]["data"] | { error: string } {
   switch (intent) {
     case "payments": {
       // a half the form leaves out (the second, while the party pays in one
@@ -385,15 +405,35 @@ function readBookkeeping(
       // that's missing is a half that wasn't there
       const firstHalfMethod = readMethod(formData, "firstHalfMethod");
       const secondHalfMethod = readMethod(formData, "secondHalfMethod");
+      const firstHalfPaid = formData.has("firstHalfPaid");
+      const secondHalfPaid = formData.has("secondHalfPaid");
+      const firstHalfReceivedRappen = readReceived(
+        formData,
+        "firstHalfReceived",
+        firstHalfPaid,
+      );
+      const secondHalfReceivedRappen = readReceived(
+        formData,
+        "secondHalfReceived",
+        secondHalfPaid,
+      );
+      if (
+        firstHalfReceivedRappen === undefined ||
+        secondHalfReceivedRappen === undefined
+      ) {
+        return { error: "Enter what came in, in francs, like 90 or 42.50." };
+      }
       return {
         singlePayment: formData.has("singlePayment"),
         ...(firstHalfMethod && {
-          firstHalfPaid: formData.has("firstHalfPaid"),
+          firstHalfPaid,
           firstHalfMethod,
+          firstHalfReceivedRappen,
         }),
         ...(secondHalfMethod && {
-          secondHalfPaid: formData.has("secondHalfPaid"),
+          secondHalfPaid,
           secondHalfMethod,
+          secondHalfReceivedRappen,
         }),
       };
     }
@@ -404,6 +444,23 @@ function readBookkeeping(
     case "reminder":
       return { paymentReminderSent: formData.has("paymentReminderSent") };
   }
+}
+
+/**
+ * What came in for a payment, in Rappen, as an admin typed it next to its
+ * tick; null when the field is empty or left out (the amount asked for came
+ * in), and always null for a payment that isn't ticked. undefined when it
+ * can't be read.
+ */
+function readReceived(
+  formData: FormData,
+  name: string,
+  paid: boolean,
+): number | null | undefined {
+  if (!paid) return null;
+  const amount = parseChfInput(String(formData.get(name) ?? ""));
+  if (amount != null && amount > MAX_RECEIVED_RAPPEN) return undefined;
+  return amount;
 }
 
 /** A payment method from the form; left out, it stays as it was. */
@@ -525,6 +582,9 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   if (isBookkeepingIntent(intent)) {
     const bookkeepingId = readSubmissionId(formData);
     const update = readBookkeeping(intent, formData);
+    if ("error" in update) {
+      return data({ error: update.error }, { status: 400 });
+    }
 
     try {
       await updateSignupBookkeeping({
@@ -2951,7 +3011,9 @@ function AnswerList({ rows }: { rows: readonly SummaryRow[] }) {
 }
 
 function PaymentTicks({ party }: { party: Party }) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<typeof action>();
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const error = reply && "error" in reply ? reply.error : null;
 
   if (party.isLegacy) {
     return <span className="text-muted-foreground text-sm">—</span>;
@@ -2967,6 +3029,18 @@ function PaymentTicks({ party }: { party: Party }) {
   const singlePayment = fetcher.formData
     ? fetcher.formData.has("singlePayment")
     : party.singlePayment;
+  // what each payment asks for and what came in, as saved. An amount that
+  // came in belongs to the way the party pays, so none shows while it
+  // switches between halves and one payment.
+  const paymentParty = toPaymentParty(party);
+  const payments = partyPayments(paymentParty);
+  const [first, second] = singlePayment === party.singlePayment ? payments : [];
+  const received = amountReceived(paymentParty);
+  const asked = chfToRappen(party.total);
+  const noted =
+    first !== undefined &&
+    payments.some((payment) => payment.paid && payment.received != null);
+  const allIn = payments.every((payment) => payment.paid);
 
   // the ticks are native checkboxes: a click shows at once, and each one is
   // remounted from the saved value once the page has reloaded its data. In
@@ -2974,7 +3048,10 @@ function PaymentTicks({ party }: { party: Party }) {
   return (
     <fetcher.Form
       method="post"
-      className="flex flex-col items-start gap-1 text-sm"
+      className={cn(
+        "flex flex-col items-start gap-1 text-sm",
+        fetcher.state !== "idle" && "opacity-60",
+      )}
     >
       <input type="hidden" name="intent" value="payments" />
       <input type="hidden" name="submissionId" value={party.submissionId} />
@@ -2986,6 +3063,9 @@ function PaymentTicks({ party }: { party: Party }) {
           methodName="firstHalfMethod"
           method={party.firstHalfMethod}
           methodLabel={`How ${party.name}'s group paid`}
+          receivedName="firstHalfReceived"
+          payment={first}
+          receivedLabel={`What came in from ${party.name}'s group, in CHF`}
         />
       ) : (
         <>
@@ -2996,6 +3076,9 @@ function PaymentTicks({ party }: { party: Party }) {
             methodName="firstHalfMethod"
             method={party.firstHalfMethod}
             methodLabel={`How ${party.name}'s group paid the 1st half`}
+            receivedName="firstHalfReceived"
+            payment={first}
+            receivedLabel={`What came in for ${party.name}'s group's 1st half, in CHF`}
           />
           <PaymentTick
             name="secondHalfPaid"
@@ -3004,9 +3087,34 @@ function PaymentTicks({ party }: { party: Party }) {
             methodName="secondHalfMethod"
             method={party.secondHalfMethod}
             methodLabel={`How ${party.name}'s group paid the 2nd half`}
+            receivedName="secondHalfReceived"
+            payment={second}
+            receivedLabel={`What came in for ${party.name}'s group's 2nd half, in CHF`}
           />
         </>
       )}
+      {noted ? (
+        <span className="text-xs whitespace-nowrap tabular-nums">
+          {formatRappen(received)} of {formatCHF(party.total)} in
+          {allIn && received < asked ? (
+            <span className="text-destructive-light font-semibold">
+              {" "}
+              · {formatRappen(asked - received)} short
+            </span>
+          ) : null}
+          {received > asked ? (
+            <span className="text-muted-foreground">
+              {" "}
+              · {formatRappen(received - asked)} over
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-destructive-light text-xs">
+          {error}
+        </span>
+      ) : null}
       <label className="text-muted-foreground inline-flex items-center gap-2 text-xs whitespace-nowrap">
         <input
           key={String(party.singlePayment)}
@@ -3022,6 +3130,12 @@ function PaymentTicks({ party }: { party: Party }) {
   );
 }
 
+/**
+ * One payment's tick and how it came in. Once it's ticked, a field takes
+ * what actually came in when it wasn't the amount asked for (shown greyed
+ * in the empty field); emptying it goes back to the amount asked for. The
+ * amount is saved when the field is left, or with Enter.
+ */
 function PaymentTick({
   name,
   label,
@@ -3029,6 +3143,9 @@ function PaymentTick({
   methodName,
   method,
   methodLabel,
+  receivedName,
+  payment,
+  receivedLabel,
 }: {
   name: string;
   label: string;
@@ -3036,21 +3153,55 @@ function PaymentTick({
   methodName: string;
   method: PaymentMethod;
   methodLabel: string;
+  receivedName: string;
+  /** The payment as saved; left out while the party switches how it pays. */
+  payment: PartyPayment | undefined;
+  receivedLabel: string;
 }) {
+  const saved = rappenToInput(payment?.received ?? null);
+
   return (
-    <div className="flex items-center gap-2">
-      <label className="inline-flex items-center gap-2 whitespace-nowrap">
-        <input
-          key={String(checked)}
-          type="checkbox"
-          name={name}
-          defaultChecked={checked}
-          onChange={(event) => event.currentTarget.form?.requestSubmit()}
-          className="accent-primary size-4"
-        />
-        {label}
-      </label>
-      <MethodSelect name={methodName} method={method} label={methodLabel} />
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex items-center gap-2">
+        <label className="inline-flex items-center gap-2 whitespace-nowrap">
+          <input
+            key={String(checked)}
+            type="checkbox"
+            name={name}
+            defaultChecked={checked}
+            onChange={(event) => event.currentTarget.form?.requestSubmit()}
+            className="accent-primary size-4"
+          />
+          {label}
+        </label>
+        <MethodSelect name={methodName} method={method} label={methodLabel} />
+      </div>
+      {checked && payment ? (
+        <div className="text-muted-foreground flex items-center gap-1 pl-6 text-xs">
+          <span aria-hidden>came in</span>
+          <Input
+            key={saved}
+            name={receivedName}
+            defaultValue={saved}
+            placeholder={rappenToInput(payment.amount)}
+            inputMode="decimal"
+            aria-label={receivedLabel}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            onBlur={(event) => {
+              if (event.currentTarget.value.trim() !== saved) {
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            className="h-7 w-20 px-2 text-right text-xs tabular-nums"
+          />
+          <span aria-hidden>CHF</span>
+        </div>
+      ) : null}
     </div>
   );
 }

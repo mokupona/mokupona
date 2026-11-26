@@ -198,6 +198,33 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.formSubmissions[0]).toMatchObject({ singlePayment: true });
   });
 
+  it("copies what came in for each payment", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.formSubmissions[0].firstHalfReceivedRappen = 9000;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      firstHalfReceivedRappen: 9000,
+      secondHalfReceivedRappen: null,
+    });
+  });
+
+  it("reads a live site that predates amounts that came in as having none", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const submission of tables.formSubmissions) {
+      delete submission.firstHalfReceivedRappen;
+      delete submission.secondHalfReceivedRappen;
+    }
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.formSubmissions[0]).toMatchObject({
+      firstHalfReceivedRappen: null,
+      secondHalfReceivedRappen: null,
+    });
+  });
+
   it("reads a live site that predates single payments as paying in halves", () => {
     const tables = overTheWire(liveDataFixture());
     for (const submission of tables.formSubmissions) {

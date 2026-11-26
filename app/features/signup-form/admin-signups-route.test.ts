@@ -686,6 +686,96 @@ describe("bookkeeping on the signup sheet during the dinner", () => {
     });
   });
 
+  it("keeps what came in for a payment, and forgets it once unticked", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+    // the field shows once the party pays in one payment and it's ticked
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "twint",
+      singlePayment: "on",
+    });
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "twint",
+      firstHalfReceived: "18,50",
+      singlePayment: "on",
+    });
+
+    expect(reply).toMatchObject({ saved: "payments", status: 200 });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      singlePayment: true,
+      firstHalfPaid: true,
+      firstHalfReceivedRappen: 1850,
+    });
+
+    // an empty field: the amount asked for came in
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "twint",
+      firstHalfReceived: "",
+      singlePayment: "on",
+    });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      firstHalfPaid: true,
+      firstHalfReceivedRappen: null,
+    });
+
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "twint",
+      firstHalfReceived: "18.50",
+      singlePayment: "on",
+    });
+    // unticked, with the field still in the form
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfMethod: "twint",
+      firstHalfReceived: "18.50",
+      singlePayment: "on",
+    });
+    expect(await submissionOf(signup.id)).toMatchObject({
+      firstHalfPaid: false,
+      firstHalfReceivedRappen: null,
+    });
+  });
+
+  it("asks again for what came in when it can't read it, and stores nothing", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    for (const amount of ["ninety", "-5", "10001"]) {
+      const reply = await postBookkeeping(event.id, {
+        intent: "payments",
+        submissionId: signup.id,
+        firstHalfPaid: "on",
+        firstHalfMethod: "twint",
+        secondHalfMethod: "twint",
+        secondHalfPaid: "on",
+        secondHalfReceived: amount,
+      });
+      expect(reply).toMatchObject({
+        error: "Enter what came in, in francs, like 90 or 42.50.",
+        status: 400,
+      });
+    }
+    expect(await submissionOf(signup.id)).toMatchObject({
+      firstHalfPaid: false,
+      secondHalfPaid: false,
+      secondHalfReceivedRappen: null,
+    });
+  });
+
   it("sets what a person pays, and refuses a share it doesn't know", async () => {
     const { event, signUp } = await createTestEvent(5);
     const signup = await signUp("ada@example.com", ["Grace"]);
@@ -925,6 +1015,35 @@ describe("the signup sheet's money with helpers who pay less", () => {
     expect(sheet.headcount.confirmed).toMatchObject({
       people: 2,
       paysCustom: 1,
+    });
+  });
+
+  it("counts what came in for a payment, and what the group still owes", async () => {
+    // 20 CHF a seat: 40 CHF for the two of them, 38 CHF came in at once
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+    for (const firstHalfReceived of ["", "38"]) {
+      await postBookkeeping(event.id, {
+        intent: "payments",
+        submissionId: signup.id,
+        firstHalfPaid: "on",
+        firstHalfMethod: "cash",
+        firstHalfReceived,
+        singlePayment: "on",
+      });
+    }
+
+    const sheet = await loadSheet(event.id);
+
+    expect(sheet.parties[0]).toMatchObject({
+      total: 40,
+      firstHalfReceived: 3800,
+      secondHalfReceived: null,
+    });
+    expect(sheet.money.payments.cash).toBe(3800);
+    expect(sheet.money).toMatchObject({
+      outstanding: 200,
+      outstandingParties: 1,
     });
   });
 
