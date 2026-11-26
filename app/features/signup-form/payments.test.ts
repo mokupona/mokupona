@@ -47,6 +47,10 @@ describe("halfPrice", () => {
     expect(halfPrice(45)).toBe(2250);
     expect(halfPrice(0)).toBe(0);
   });
+
+  it("puts an odd Rappen in the first half", () => {
+    expect(halfPrice(67.35)).toBe(3368);
+  });
 });
 
 describe("parseChfInput", () => {
@@ -104,9 +108,22 @@ describe("price shares", () => {
     expect(priceAfterShare(80, "none")).toBe(0);
   });
 
+  it("takes the amount an admin set, more or less than the price", () => {
+    expect(priceAfterShare(80, "custom", 6000)).toBe(60);
+    expect(priceAfterShare(80, "custom", 6735)).toBe(67.35);
+    expect(priceAfterShare(80, "custom", 10000)).toBe(100);
+    expect(priceAfterShare(80, "custom", 0)).toBe(0);
+  });
+
+  it("charges the full price for a custom share that lost its amount", () => {
+    expect(priceAfterShare(80, "custom", null)).toBe(80);
+    expect(priceAfterShare(80, "custom")).toBe(80);
+  });
+
   it("reads a stored share, and anything unknown as paying in full", () => {
     expect(toPriceShare("half")).toBe("half");
     expect(toPriceShare("none")).toBe("none");
+    expect(toPriceShare("custom")).toBe("custom");
     expect(toPriceShare("")).toBe("full");
     expect(toPriceShare("quarter")).toBe("full");
   });
@@ -122,6 +139,30 @@ describe("price shares", () => {
     );
     expect(money.payments.cash).toBe(6125);
     expect(money.outstanding).toBe(6125);
+  });
+
+  it("splits a custom amount that ends in an odd Rappen into whole Rappen", () => {
+    const total = priceAfterShare(80, "custom", 6735);
+
+    const firstIn = summarizeMoneyReceived(
+      [party({ total, firstHalf: { paid: true, method: "cash" } })],
+      FEES,
+    );
+    expect(firstIn.payments.cash).toBe(3368);
+    expect(firstIn.outstanding).toBe(3367);
+
+    const bothIn = summarizeMoneyReceived(
+      [
+        party({
+          total,
+          firstHalf: { paid: true, method: "cash" },
+          secondHalf: { paid: true, method: "cash" },
+        }),
+      ],
+      FEES,
+    );
+    expect(bothIn.payments.cash).toBe(6735);
+    expect(bothIn.outstanding).toBe(0);
   });
 });
 

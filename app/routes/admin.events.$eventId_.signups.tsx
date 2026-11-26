@@ -60,9 +60,11 @@ import {
 } from "~/features/signup-form/headcount";
 import { isPaymentReminderDue } from "~/features/signup-form/payment-reminders";
 import {
+  chfToRappen,
   halfPrice,
   isPaymentMethod,
   isPriceShare,
+  MAX_CUSTOM_PRICE_RAPPEN,
   MAX_DONATION_RAPPEN,
   MAX_TWINT_FEE_FIXED_RAPPEN,
   MAX_TWINT_FEE_PERCENT,
@@ -137,8 +139,8 @@ interface Party {
   seats: number;
   /**
    * What the whole party pays, in CHF: each person's price after the share
-   * an admin set for them (all of it, half, or nothing), and nothing for
-   * anyone cancelled on their own.
+   * an admin set for them (all of it, half, nothing, or an amount they
+   * typed in), and nothing for anyone cancelled on their own.
    */
   total: number;
   /** What the party would pay if everyone paid in full, in CHF. */
@@ -243,6 +245,25 @@ function shareOf(
   guestIndex: number,
 ): PriceShare {
   return party.guestBookkeeping[guestIndex]?.priceShare ?? "full";
+}
+
+/**
+ * What one person in a party pays, in CHF: their price after their share,
+ * and nothing once they're cancelled on their own.
+ */
+function priceOf(
+  party: Pick<Party, "guestBookkeeping">,
+  guest: BookingGuest,
+  guestIndex: number,
+): number {
+  const bookkeeping =
+    party.guestBookkeeping[guestIndex] ?? EMPTY_GUEST_BOOKKEEPING;
+  if (bookkeeping.cancelledAt) return 0;
+  return priceAfterShare(
+    guest.price,
+    bookkeeping.priceShare,
+    bookkeeping.customPrice,
+  );
 }
 
 /** A party as the money received reads it: its ticked payments and donations. */
@@ -422,8 +443,8 @@ function isGuestIntent(value: unknown): value is GuestIntent {
 }
 
 /**
- * A person's arrival, donation or share of their price, checked before
- * anything is stored.
+ * A person's arrival, donation or share of their price (with the amount, when
+ * it's one an admin typed in), checked before anything is stored.
  */
 function readGuestUpdate(
   intent: GuestIntent,
@@ -440,7 +461,13 @@ function readGuestUpdate(
     if (!isPriceShare(priceShare)) {
       throw new Response("Bad Request", { status: 400 });
     }
-    return { priceShare };
+    if (priceShare !== "custom") return { priceShare };
+
+    const amount = parseChfInput(String(formData.get("amount") ?? ""));
+    if (amount == null || amount > MAX_CUSTOM_PRICE_RAPPEN) {
+      return { error: "Enter what they pay in francs, like 30 or 32.50." };
+    }
+    return { priceShare, customPriceRappen: amount };
   }
 
   const amount = parseChfInput(String(formData.get("amount") ?? ""));
@@ -1968,6 +1995,15 @@ function Headcount({ headcount }: { headcount: HeadcountSummary }) {
           },
         ]
       : []),
+    ...(confirmed.paysCustom + waitlisted.paysCustom > 0
+      ? [
+          {
+            label: "Paying a custom amount",
+            confirmed: confirmed.paysCustom,
+            waitlisted: waitlisted.paysCustom,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -2279,7 +2315,6 @@ function GuestRow({
     : savedArrived;
   const cancelled = bookkeeping.cancelledAt !== null;
   const own = cn(CELL, arrived && !cancelled && "bg-primary/10");
-  const share = shareOf(party, guestIndex);
   const tags = [
     cancelled ? "cancelled" : null,
     bookkeeping.helper ? "helper" : null,
@@ -2381,15 +2416,18 @@ function GuestRow({
       <TableCell className={cn(own, "text-right")}>
         <div className="flex flex-col items-end gap-1">
           <PriceLines
-            price={cancelled ? 0 : priceAfterShare(guest.price, share)}
+            price={priceOf(party, guest, guestIndex)}
             fullPrice={guest.price}
           />
           {party.isLegacy || cancelled ? null : (
             <PriceShareForm
+              // starts over from the saved share once it's stored
+              key={bookkeeping.priceShare}
               party={party}
               guest={guest}
               guestIndex={guestIndex}
-              share={share}
+              bookkeeping={bookkeeping}
+              price={priceOf(party, guest, guestIndex)}
             />
           )}
         </div>
@@ -2413,8 +2451,9 @@ function GuestRow({
 
 /**
  * A price, and the half that each payment comes to, unless it's paid in one
- * payment or there's nothing to pay. A price brought down from `fullPrice`
- * (someone paying half, or nothing) shows the full one struck through.
+ * payment or there's nothing to pay. A price other than `fullPrice` (someone
+ * paying half, nothing, or a custom amount) shows the full one struck
+ * through.
  */
 function PriceLines({
   price,
@@ -2544,40 +2583,69 @@ function GuestCancelForm({
 }
 
 /**
- * Whether a person pays their price in full, half of it, or nothing: for
- * helpers, who sign up so their allergies are on the sheet. Picking one
- * saves it.
+ * Whether a person pays their price in full, half of it, nothing (helpers,
+ * who sign up so their allergies are on the sheet), or an amount an admin
+ * types in. Picking a share saves it. Picking a custom amount opens a field
+ * for it, filled in with what they pay now; the amount is saved when the
+ * field is left, or with Enter.
  */
 function PriceShareForm({
   party,
   guest,
   guestIndex,
-  share,
+  bookkeeping,
+  price,
 }: {
   party: Party;
   guest: BookingGuest;
   guestIndex: number;
-  share: PriceShare;
+  bookkeeping: GuestBookkeeping;
+  /** What they pay now, in CHF. */
+  price: number;
 }) {
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<typeof action>();
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const error = reply && "error" in reply ? reply.error : null;
+  const share = bookkeeping.priceShare;
+  // the share in the menu: a custom amount isn't saved until it has one
+  const [picked, setPicked] = useState<PriceShare>(share);
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const saved =
+    share === "custom"
+      ? rappenToInput(bookkeeping.customPrice)
+      : rappenToInput(chfToRappen(price));
+
+  // a custom amount just picked: straight to its field
+  useEffect(() => {
+    if (picked === "custom" && share !== "custom") amountRef.current?.focus();
+  }, [picked, share]);
 
   return (
     <fetcher.Form
       method="post"
-      className={cn(fetcher.state !== "idle" && "opacity-60")}
+      className={cn(
+        "flex flex-col items-end gap-1",
+        fetcher.state !== "idle" && "opacity-60",
+      )}
     >
       <input type="hidden" name="intent" value="price-share" />
       <input type="hidden" name="submissionId" value={party.submissionId} />
       <input type="hidden" name="guest" value={guestIndex} />
       <select
-        key={share}
+        ref={selectRef}
         name="priceShare"
-        defaultValue={share}
+        value={picked}
         aria-label={`What ${guest.name} pays`}
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        onChange={(event) => {
+          const next = event.currentTarget.value;
+          if (!isPriceShare(next)) return;
+          setPicked(next);
+          if (next !== "custom") event.currentTarget.form?.requestSubmit();
+        }}
         className={cn(
           "bg-background focus-visible:inset-ring-ring h-8 border px-1.5 text-xs focus-visible:inset-ring-2 focus-visible:outline-hidden",
-          share !== "full" && "border-primary text-primary font-semibold",
+          picked !== "full" && "border-primary text-primary font-semibold",
         )}
       >
         {PRICE_SHARES.map((option) => (
@@ -2586,6 +2654,37 @@ function PriceShareForm({
           </option>
         ))}
       </select>
+      {picked === "custom" ? (
+        <div className="flex items-center gap-1">
+          <Input
+            ref={amountRef}
+            key={saved}
+            name="amount"
+            defaultValue={saved}
+            inputMode="decimal"
+            aria-label={`What ${guest.name} pays, in CHF`}
+            aria-invalid={error ? true : undefined}
+            onFocus={(event) => event.currentTarget.select()}
+            onBlur={(event) => {
+              // back to the menu to pick another share: that one is saved
+              if (event.relatedTarget === selectRef.current) return;
+              if (
+                share !== "custom" ||
+                event.currentTarget.value.trim() !== saved
+              ) {
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            className="h-8 w-20 px-2 text-right tabular-nums"
+          />
+          <span className="text-muted-foreground text-xs">CHF</span>
+        </div>
+      ) : null}
+      {error ? (
+        <span role="alert" className="text-destructive-light text-xs">
+          {error}
+        </span>
+      ) : null}
     </fetcher.Form>
   );
 }
@@ -2762,6 +2861,7 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
             key={guestIndex}
             guest={guest}
             signer={guestIndex === 0}
+            price={priceOf(party, guest, guestIndex)}
             share={shareOf(party, guestIndex)}
             helper={party.guestBookkeeping[guestIndex]?.helper ?? false}
             cancelled={isCancelled(party, guestIndex)}
@@ -2775,12 +2875,15 @@ function PartyDetails({ party, mail }: { party: Party; mail: MailSettings }) {
 function GuestCard({
   guest,
   signer,
+  price,
   share,
   helper,
   cancelled,
 }: {
   guest: BookingGuest;
   signer: boolean;
+  /** What they pay, in CHF, after their share. */
+  price: number;
   share: PriceShare;
   helper: boolean;
   /** Cancelled on their own: they pay nothing. */
@@ -2812,7 +2915,7 @@ function GuestCard({
           ) : null}
         </p>
         <p className="text-sm font-semibold whitespace-nowrap tabular-nums">
-          {formatCHF(cancelled ? 0 : priceAfterShare(guest.price, share))}
+          {formatCHF(price)}
           {guest.isStudent ? (
             <span className="text-muted-foreground font-normal">
               {" "}

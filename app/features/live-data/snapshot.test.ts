@@ -256,6 +256,28 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.signupGuests[0]).toMatchObject({ priceShare: "full" });
   });
 
+  it("copies a custom amount someone pays", () => {
+    const tables = overTheWire(liveDataFixture());
+    tables.signupGuests[0].priceShare = "custom";
+    tables.signupGuests[0].customPriceRappen = 3250;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({
+      priceShare: "custom",
+      customPriceRappen: 3250,
+    });
+  });
+
+  it("reads a live site that predates custom amounts as having none", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const guest of tables.signupGuests) delete guest.customPriceRappen;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.signupGuests[0]).toMatchObject({ customPriceRappen: null });
+  });
+
   it("carries an event's own payment reminder across", () => {
     const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
 

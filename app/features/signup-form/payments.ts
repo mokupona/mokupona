@@ -2,8 +2,9 @@
 // keeps of it, and what has come in so far. A party pays its price in two
 // halves, or the whole of it in one payment. Amounts here are in Rappen
 // (100 to the franc), so halves, donations and fees add up without rounding
-// drift; the prices on an event stay whole francs, and a person an admin set
-// to pay half pays half of theirs.
+// drift; the prices on an event stay whole francs, a person an admin set to
+// pay half pays half of theirs, and one an admin set an amount for pays that
+// amount, to the Rappen.
 
 import type { SignupStatus } from "./signup-status";
 
@@ -30,10 +31,11 @@ export function toPaymentMethod(value: string): PaymentMethod {
 
 /**
  * What share of their price one person pays, set by an admin on the signup
- * sheet: all of it, half, or nothing. For helpers who sign up so their
- * allergies are on the sheet, but don't pay or pay half.
+ * sheet: all of it, half, nothing, or an amount the admin types in
+ * ("custom"). For helpers who sign up so their allergies are on the sheet,
+ * but don't pay or pay half, and for anyone who settled on another amount.
  */
-export const PRICE_SHARES = ["full", "half", "none"] as const;
+export const PRICE_SHARES = ["full", "half", "none", "custom"] as const;
 
 export type PriceShare = (typeof PRICE_SHARES)[number];
 
@@ -41,7 +43,11 @@ export const PRICE_SHARE_LABELS: Record<PriceShare, string> = {
   full: "Pays in full",
   half: "Pays half",
   none: "Doesn't pay",
+  custom: "Custom amount",
 };
+
+/** Largest amount an admin can set for one person to pay: 10 000 CHF. */
+export const MAX_CUSTOM_PRICE_RAPPEN = 1_000_000;
 
 export function isPriceShare(value: unknown): value is PriceShare {
   return (
@@ -57,10 +63,14 @@ export function toPriceShare(value: string): PriceShare {
 
 /**
  * What one person pays of their price, in CHF. Half of a whole-franc price
- * can end in 50 Rappen, so a party's total and its halves stay exact in
- * Rappen.
+ * can end in 50 Rappen; a custom amount (`customPrice`, in Rappen) can end in
+ * any Rappen. A custom share that lost its amount pays in full.
  */
-export function priceAfterShare(price: number, share: PriceShare): number {
+export function priceAfterShare(
+  price: number,
+  share: PriceShare,
+  customPrice: number | null = null,
+): number {
   switch (share) {
     case "full":
       return price;
@@ -68,6 +78,8 @@ export function priceAfterShare(price: number, share: PriceShare): number {
       return price / 2;
     case "none":
       return 0;
+    case "custom":
+      return customPrice === null ? price : customPrice / 100;
   }
 }
 
@@ -96,11 +108,12 @@ export function chfToRappen(chf: number): number {
 }
 
 /**
- * Half of a price in whole or half francs (a person paying half), in Rappen:
- * always exact.
+ * The first half of a price, in whole Rappen. Half of a price in whole or
+ * half francs is exact; a price that ends in an odd Rappen (a custom amount)
+ * puts the odd one in the first half, and the second half is the rest.
  */
 export function halfPrice(chf: number): number {
-  return chfToRappen(chf) / 2;
+  return Math.ceil(chfToRappen(chf) / 2);
 }
 
 /**
@@ -240,12 +253,13 @@ export function summarizeMoneyReceived(
 function partyPayments(
   party: PaymentParty,
 ): (PaymentHalf & { amount: number })[] {
+  const total = chfToRappen(party.total);
   if (party.singlePayment) {
-    return [{ ...party.firstHalf, amount: chfToRappen(party.total) }];
+    return [{ ...party.firstHalf, amount: total }];
   }
-  const half = halfPrice(party.total);
+  const firstHalf = halfPrice(party.total);
   return [
-    { ...party.firstHalf, amount: half },
-    { ...party.secondHalf, amount: half },
+    { ...party.firstHalf, amount: firstHalf },
+    { ...party.secondHalf, amount: total - firstHalf },
   ];
 }

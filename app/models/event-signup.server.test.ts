@@ -718,6 +718,47 @@ describe("updateSignupGuest", () => {
       ).rejects.toBeInstanceOf(RangeError);
     }
   });
+
+  it("keeps a custom amount with its share, and drops it for any other share", async () => {
+    const party = await partyOfThree();
+
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 1,
+      data: { priceShare: "custom", customPriceRappen: 3250 },
+    });
+    expect(await rowsOf(party.submissionId)).toMatchObject([
+      { guestIndex: 1, priceShare: "custom", customPriceRappen: 3250 },
+    ]);
+
+    await updateSignupGuest({
+      ...party,
+      guestIndex: 1,
+      data: { priceShare: "half" },
+    });
+    expect(await rowsOf(party.submissionId)).toMatchObject([
+      { guestIndex: 1, priceShare: "half", customPriceRappen: null },
+    ]);
+  });
+
+  it("refuses a custom share without its amount, or an amount without it", async () => {
+    const party = await partyOfThree();
+
+    for (const data of [
+      { priceShare: "custom" as const },
+      { priceShare: "custom" as const, customPriceRappen: null },
+      { priceShare: "half" as const, customPriceRappen: 3000 },
+      { customPriceRappen: 3000 },
+      { priceShare: "custom" as const, customPriceRappen: -100 },
+      { priceShare: "custom" as const, customPriceRappen: 12.5 },
+      { priceShare: "custom" as const, customPriceRappen: 1_000_001 },
+    ]) {
+      await expect(
+        updateSignupGuest({ ...party, guestIndex: 0, data }),
+      ).rejects.toBeInstanceOf(RangeError);
+    }
+    expect(await rowsOf(party.submissionId)).toEqual([]);
+  });
 });
 
 describe("updateSignupStatus and the admin's confirmation mark", () => {

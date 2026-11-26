@@ -14,8 +14,10 @@ export interface GuestBookkeeping {
   /** What they gave on the night, in Rappen; null when nothing is entered. */
   donation: number | null;
   donationMethod: PaymentMethod;
-  /** All of their price, half of it, or nothing. */
+  /** All of their price, half of it, nothing, or `customPrice`. */
   priceShare: PriceShare;
+  /** What they pay when `priceShare` is custom, in Rappen; null otherwise. */
+  customPrice: number | null;
   /** Works the dinner: takes no seat and isn't counted as a guest. */
   helper: boolean;
   /**
@@ -31,6 +33,7 @@ export const EMPTY_GUEST_BOOKKEEPING: GuestBookkeeping = {
   donation: null,
   donationMethod: "twint",
   priceShare: "full",
+  customPrice: null,
   helper: false,
   cancelledAt: null,
 };

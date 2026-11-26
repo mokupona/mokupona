@@ -42,6 +42,8 @@ export interface Headcount {
   /** People set to pay half their price, or nothing (helpers, mostly). */
   paysHalf: number;
   paysNothing: number;
+  /** People an admin set an amount of their own for. */
+  paysCustom: number;
 }
 
 export interface HeadcountSummary {
@@ -62,15 +64,17 @@ function emptyHeadcount(): Headcount {
     arrived: 0,
     paysHalf: 0,
     paysNothing: 0,
+    paysCustom: 0,
   };
 }
 
 /**
  * Counts the people holding a confirmed seat and the people on the waiting
  * list, split into guests and helpers, by diet and by student status, how
- * many of them have arrived, and how many pay half or nothing. Cancelled
- * signups count for nothing, like in the revenue figures, and nor does
- * anyone cancelled on their own while the rest of their group still comes.
+ * many of them have arrived, and how many pay half, nothing, or an amount an
+ * admin set. Cancelled signups count for nothing, like in the revenue
+ * figures, and nor does anyone cancelled on their own while the rest of their
+ * group still comes.
  */
 export function summarizeHeadcount(
   parties: HeadcountParty[],
@@ -105,6 +109,7 @@ export function summarizeHeadcount(
 
       if (guest.priceShare === "half") bucket.paysHalf += 1;
       else if (guest.priceShare === "none") bucket.paysNothing += 1;
+      else if (guest.priceShare === "custom") bucket.paysCustom += 1;
     }
   }
 

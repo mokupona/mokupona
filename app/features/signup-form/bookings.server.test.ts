@@ -189,6 +189,50 @@ describe("getSignupBookingsForEvent", () => {
     ]);
   });
 
+  it("charges the amount an admin set, to the Rappen", async () => {
+    const { eventId, versionId } = await eventWithPrices();
+    await prisma.formSubmission.create({
+      data: {
+        formVersionId: versionId,
+        seats: 3,
+        email: "ada@example.com",
+        answers: {
+          name: "Ada",
+          email: "ada@example.com",
+          phone: "0791234567",
+          friends: [{ name: "Grace" }, { name: "Alan" }],
+        },
+        guestBookkeeping: {
+          create: [
+            { guestIndex: 1, priceShare: "custom", customPriceRappen: 3335 },
+            { guestIndex: 2, priceShare: "custom", customPriceRappen: 1010 },
+          ],
+        },
+      },
+    });
+
+    const [signup] = await getSignupBookingsForEvent(
+      eventId,
+      { price: 45, studentDiscount: 15, vegetarianDiscount: null },
+      defaultText,
+    );
+
+    // Ada in full, Grace 33.35 CHF and Alan 10.10 CHF, added up without a
+    // float's rounding
+    expect(signup.amountDue).toBe(88.45);
+    expect(signup.booking.total).toBe(135);
+    expect(
+      signup.guestBookkeeping.map(({ priceShare, customPrice }) => [
+        priceShare,
+        customPrice,
+      ]),
+    ).toEqual([
+      ["full", null],
+      ["custom", 3335],
+      ["custom", 1010],
+    ]);
+  });
+
   it("reads a signup from before forms as one guest, confirmed", async () => {
     const { eventId } = await eventWithPrices();
     await prisma.eventResponse.create({
