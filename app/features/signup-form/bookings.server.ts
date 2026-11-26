@@ -9,6 +9,7 @@ import {
 } from "./booking-summary";
 import { EMPTY_GUEST_BOOKKEEPING, type GuestBookkeeping } from "./bookkeeping";
 import {
+  chfToRappen,
   priceAfterShare,
   toPaymentMethod,
   toPriceShare,
@@ -159,19 +160,28 @@ export async function getSignupBookingsForEvent(
 
 /**
  * What a party pays after each person's share of their price, in CHF.
- * Someone cancelled on their own pays nothing.
+ * Someone cancelled on their own pays nothing. Added up in Rappen, so custom
+ * amounts don't leave a float's rounding behind.
  */
 function amountDue(
   booking: BookingSummary,
   guestBookkeeping: readonly GuestBookkeeping[],
 ): number {
-  return booking.guests.reduce((sum, guest, guestIndex) => {
-    const bookkeeping = guestBookkeeping[guestIndex];
-    if (bookkeeping?.cancelledAt) return sum;
+  const rappen = booking.guests.reduce((sum, guest, guestIndex) => {
+    const bookkeeping = guestBookkeeping[guestIndex] ?? EMPTY_GUEST_BOOKKEEPING;
+    if (bookkeeping.cancelledAt) return sum;
     return (
-      sum + priceAfterShare(guest.price, bookkeeping?.priceShare ?? "full")
+      sum +
+      chfToRappen(
+        priceAfterShare(
+          guest.price,
+          bookkeeping.priceShare,
+          bookkeeping.customPrice,
+        ),
+      )
     );
   }, 0);
+  return rappen / 100;
 }
 
 /** The stored rows laid out by guest; a guest without a row has nothing yet. */
@@ -183,6 +193,7 @@ function perGuest(
     donationRappen: number | null;
     donationMethod: string;
     priceShare: string;
+    customPriceRappen: number | null;
     helper: boolean;
     cancelledAt: Date | null;
   }[],
@@ -197,6 +208,7 @@ function perGuest(
       donation: row.donationRappen,
       donationMethod: toPaymentMethod(row.donationMethod),
       priceShare: toPriceShare(row.priceShare),
+      customPrice: row.customPriceRappen,
       helper: row.helper,
       cancelledAt: row.cancelledAt,
     };

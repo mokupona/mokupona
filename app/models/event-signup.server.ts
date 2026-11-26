@@ -5,6 +5,7 @@ import { FormVersionChangedError } from "./form-submission.server";
 import { prisma } from "~/db.server";
 import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import {
+  MAX_CUSTOM_PRICE_RAPPEN,
   MAX_DONATION_RAPPEN,
   type PaymentMethod,
   type PriceShare,
@@ -279,8 +280,9 @@ export async function updateSignupBookkeeping({
 
 /**
  * The admin's bookkeeping for one person in a signup: whether they've
- * arrived, what they gave, what share of their price they pay, and whether
- * they're a helper (who takes no seat). `guestIndex` is their place in the booking
+ * arrived, what they gave, what share of their price they pay (with the
+ * amount, when an admin set it themselves), and whether they're a helper
+ * (who takes no seat). `guestIndex` is their place in the booking
  * (0 is the signer); one past the party is refused like a missing signup.
  */
 export async function updateSignupGuest({
@@ -297,17 +299,34 @@ export async function updateSignupGuest({
     donationRappen?: number | null;
     donationMethod?: PaymentMethod;
     priceShare?: PriceShare;
+    customPriceRappen?: number | null;
     helper?: boolean;
   };
 }): Promise<void> {
   if (
     data.donationRappen != null &&
-    (!Number.isInteger(data.donationRappen) ||
-      data.donationRappen < 0 ||
-      data.donationRappen > MAX_DONATION_RAPPEN)
+    !isRappenInRange(data.donationRappen, MAX_DONATION_RAPPEN)
   ) {
     throw new RangeError("A donation is a whole number of Rappen in range");
   }
+  if (
+    data.customPriceRappen != null &&
+    !isRappenInRange(data.customPriceRappen, MAX_CUSTOM_PRICE_RAPPEN)
+  ) {
+    throw new RangeError("A custom price is a whole number of Rappen in range");
+  }
+  // only a custom share has an amount, and it always comes with one
+  if (
+    (data.priceShare === "custom") !==
+    (data.customPriceRappen !== undefined && data.customPriceRappen !== null)
+  ) {
+    throw new RangeError("A custom price share comes with its amount");
+  }
+  // any other share drops the amount a custom one had
+  const update =
+    data.priceShare !== undefined && data.priceShare !== "custom"
+      ? { ...data, customPriceRappen: null }
+      : data;
 
   const submission = await prisma.formSubmission.findFirst({
     where: {
@@ -327,9 +346,13 @@ export async function updateSignupGuest({
 
   await prisma.signupGuest.upsert({
     where: { submissionId_guestIndex: { submissionId, guestIndex } },
-    create: { submissionId, guestIndex, ...data },
-    update: data,
+    create: { submissionId, guestIndex, ...update },
+    update,
   });
+}
+
+function isRappenInRange(amount: number, max: number): boolean {
+  return Number.isInteger(amount) && amount >= 0 && amount <= max;
 }
 
 /**

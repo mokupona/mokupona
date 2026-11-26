@@ -721,6 +721,56 @@ describe("bookkeeping on the signup sheet during the dinner", () => {
     expect((await submissionOf(signup.id)).guestBookkeeping).toHaveLength(1);
   });
 
+  it("sets a custom amount a person pays, and drops it for another share", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+
+    const reply = await postBookkeeping(event.id, {
+      intent: "price-share",
+      submissionId: signup.id,
+      guest: "1",
+      priceShare: "custom",
+      amount: "12,50",
+    });
+
+    expect(reply).toMatchObject({ saved: "price-share", status: 200 });
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, priceShare: "custom", customPriceRappen: 1250 },
+    ]);
+
+    await postBookkeeping(event.id, {
+      intent: "price-share",
+      submissionId: signup.id,
+      guest: "1",
+      priceShare: "full",
+      amount: "12.50",
+    });
+
+    expect((await submissionOf(signup.id)).guestBookkeeping).toMatchObject([
+      { guestIndex: 1, priceShare: "full", customPriceRappen: null },
+    ]);
+  });
+
+  it("asks again for a custom amount it can't read, and stores nothing", async () => {
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com");
+
+    for (const amount of ["", "twelve", "-5", "10001"]) {
+      const reply = await postBookkeeping(event.id, {
+        intent: "price-share",
+        submissionId: signup.id,
+        guest: "0",
+        priceShare: "custom",
+        amount,
+      });
+      expect(reply).toMatchObject({
+        error: "Enter what they pay in francs, like 30 or 32.50.",
+        status: 400,
+      });
+    }
+    expect((await submissionOf(signup.id)).guestBookkeeping).toEqual([]);
+  });
+
   it("ticks the payment reminder", async () => {
     const { event, signUp } = await createTestEvent(5);
     const signup = await signUp("ada@example.com");
@@ -844,6 +894,37 @@ describe("the signup sheet's money with helpers who pay less", () => {
       people: 3,
       paysHalf: 1,
       paysNothing: 1,
+    });
+  });
+
+  it("prices a person at the custom amount set for them, to the Rappen", async () => {
+    // 20 CHF a seat
+    const { event, signUp } = await createTestEvent(5);
+    const signup = await signUp("ada@example.com", ["Grace"]);
+    await updateSignupGuest({
+      eventId: event.id,
+      submissionId: signup.id,
+      guestIndex: 1,
+      data: { priceShare: "custom", customPriceRappen: 1535 },
+    });
+    await postBookkeeping(event.id, {
+      intent: "payments",
+      submissionId: signup.id,
+      firstHalfPaid: "on",
+      firstHalfMethod: "cash",
+      secondHalfMethod: "cash",
+    });
+
+    const sheet = await loadSheet(event.id);
+
+    // Ada's 20 CHF and Grace's 15.35 CHF: the odd Rappen goes in the first half
+    expect(sheet.parties[0]).toMatchObject({ total: 35.35, fullTotal: 40 });
+    expect(sheet.revenue.confirmedTotal).toBe(35.35);
+    expect(sheet.money.payments.cash).toBe(1768);
+    expect(sheet.money.outstanding).toBe(1767);
+    expect(sheet.headcount.confirmed).toMatchObject({
+      people: 2,
+      paysCustom: 1,
     });
   });
 

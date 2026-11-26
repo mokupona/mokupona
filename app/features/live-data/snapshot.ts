@@ -142,6 +142,8 @@ const signupGuestRow = z.object({
   donationMethod: z.string().transform(toPaymentMethod),
   // added later: a live site on older code has everyone paying in full
   priceShare: z.string().default("full").transform(toPriceShare),
+  // added later still: nobody has an amount of their own there
+  customPriceRappen: int.nonnegative().nullable().default(null),
   // added later still: nobody is a helper on a live site on older code
   helper: z.boolean().default(false),
   // and later again: nobody was cancelled on their own there

@@ -175,6 +175,7 @@ export async function readLiveDataTables({
         donationRappen: true,
         donationMethod: true,
         priceShare: true,
+        customPriceRappen: true,
         helper: true,
         cancelledAt: true,
         ...TIMESTAMPS,

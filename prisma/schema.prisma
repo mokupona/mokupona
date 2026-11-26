@@ -281,11 +281,15 @@ model SignupGuest {
   donationRappen Int?
   // "twint" or "cash", like the payment halves
   donationMethod String    @default("twint")
-  // what share of their price they pay: "full", "half" or "none"
+  // what share of their price they pay: "full", "half", "none" or "custom"
   // (app/features/signup-form/payments.ts), for helpers who sign up so
-  // their allergies are on the sheet but pay less or nothing. Their price on
-  // the sheet and their party's total follow it; the mails don't.
+  // their allergies are on the sheet but pay less or nothing, and anyone who
+  // settled on another amount. Their price on the sheet and their party's
+  // total follow it; the mails don't.
   priceShare     String    @default("full")
+  // what they pay when priceShare is "custom", in Rappen, as an admin typed
+  // it; null for every other share
+  customPriceRappen Int?
   // ticked for a helper: someone working the dinner who signed up so their
   // allergies are on the sheet. Helpers don't take a seat (the seat counts in
   // app/models/event-signup.server.ts leave them out) or count as guests.
