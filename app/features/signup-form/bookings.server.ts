@@ -46,6 +46,12 @@ export interface SignupBooking {
   firstHalfMethod: PaymentMethod;
   secondHalfMethod: PaymentMethod;
   /**
+   * Admin bookkeeping: what actually came in for each payment, in Rappen,
+   * when it wasn't the amount asked for; null when it was.
+   */
+  firstHalfReceived: number | null;
+  secondHalfReceived: number | null;
+  /**
    * Admin bookkeeping: whether the mail the status calls for went out, by
    * their own mark; null goes by `mails`.
    */
@@ -116,6 +122,8 @@ export async function getSignupBookingsForEvent(
         secondHalfPaid: submission.secondHalfPaid,
         firstHalfMethod: toPaymentMethod(submission.firstHalfMethod),
         secondHalfMethod: toPaymentMethod(submission.secondHalfMethod),
+        firstHalfReceived: submission.firstHalfReceivedRappen,
+        secondHalfReceived: submission.secondHalfReceivedRappen,
         confirmationMarkedSent: submission.confirmationMarkedSent,
         paymentReminderSent: submission.paymentReminderSent,
         adminNote: submission.adminNote,
@@ -142,6 +150,8 @@ export async function getSignupBookingsForEvent(
       secondHalfPaid: false,
       firstHalfMethod: "twint",
       secondHalfMethod: "twint",
+      firstHalfReceived: null,
+      secondHalfReceived: null,
       confirmationMarkedSent: null,
       paymentReminderSent: false,
       adminNote: "",

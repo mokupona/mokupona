@@ -242,6 +242,13 @@ model FormSubmission {
   // for that one payment, and the second half is left as it was, unused. One
   // payment through TWINT costs one fee, not two.
   singlePayment    Boolean @default(false)
+  // what actually came in for each half (or, firstHalf, for the one
+  // payment), in Rappen, when an admin noted it wasn't the amount asked for:
+  // 90 CHF of 95. null means the amount asked for came in. Only a ticked
+  // payment has one; unticking it, or switching between halves and one
+  // payment, clears it (app/models/event-signup.server.ts)
+  firstHalfReceivedRappen  Int?
+  secondHalfReceivedRappen Int?
   // an admin's own mark of whether the mail the status calls for (the seat
   // confirmation, or the waiting-list mail) went out, for mails sent by hand
   // or lost on the way. null goes by the SignupMail records. Cleared when the

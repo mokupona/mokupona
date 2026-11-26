@@ -161,6 +161,8 @@ export async function readLiveDataTables({
         confirmationMarkedSent: true,
         paymentReminderSent: true,
         singlePayment: true,
+        firstHalfReceivedRappen: true,
+        secondHalfReceivedRappen: true,
         createdAt: true,
       },
     }),

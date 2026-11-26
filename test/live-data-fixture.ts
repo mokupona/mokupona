@@ -100,6 +100,8 @@ export function liveDataFixture(
         confirmationMarkedSent: true,
         paymentReminderSent: true,
         singlePayment: false,
+        firstHalfReceivedRappen: null,
+        secondHalfReceivedRappen: null,
         createdAt: at,
       },
     ],

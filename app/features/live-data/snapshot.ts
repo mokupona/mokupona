@@ -94,6 +94,9 @@ const formSubmissionRow = z
     // added later still: a live site on older code has every party paying in
     // two halves
     singlePayment: z.boolean().default(false),
+    // and later again: every payment there came in at the amount asked for
+    firstHalfReceivedRappen: int.nonnegative().nullable().default(null),
+    secondHalfReceivedRappen: int.nonnegative().nullable().default(null),
     createdAt: dateTime,
   })
   .transform(

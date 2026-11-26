@@ -7,6 +7,7 @@ import { MAX_ADMIN_NOTE_LENGTH } from "~/features/signup-form/bookkeeping";
 import {
   MAX_CUSTOM_PRICE_RAPPEN,
   MAX_DONATION_RAPPEN,
+  MAX_RECEIVED_RAPPEN,
   type PaymentMethod,
   type PriceShare,
 } from "~/features/signup-form/payments";
@@ -232,6 +233,11 @@ export async function updateSignupStatus({
  * the payment reminder: a party that has paid needs no reminder, and the
  * second half is paid on the night. Unticking it again leaves the reminder
  * as it is, and so does saving a first half that was already ticked.
+ *
+ * What came in for a payment, when it wasn't the amount asked for, belongs
+ * to that payment as the party pays: switching between halves and one
+ * payment clears both amounts, whatever `data` says, since the first half's
+ * amount would otherwise stand for the whole price, or the other way round.
  */
 export async function updateSignupBookkeeping({
   eventId,
@@ -246,11 +252,26 @@ export async function updateSignupBookkeeping({
     secondHalfPaid?: boolean;
     firstHalfMethod?: PaymentMethod;
     secondHalfMethod?: PaymentMethod;
+    firstHalfReceivedRappen?: number | null;
+    secondHalfReceivedRappen?: number | null;
     confirmationMarkedSent?: boolean | null;
     paymentReminderSent?: boolean;
     adminNote?: string;
   };
 }): Promise<void> {
+  for (const [paid, received] of [
+    [data.firstHalfPaid, data.firstHalfReceivedRappen],
+    [data.secondHalfPaid, data.secondHalfReceivedRappen],
+  ] as const) {
+    if (received == null) continue;
+    if (!isRappenInRange(received, MAX_RECEIVED_RAPPEN)) {
+      throw new RangeError("What came in is a whole number of Rappen in range");
+    }
+    // only a payment that came in has an amount that came in
+    if (paid === false) {
+      throw new RangeError("An unpaid payment has nothing that came in");
+    }
+  }
   if (
     data.adminNote !== undefined &&
     data.adminNote.length > MAX_ADMIN_NOTE_LENGTH
@@ -263,17 +284,40 @@ export async function updateSignupBookkeeping({
     id: submissionId,
     formVersion: { form: { event: { id: eventId } } },
   } satisfies Prisma.FormSubmissionWhereInput;
+  // matches no row
+  const nowhere = { id: { in: [] } } satisfies Prisma.FormSubmissionWhereInput;
+  const { firstHalfReceivedRappen, secondHalfReceivedRappen, ...rest } = data;
+  const received = {
+    ...(firstHalfReceivedRappen !== undefined && { firstHalfReceivedRappen }),
+    ...(secondHalfReceivedRappen !== undefined && { secondHalfReceivedRappen }),
+  };
 
-  const [, { count }] = await prisma.$transaction([
+  const [, , , { count }] = await prisma.$transaction([
     // read before the ticks below land, so only a newly paid half counts
     prisma.formSubmission.updateMany({
-      where: data.firstHalfPaid
-        ? { ...where, firstHalfPaid: false }
-        : // nothing newly paid: matches no row
-          { id: { in: [] } },
+      where: data.firstHalfPaid ? { ...where, firstHalfPaid: false } : nowhere,
       data: { paymentReminderSent: true },
     }),
-    prisma.formSubmission.updateMany({ where, data }),
+    // the amounts that came in, as long as the party still pays the way it
+    // did when they were typed
+    prisma.formSubmission.updateMany({
+      where:
+        Object.keys(received).length === 0
+          ? nowhere
+          : data.singlePayment === undefined
+            ? where
+            : { ...where, singlePayment: data.singlePayment },
+      data: received,
+    }),
+    // and none once it switches between halves and one payment
+    prisma.formSubmission.updateMany({
+      where:
+        data.singlePayment === undefined
+          ? nowhere
+          : { ...where, singlePayment: !data.singlePayment },
+      data: { firstHalfReceivedRappen: null, secondHalfReceivedRappen: null },
+    }),
+    prisma.formSubmission.updateMany({ where, data: rest }),
   ]);
   if (count === 0) throw new SignupNotFoundError();
 }
