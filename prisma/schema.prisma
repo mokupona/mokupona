@@ -509,3 +509,16 @@ model StatHit {
   @@index([day, kind])
   @@index([eventId, kind])
 }
+
+// An admin's switch of one self-service way in at /admin/settings (the
+// toggles in app/features/auth/auth-settings.ts), kept here so it survives
+// restarts and deploys. A toggle nobody has switched has no row and is on.
+// Not copied to staging by the live data sync: each site keeps its own.
+model AuthSetting {
+  // "emailSignup" or "google"
+  toggle  String  @id
+  enabled Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -34,7 +34,7 @@ const schema = z.object({
 });
 
 export async function loader() {
-  return { authSettings: getAuthSettings() };
+  return { authSettings: await getAuthSettings() };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -46,7 +46,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   const { toggle, enabled } = submission.value;
-  setAuthToggleEnabled(toggle, enabled);
+  await setAuthToggleEnabled(toggle, enabled);
 
   logger.info({ toggle, enabled }, "Self-service auth setting changed");
 
@@ -74,7 +74,7 @@ export default function AdminSettingsPage({
       <Card className="p-4 md:p-5">
         <h2 className="text-base font-semibold">Self-service</h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          These switches reset to enabled whenever the server restarts.
+          These switches stay as you set them, across restarts and deploys.
         </p>
 
         <div className="mt-3 flex flex-col">

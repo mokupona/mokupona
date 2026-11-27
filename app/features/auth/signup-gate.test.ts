@@ -19,8 +19,8 @@ vi.mock("~/features/auth/auth.server", () => ({
 
 const DELEGATED = new Response("delegated");
 
-afterEach(() => {
-  resetAuthSettings();
+afterEach(async () => {
+  await resetAuthSettings();
   mocks.handler.mockReset();
 });
 
@@ -38,7 +38,7 @@ describe("better-auth endpoint gate", () => {
   });
 
   it("refuses registration with a 403 once email signup is closed", async () => {
-    setAuthToggleEnabled("emailSignup", false);
+    await setAuthToggleEnabled("emailSignup", false);
 
     const response = await post("/api/auth/sign-up/email");
 
@@ -50,7 +50,7 @@ describe("better-auth endpoint gate", () => {
   });
 
   it("leaves every other endpoint alone while email signup is closed", async () => {
-    setAuthToggleEnabled("emailSignup", false);
+    await setAuthToggleEnabled("emailSignup", false);
 
     for (const path of [
       "/api/auth/sign-in/email",

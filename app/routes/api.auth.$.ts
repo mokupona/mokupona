@@ -16,7 +16,7 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
 
   if (
     pathname.endsWith(SIGN_UP_EMAIL_PATH) &&
-    !isAuthToggleEnabled("emailSignup")
+    !(await isAuthToggleEnabled("emailSignup"))
   ) {
     const logger = context.get(requestLoggerContext);
     logger.warn(

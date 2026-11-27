@@ -86,7 +86,7 @@ export const loader = async ({ params, context }: Route.LoaderArgs) => {
       email: invite.email,
       roleName: invite.roleName,
       inviterName: invite.createdBy.name,
-      googleEnabled: googleAuthEnabled && isAuthToggleEnabled("google"),
+      googleEnabled: googleAuthEnabled && (await isAuthToggleEnabled("google")),
     };
   }
 

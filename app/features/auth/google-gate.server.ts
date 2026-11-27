@@ -26,8 +26,9 @@ export function isGoogleProviderRequest(ctx: {
 }
 
 export const googleGate = createAuthMiddleware(async (ctx) => {
-  if (isAuthToggleEnabled(GOOGLE_PROVIDER_ID)) return;
+  // only Google requests pay for the lookup
   if (!isGoogleProviderRequest(ctx)) return;
+  if (await isAuthToggleEnabled(GOOGLE_PROVIDER_ID)) return;
 
   requestLogger.warn(
     {

@@ -80,7 +80,7 @@ export const action = async ({ request, context }: Route.ActionArgs) => {
     });
   }
 
-  if (!isAuthToggleEnabled("emailSignup")) {
+  if (!(await isAuthToggleEnabled("emailSignup"))) {
     logger.warn(
       { ip: getClientIPAddress(request) },
       "Blocked signup request while self-signup is disabled",

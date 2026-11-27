@@ -64,8 +64,8 @@ export async function anonymousAuthPageLoader({
   const user = await context.get(optionalUserContext)();
   if (user) throw redirect("/");
   return {
-    googleEnabled: googleAuthEnabled && isAuthToggleEnabled("google"),
-    emailSignupEnabled: isAuthToggleEnabled("emailSignup"),
+    googleEnabled: googleAuthEnabled && (await isAuthToggleEnabled("google")),
+    emailSignupEnabled: await isAuthToggleEnabled("emailSignup"),
   };
 }
 
