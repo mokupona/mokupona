@@ -89,6 +89,8 @@ async function postForData(
   const reply = result as unknown as {
     data: { messageResult?: { sent: string[]; failed: string[] } } & {
       messageError?: string;
+      everyoneResult?: { sent: string[]; failed: string[] };
+      everyoneError?: string;
     };
     init: ResponseInit | null;
   };
@@ -505,6 +507,247 @@ describe("writing to a signup from the signup sheet", () => {
       expect(sendTemplateMock).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("writing to everyone from the signup sheet", () => {
+  async function eventWithEveryone() {
+    const { event, signUp } = await createTestEvent(3);
+    // confirmed: Ada, Grace with an address, Alan without one
+    const ada = await signUp("ada@example.com", [
+      { name: "Grace", friend_email: "grace@example.com" },
+      "Alan",
+    ]);
+    // the waiting list
+    const emmy = await signUp("emmy@example.com");
+    // cancelled as a whole
+    const gone = await signUp("gone@example.com");
+    await updateSignupStatus({
+      eventId: event.id,
+      submissionId: gone.id,
+      status: "cancelled",
+    });
+    return { event, signUp, ada, emmy, gone };
+  }
+
+  function sentTo() {
+    return sendTemplateMock.mock.calls.map(([, to]) => to);
+  }
+
+  it("emails everyone still coming their own copy, and keeps it on their group's record", async () => {
+    const { event, ada, emmy, gone } = await eventWithEveryone();
+
+    const reply = await postForData(event.id, [
+      ["intent", "message-everyone"],
+      ["audience", "confirmed"],
+      ["audience", "waitlisted"],
+      ["subject", "Tomorrow at {event}"],
+      ["message", "Hi {name}, doors open at 7. {guests} of you, {total}."],
+    ]);
+
+    expect(reply.status).toBe(200);
+    expect(reply.everyoneResult).toEqual({
+      sent: ["ada", "Grace", "emmy"],
+      failed: [],
+    });
+    expect(sendTemplateMock.mock.calls).toEqual([
+      [
+        "signupMessage",
+        "ada@example.com",
+        {
+          subject: `Tomorrow at ${event.title}`,
+          message: "Hi ada, doors open at 7. 3 of you, 60 CHF.",
+          event: {
+            title: event.title,
+            url: `http://localhost:3000/events/${event.id}`,
+          },
+        },
+        {
+          from: "moku pona <noreply@mokupona.ch>",
+          replyTo: "contact@mokupona.ch",
+        },
+      ],
+      [
+        "signupMessage",
+        "grace@example.com",
+        expect.objectContaining({
+          message: "Hi Grace, doors open at 7. 3 of you, 60 CHF.",
+        }),
+        expect.anything(),
+      ],
+      [
+        "signupMessage",
+        "emmy@example.com",
+        expect.objectContaining({
+          message: "Hi emmy, doors open at 7. 1 of you, 20 CHF.",
+        }),
+        expect.anything(),
+      ],
+    ]);
+    expect(await mailsOf(ada.id)).toMatchObject([
+      {
+        kind: "custom",
+        recipient: "ada@example.com",
+        subject: `Tomorrow at ${event.title}`,
+        sentById: reply.moderator.id,
+      },
+      { kind: "custom", recipient: "grace@example.com" },
+    ]);
+    expect(await mailsOf(emmy.id)).toMatchObject([
+      { kind: "custom", recipient: "emmy@example.com" },
+    ]);
+    expect(await mailsOf(gone.id)).toEqual([]);
+  });
+
+  it("leaves out someone cancelled on their own, and counts the group without them", async () => {
+    const { event, ada } = await eventWithEveryone();
+    await post(event.id, {
+      intent: "cancel-guest",
+      submissionId: ada.id,
+      guest: "1",
+    });
+    sendTemplateMock.mockClear();
+
+    await postForData(event.id, [
+      ["intent", "message-everyone"],
+      ["audience", "confirmed"],
+      ["subject", "Tomorrow"],
+      ["message", "{guests} of you."],
+    ]);
+
+    expect(sentTo()).toEqual(["ada@example.com"]);
+    expect(sendTemplateMock.mock.calls[0][2]).toMatchObject({
+      message: "2 of you.",
+    });
+  });
+
+  it("writes only to the groups picked", async () => {
+    const { event } = await eventWithEveryone();
+
+    const reply = await postForData(event.id, [
+      ["intent", "message-everyone"],
+      ["audience", "waitlisted"],
+      ["subject", "Still hoping"],
+      ["message", "We'll know more soon."],
+    ]);
+
+    expect(reply.everyoneResult).toEqual({ sent: ["emmy"], failed: [] });
+    expect(sentTo()).toEqual(["emmy@example.com"]);
+  });
+
+  it("lists who the message would reach on the sheet", async () => {
+    const { event, ada, emmy } = await eventWithEveryone();
+
+    const sheet = await loader({
+      params: { eventId: event.id },
+    } as unknown as Parameters<typeof loader>[0]);
+
+    expect(sheet.everyone).toEqual([
+      expect.objectContaining({
+        submissionId: ada.id,
+        status: "confirmed",
+        name: "ada",
+        email: "ada@example.com",
+      }),
+      expect.objectContaining({
+        submissionId: ada.id,
+        name: "Grace",
+        email: "grace@example.com",
+      }),
+      expect.objectContaining({
+        submissionId: emmy.id,
+        status: "waitlisted",
+        email: "emmy@example.com",
+      }),
+    ]);
+  });
+
+  it("keeps going past a mail that fails, and says who it couldn't reach", async () => {
+    const { event, ada } = await eventWithEveryone();
+    sendTemplateMock.mockImplementation(async (_template, to) => {
+      if (to === "grace@example.com") throw new Error("Resend rejected it");
+    });
+
+    const reply = await postForData(event.id, [
+      ["intent", "message-everyone"],
+      ["audience", "confirmed"],
+      ["audience", "waitlisted"],
+      ["subject", "Tomorrow"],
+      ["message", "See you."],
+    ]);
+
+    expect(reply.everyoneResult).toEqual({
+      sent: ["ada", "emmy"],
+      failed: ["Grace"],
+    });
+    expect(
+      (await mailsOf(ada.id))
+        .filter((mail) => mail.kind === "custom")
+        .map((mail) => mail.recipient),
+    ).toEqual(["ada@example.com"]);
+  });
+
+  it.each([
+    [
+      [
+        ["subject", "Hi"],
+        ["message", "Hello"],
+      ],
+      /Pick who to write to/,
+    ],
+    [
+      [
+        ["audience", "cancelled"],
+        ["subject", "Hi"],
+        ["message", "Hello"],
+      ],
+      /Pick who to write to/,
+    ],
+    [
+      [
+        ["audience", "confirmed"],
+        ["subject", " "],
+        ["message", "Hello"],
+      ],
+      /subject/,
+    ],
+    [
+      [
+        ["audience", "confirmed"],
+        ["subject", "Hi"],
+        ["message", "Hello {nmae}"],
+      ],
+      /Unknown placeholder \{nmae\}/,
+    ],
+  ] as [[string, string][], RegExp][])(
+    "sends nothing for an incomplete message (%#)",
+    async (fields, error) => {
+      const { event } = await eventWithEveryone();
+      sendTemplateMock.mockClear();
+
+      const reply = await postForData(event.id, [
+        ["intent", "message-everyone"],
+        ...fields,
+      ]);
+
+      expect(reply.status).toBe(400);
+      expect(reply.everyoneError).toMatch(error);
+      expect(sendTemplateMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("says so when nobody picked can be written to", async () => {
+    const { event } = await createTestEvent(3);
+
+    const reply = await postForData(event.id, [
+      ["intent", "message-everyone"],
+      ["audience", "confirmed"],
+      ["subject", "Hi"],
+      ["message", "Hello"],
+    ]);
+
+    expect(reply.status).toBe(400);
+    expect(reply.everyoneError).toMatch(/Nobody/);
+  });
 });
 
 /** For the bookkeeping intents: what the action answered, and with what status. */

@@ -6,6 +6,11 @@ import {
 } from "./booking-summary";
 import { getSignupBookingsForEvent } from "./bookings.server";
 import type { SignupMailCopy, SignupMailKind } from "./confirmation-mail";
+import {
+  everyoneMailRecipients,
+  type EveryoneMailRecipient,
+  type EveryoneMailStatus,
+} from "./everyone-mail";
 import { isPaymentReminderDue } from "./payment-reminders";
 import {
   messageRecipients,
@@ -463,6 +468,102 @@ export async function sendPaymentReminders({
       submissionId: signup.submissionId,
       kind: "reminder",
       recipient: signup.signerEmail,
+      ...filled,
+      sentById,
+    });
+  }
+
+  return { sent, failed };
+}
+
+/**
+ * A message an admin wrote on the signup sheet for everyone still coming,
+ * say the last details before the dinner: each person in the groups of the
+ * statuses picked that we can write to gets a mail of their own
+ * (everyone-mail.ts), with the placeholders filled in for them and their
+ * group, {total} and {half} at what it pays after anyone set to pay half or
+ * nothing. Nobody cancelled gets one.
+ *
+ * The mails go out one at a time, so a long list stays inside the mail
+ * provider's rate limit, and one that fails doesn't stop the others. Each
+ * one that goes out is kept on its signup's record. Answers with the people
+ * reached, and those who weren't.
+ */
+export async function sendMessageToEveryone({
+  eventId,
+  statuses,
+  copy,
+  origin,
+  sentById,
+}: {
+  eventId: string;
+  statuses: readonly EveryoneMailStatus[];
+  /** Markdown, placeholders still in. */
+  copy: SignupMailCopy;
+  origin: string;
+  /** The admin who wrote it. */
+  sentById: string;
+}): Promise<{
+  sent: EveryoneMailRecipient[];
+  failed: EveryoneMailRecipient[];
+}> {
+  const event = await getEventById(eventId);
+  if (!event) throw new Error(`Event ${eventId} doesn't exist`);
+  const t = await getText();
+  const url = new URL(`/events/${event.id}`, origin).href;
+  const signups = await getSignupBookingsForEvent(
+    eventId,
+    bookingPrices(event),
+    t,
+  );
+  const signupsById = new Map(
+    signups.map((signup) => [signup.submissionId, signup]),
+  );
+
+  const sent: EveryoneMailRecipient[] = [];
+  const failed: EveryoneMailRecipient[] = [];
+
+  for (const recipient of everyoneMailRecipients(signups, statuses)) {
+    const signup = signupsById.get(recipient.submissionId);
+    if (!signup) continue;
+
+    // {guests} counts only the people still coming, as amountDue does
+    const cancelled = new Set(
+      signup.guestBookkeeping.flatMap((guest, guestIndex) =>
+        guest.cancelledAt ? [guestIndex] : [],
+      ),
+    );
+    const filled = fillSignupMailCopy(
+      copy,
+      signupMailValues(
+        {
+          name: recipient.name,
+          event,
+          booking: bookingWithout(signup.booking, cancelled),
+          total: signup.amountDue,
+        },
+        t,
+      ),
+    );
+
+    try {
+      await sendTemplate(
+        "signupMessage",
+        recipient.email,
+        { ...filled, event: { title: event.title, url } },
+        { from: eventSignupMailFrom(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
+      );
+    } catch {
+      // sendTemplate has logged why
+      failed.push(recipient);
+      continue;
+    }
+
+    sent.push(recipient);
+    await recordSentMail({
+      submissionId: recipient.submissionId,
+      kind: "custom",
+      recipient: recipient.email,
       ...filled,
       sentById,
     });

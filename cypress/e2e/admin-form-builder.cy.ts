@@ -103,7 +103,10 @@ describe("admin signup form builder", () => {
       acceptPrivacyAndJoin();
 
       cy.visitAndCheck(`/admin/events/${eventId}/signups`);
-      cy.findByText(signerName);
+      // in the signup list: the Email everyone card names them too
+      cy.findByRole("region", { name: /^confirmed/i }).within(() => {
+        cy.findByText(signerName);
+      });
 
       cy.request(`/admin/events/${eventId}/signups.csv`).then((response) => {
         expect(response.body).to.include("Favorite dish");
