@@ -11,7 +11,10 @@ export type ImageFolder =
   | "events"
   | "board-members"
   | "volunteers"
-  | "event-gallery";
+  | "event-gallery"
+  // pictures pasted into mail messages, which no table refers to: only the
+  // mails do, so nothing ever cleans them up
+  | "mail";
 
 function imageProviderName(env: NodeJS.ProcessEnv) {
   return env.IMAGE_PROVIDER ?? "local";

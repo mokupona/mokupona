@@ -544,6 +544,47 @@ describe("guest messages", () => {
     expect(body.text).toContain("you signed up for Winter table");
   });
 
+  it("shows an image pasted into the message, with its address in the text part", () => {
+    const image = "https://res.cloudinary.com/demo/image/upload/q_auto/v1/a";
+    const body = mailTemplates.signupMessage(
+      {
+        subject: "The menu",
+        message: `![](${image})\n\nHere's what we're cooking.\n\n![the menu card](${image})`,
+        event: { title: "Winter table", url: "https://mokupona.ch/events/1" },
+      },
+      defaultText,
+    );
+
+    expect(body.html).toContain(
+      `<img src="${image}" alt="" style="max-width: 100%; height: auto; border: 0;">`,
+    );
+    expect(body.html).toContain(`alt="the menu card"`);
+    expect(
+      body.text.startsWith(
+        `${image}\n\nHere's what we're cooking.\n\nthe menu card (${image})`,
+      ),
+    ).toBe(true);
+    // the inbox preview skips the picture for the first words
+    expect(body.html).toContain(
+      `<span style="display: none; max-height: 0; overflow: hidden;">Here&#39;s what we&#39;re cooking.</span>`,
+    );
+  });
+
+  it("leaves out an image sent before it finished uploading", () => {
+    const body = mailTemplates.signupMessage(
+      {
+        subject: "The menu",
+        message: "Here it is:\n\n![Uploading menu.png…]()",
+        event: { title: "Winter table", url: "https://mokupona.ch/events/1" },
+      },
+      defaultText,
+    );
+
+    expect(body.html).not.toContain("<img");
+    expect(body.html).not.toContain("Uploading");
+    expect(body.text).not.toContain("Uploading");
+  });
+
   it("renders the payment reminder with a button to the event", () => {
     const body = mailTemplates.paymentReminder(
       {

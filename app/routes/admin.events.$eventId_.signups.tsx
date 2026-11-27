@@ -31,6 +31,7 @@ import {
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
 import { isPastEvent } from "~/features/events/event-status";
+import { useMailImagePaste } from "~/features/mail/admin-image-paste";
 import { guestMailCopyTo } from "~/features/mail/mail.server";
 import {
   bookingPrices,
@@ -140,6 +141,7 @@ import {
 } from "~/models/event.server";
 import { getSignupMailState } from "~/models/signup-mail.server";
 import { getDomainUrl, requireFound } from "~/shared/http.server";
+import { MAIL_IMAGE_HINT } from "~/shared/markdown-hint";
 import { redirectWithToast, type ToastInput } from "~/utils/toast.server";
 
 interface Party {
@@ -1824,6 +1826,7 @@ function MessageEveryone({
   const fetcher = useFetcher<typeof action>();
   const formRef = useRef<HTMLFormElement>(null);
   const id = useId();
+  const imagePaste = useMailImagePaste();
   const busy = fetcher.state !== "idle";
   const reply = fetcher.state === "idle" ? fetcher.data : undefined;
   const result =
@@ -1956,16 +1959,19 @@ function MessageEveryone({
               required
               rows={8}
               maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+              {...imagePaste.handlers}
             />
+            {imagePaste.status}
             <p className="text-muted-foreground text-xs">
               Each person gets an email of their own, with a button to the event
               page under your message, and it&apos;s kept in their group&apos;s
               Emails column. Friends who gave no address of their own
               aren&apos;t emailed: the person who signed them up is. Markdown
-              works: [link text](https://…), **bold**, *italic*. Placeholders:{" "}
-              {signupMailPlaceholderList()}; {"{name}"} is each person&apos;s
-              own name, {"{guests}"}, {"{total}"} and {"{half}"} are for their
-              group. Replies go to {mail.replyTo}.
+              works: [link text](https://…), **bold**, *italic*.{" "}
+              {MAIL_IMAGE_HINT} Placeholders: {signupMailPlaceholderList()};{" "}
+              {"{name}"} is each person&apos;s own name, {"{guests}"},{" "}
+              {"{total}"} and {"{half}"} are for their group. Replies go to{" "}
+              {mail.replyTo}.
               {mail.copyTo
                 ? ` A copy of each email goes to ${mail.copyTo}.`
                 : null}
@@ -2064,6 +2070,7 @@ function PaymentReminder({
   const [open, setOpen] = useState(false);
   const fetcher = useFetcher<typeof action>();
   const id = useId();
+  const imagePaste = useMailImagePaste();
   const busy = fetcher.state !== "idle";
   const sending = busy && fetcher.formData?.get("intent") === "send-reminders";
   const reply = fetcher.state === "idle" ? fetcher.data : undefined;
@@ -2203,15 +2210,17 @@ function PaymentReminder({
                 required
                 rows={8}
                 maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+                {...imagePaste.handlers}
               />
+              {imagePaste.status}
               <p className="text-muted-foreground text-xs">
                 Each group gets one email, to the person who signed it up, with
                 a button to the event page under your message. Once it&apos;s
                 out, the group is ticked as reminded. Markdown works: [link
-                text](https://…), **bold**, *italic*. Placeholders:{" "}
-                {signupMailPlaceholderList()}; {"{total}"} and {"{half}"} are
-                what the group pays, after anyone set to pay half or nothing.
-                Replies go to {mail.replyTo}.
+                text](https://…), **bold**, *italic*. {MAIL_IMAGE_HINT}{" "}
+                Placeholders: {signupMailPlaceholderList()}; {"{total}"} and{" "}
+                {"{half}"} are what the group pays, after anyone set to pay half
+                or nothing. Replies go to {mail.replyTo}.
                 {mail.copyTo
                   ? ` A copy of each email goes to ${mail.copyTo}.`
                   : null}{" "}
@@ -4019,6 +4028,7 @@ function MessageForm({
   const fetcher = useFetcher<typeof action>();
   const formRef = useRef<HTMLFormElement>(null);
   const id = useId();
+  const imagePaste = useMailImagePaste();
   const busy = fetcher.state !== "idle";
   const reply = fetcher.state === "idle" ? fetcher.data : undefined;
   const result =
@@ -4084,13 +4094,15 @@ function MessageForm({
           required
           rows={6}
           maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+          {...imagePaste.handlers}
         />
+        {imagePaste.status}
         <p className="text-muted-foreground text-xs">
           Each person gets an email of their own, with a button to the event
           page under your message. Markdown works: [link text](https://…),
-          **bold**, *italic*. Placeholders: {signupMailPlaceholderList()};{" "}
-          {"{name}"} is each person&apos;s own name. Replies go to{" "}
-          {mail.replyTo}.
+          **bold**, *italic*. {MAIL_IMAGE_HINT} Placeholders:{" "}
+          {signupMailPlaceholderList()}; {"{name}"} is each person&apos;s own
+          name. Replies go to {mail.replyTo}.
           {mail.copyTo ? ` A copy of each email goes to ${mail.copyTo}.` : null}
         </p>
       </div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   escapeMarkdown,
   markdownToText,
+  renderMailMarkdown,
   renderMarkdown,
   renderOptionalMarkdown,
 } from "./markdown.server";
@@ -80,6 +81,47 @@ describe("renderMarkdown", () => {
   });
 });
 
+describe("renderMailMarkdown", () => {
+  const image = "https://res.cloudinary.com/demo/image/upload/q_auto/v1/a";
+
+  it("renders images, styled to fit the mail", () => {
+    expect(renderMailMarkdown(`Look:\n\n![the menu](${image})`)).toBe(
+      [
+        "<p>Look:</p>",
+        `<p><img src="${image}" alt="the menu" style="max-width: 100%; height: auto; border: 0;"></p>`,
+      ].join("\n"),
+    );
+  });
+
+  it("renders the rest of the Markdown as a page would", () => {
+    const source = "Book at [our site](https://mokupona.ch), **soon**.";
+    expect(renderMailMarkdown(source)).toBe(renderMarkdown(source));
+  });
+
+  it("escapes the description and drops the title", () => {
+    expect(
+      renderMailMarkdown(`![a "quote" <b> **bold**](${image} "title")`),
+    ).toBe(
+      `<p><img src="${image}" alt="a &quot;quote&quot; &lt;b&gt; bold" style="max-width: 100%; height: auto; border: 0;"></p>`,
+    );
+  });
+
+  it("leaves out images without a full web address", () => {
+    expect(renderMailMarkdown("Hi\n\n![Uploading image.png…]()")).toBe(
+      "<p>Hi</p>",
+    );
+    expect(renderMailMarkdown("![photo](/file/abc) there")).toBe(
+      "<p> there</p>",
+    );
+    expect(renderMailMarkdown("![x](javascript:alert(1))")).not.toContain(
+      "<img",
+    );
+    expect(renderMailMarkdown("![x](data:image/png;base64,AAA)")).not.toContain(
+      "<img",
+    );
+  });
+});
+
 describe("renderOptionalMarkdown", () => {
   it("is null for a missing or blank text", () => {
     expect(renderOptionalMarkdown(null)).toBeNull();
@@ -112,6 +154,16 @@ describe("markdownToText", () => {
         "Hi,\nthere.\n\n- one\n- two\n\n1. first\n2. second\n\nBye",
       ),
     ).toBe("Hi,\nthere.\n\n- one\n- two\n\n1. first\n2. second\n\nBye");
+  });
+
+  it("reads a mail's images as their description, and address with linkUrls", () => {
+    const image = "https://example.com/a.png";
+    const source = `Menu: ![the **card**](${image}) and ![](${image})\n\n![](/file/a)`;
+
+    expect(markdownToText(source, { images: true, linkUrls: true })).toBe(
+      `Menu: the card (${image}) and ${image}`,
+    );
+    expect(markdownToText(source, { images: true })).toBe("Menu: the card and");
   });
 
   it("turns escapes back into the characters", () => {

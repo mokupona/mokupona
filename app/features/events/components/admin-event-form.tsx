@@ -30,6 +30,7 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import { useMailImagePaste } from "~/features/mail/admin-image-paste";
 import {
   defaultSignupMailCopy,
   SIGNUP_MAIL_PLACEHOLDERS,
@@ -39,7 +40,7 @@ import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server"
 import { useText } from "~/features/site-text/site-text-context";
 import { cn } from "~/lib/utils";
 import type { ImageDisplaySource } from "~/shared/image";
-import { MARKDOWN_HINT } from "~/shared/markdown-hint";
+import { MAIL_MARKDOWN_HINT, MARKDOWN_HINT } from "~/shared/markdown-hint";
 
 type FieldsetOf<Schema extends z.ZodType> = {
   [K in keyof z.input<Schema>]-?: FieldMetadata<z.input<Schema>[K]>;
@@ -111,6 +112,7 @@ function SignupMailCopyFields({
 }) {
   const form = useFormMetadata();
   const isBlank = !subject.value && !message.value;
+  const imagePaste = useMailImagePaste();
 
   return (
     <fieldset className="flex flex-col gap-4 border-t pt-5 first:border-t-0 first:pt-0">
@@ -130,16 +132,20 @@ function SignupMailCopyFields({
         errors={subject.errors}
       />
 
-      <TextareaField
-        labelProps={{ children: "Message" }}
-        description={MARKDOWN_HINT}
-        textareaProps={{
-          ...getTextareaProps(message),
-          placeholder: defaults.message,
-          rows: 7,
-        }}
-        errors={message.errors}
-      />
+      <div className="flex flex-col gap-1">
+        <TextareaField
+          labelProps={{ children: "Message" }}
+          description={MAIL_MARKDOWN_HINT}
+          textareaProps={{
+            ...getTextareaProps(message),
+            ...imagePaste.handlers,
+            placeholder: defaults.message,
+            rows: 7,
+          }}
+          errors={message.errors}
+        />
+        {imagePaste.status}
+      </div>
 
       {isBlank ? (
         <div>
