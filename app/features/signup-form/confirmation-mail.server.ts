@@ -4,7 +4,10 @@ import {
   summarizeBooking,
   type BookingSummary,
 } from "./booking-summary";
-import { getSignupBookingsForEvent } from "./bookings.server";
+import {
+  getSignupBookingsForEvent,
+  type SignupBooking,
+} from "./bookings.server";
 import type { SignupMailCopy, SignupMailKind } from "./confirmation-mail";
 import {
   everyoneMailRecipients,
@@ -26,6 +29,7 @@ import {
   signupMailValues,
 } from "~/features/mail/templates";
 import { getText } from "~/features/site-text/site-text.server";
+import type { Text } from "~/features/site-text/text";
 import { requestLogger } from "~/logger/request-context.server";
 import { getSignupForMail } from "~/models/event-signup.server";
 import { getEventById, type Event } from "~/models/event.server";
@@ -239,7 +243,7 @@ async function sendFriendSignupMails({
  * given against, the answers, where the signer's mail goes, and the places
  * in the booking of anyone cancelled on their own.
  */
-async function readSignupForMail(submissionId: string) {
+export async function readSignupForMail(submissionId: string) {
   const signup = await getSignupForMail(submissionId);
   const event = signup?.formVersion.form.event;
   if (!signup || !event) {
@@ -377,6 +381,41 @@ export async function sendSignupMessage({
 }
 
 /**
+ * What a message's placeholders stand for in a mail to `name`, one of a
+ * group on the signup sheet: {guests} counts only the people still coming,
+ * and {total} and {half} are what the group pays after anyone set to pay
+ * half or nothing, as amountDue has it. The reminder, the message to
+ * everyone and their previews all fill them this way.
+ */
+export function groupMailValues(
+  {
+    name,
+    event,
+    signup,
+  }: {
+    name: string;
+    event: { title: string; date: Date };
+    signup: Pick<SignupBooking, "booking" | "guestBookkeeping" | "amountDue">;
+  },
+  t: Text,
+) {
+  const cancelled = new Set(
+    signup.guestBookkeeping.flatMap((guest, guestIndex) =>
+      guest.cancelledAt ? [guestIndex] : [],
+    ),
+  );
+  return signupMailValues(
+    {
+      name,
+      event,
+      booking: bookingWithout(signup.booking, cancelled),
+      total: signup.amountDue,
+    },
+    t,
+  );
+}
+
+/**
  * The payment reminder, sent from the signup sheet to the groups an admin
  * picked that are due one (payment-reminders.ts): a group picked on a stale
  * page that has paid or been reminded since is left out. It goes to the
@@ -425,23 +464,9 @@ export async function sendPaymentReminders({
     // someone else got there first
     if (!(await claimPaymentReminder(signup.submissionId))) continue;
 
-    // {guests} counts only the people still coming, as amountDue does
-    const cancelled = new Set(
-      signup.guestBookkeeping.flatMap((guest, guestIndex) =>
-        guest.cancelledAt ? [guestIndex] : [],
-      ),
-    );
     const filled = fillSignupMailCopy(
       copy,
-      signupMailValues(
-        {
-          name,
-          event,
-          booking: bookingWithout(signup.booking, cancelled),
-          total: signup.amountDue,
-        },
-        t,
-      ),
+      groupMailValues({ name, event, signup }, t),
     );
 
     try {
@@ -527,23 +552,9 @@ export async function sendMessageToEveryone({
     const signup = signupsById.get(recipient.submissionId);
     if (!signup) continue;
 
-    // {guests} counts only the people still coming, as amountDue does
-    const cancelled = new Set(
-      signup.guestBookkeeping.flatMap((guest, guestIndex) =>
-        guest.cancelledAt ? [guestIndex] : [],
-      ),
-    );
     const filled = fillSignupMailCopy(
       copy,
-      signupMailValues(
-        {
-          name: recipient.name,
-          event,
-          booking: bookingWithout(signup.booking, cancelled),
-          total: signup.amountDue,
-        },
-        t,
-      ),
+      groupMailValues({ name: recipient.name, event, signup }, t),
     );
 
     try {
