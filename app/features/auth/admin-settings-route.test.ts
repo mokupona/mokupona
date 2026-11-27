@@ -22,8 +22,9 @@ function switchToggle(toggle: string, enabled: boolean) {
   } as unknown as Parameters<typeof action>[0]);
 }
 
+// the settings page's loader takes nothing: it reads the stored switches
 function load() {
-  return loader({} as Parameters<typeof loader>[0]);
+  return loader();
 }
 
 describe("admin settings", () => {
