@@ -88,8 +88,11 @@ describe("event signup", () => {
         cy.loginAsRole("moderator");
 
         cy.visitAndCheck(`/admin/events/${eventId}/signups`);
-        cy.findByText(signerName)
-          .closest("tr")
+        // in the signup lists, not the Email everyone card, which names them
+        // too. The earlier tests may have taken the last seats, so the group
+        // can be on the waiting list.
+        cy.findAllByRole("region", { name: /^(confirmed|waiting list)/i })
+          .contains("tr", signerName)
           .within(() => {
             cy.findByText("2");
           });

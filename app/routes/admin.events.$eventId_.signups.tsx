@@ -56,11 +56,19 @@ import {
   type SignupMailKind,
 } from "~/features/signup-form/confirmation-mail";
 import {
+  sendMessageToEveryone,
   sendPaymentReminders,
   sendSignupMessage,
   sendStoredSignupMail,
   SIGNUP_MESSAGE_REPLY_TO,
 } from "~/features/signup-form/confirmation-mail.server";
+import {
+  EVERYONE_MAIL_STATUSES,
+  everyoneMailRecipients,
+  isEveryoneMailStatus,
+  type EveryoneMailRecipient,
+  type EveryoneMailStatus,
+} from "~/features/signup-form/everyone-mail";
 import {
   summarizeHeadcount,
   type HeadcountSummary,
@@ -369,6 +377,9 @@ export async function loader({ params }: Route.LoaderArgs) {
       })),
     ),
     mail: { copyTo: guestMailCopyTo(), replyTo: SIGNUP_MESSAGE_REPLY_TO },
+    // who a message to everyone would reach, confirmed and waiting alike;
+    // the sheet narrows it to the statuses picked
+    everyone: everyoneMailRecipients(bookings, EVERYONE_MAIL_STATUSES),
     reminder: {
       subject: event.paymentReminderMailSubject ?? reminderDefaults.subject,
       message: event.paymentReminderMailMessage ?? reminderDefaults.message,
@@ -773,6 +784,16 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     });
   }
 
+  if (intent === "message-everyone") {
+    return messageEveryoneAction({
+      eventId,
+      formData,
+      origin: getDomainUrl(request),
+      userId: user.id,
+      log,
+    });
+  }
+
   if (intent === "send-confirmation") {
     const submissionId = readSubmissionId(formData);
     const signup = await getSignupMailState({ eventId, submissionId });
@@ -956,6 +977,93 @@ export async function action({ params, request, context }: Route.ActionArgs) {
   }
 
   return redirectWithToast(page, statusToast(status, previous, mailFailed));
+}
+
+/**
+ * A message to everyone still coming in the groups of the statuses picked,
+ * each person their own mail. Nothing is saved but the mails that went out.
+ */
+async function messageEveryoneAction({
+  eventId,
+  formData,
+  origin,
+  userId,
+  log,
+}: {
+  eventId: string;
+  formData: FormData;
+  origin: string;
+  userId: string;
+  log: Logger;
+}) {
+  await getEventById(eventId).then(requireFound);
+
+  const statuses = [
+    ...new Set(formData.getAll("audience").filter(isEveryoneMailStatus)),
+  ];
+  if (statuses.length === 0) {
+    return data(
+      {
+        everyoneError:
+          "Pick who to write to: the confirmed seats, the waiting list, or both.",
+      },
+      { status: 400 },
+    );
+  }
+  const copy = readMailCopy(formData);
+  if ("error" in copy) {
+    return data({ everyoneError: copy.error }, { status: 400 });
+  }
+
+  let result: Awaited<ReturnType<typeof sendMessageToEveryone>>;
+  try {
+    result = await sendMessageToEveryone({
+      eventId,
+      statuses,
+      copy,
+      origin,
+      sentById: userId,
+    });
+  } catch (error) {
+    log.error(
+      { event: eventId, error },
+      "Failed to send a message to everyone signed up",
+    );
+    return data(
+      {
+        everyoneError: "The emails couldn't be sent. The error is in the logs.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (result.sent.length === 0 && result.failed.length === 0) {
+    return data(
+      {
+        everyoneError:
+          "Nobody in the groups you picked has an email address to write to.",
+      },
+      { status: 400 },
+    );
+  }
+
+  log.info(
+    {
+      userId,
+      event: eventId,
+      statuses,
+      sent: result.sent.length,
+      failed: result.failed.length,
+    },
+    "Admin wrote to everyone signed up",
+  );
+
+  return data({
+    everyoneResult: {
+      sent: result.sent.map((recipient) => recipient.name),
+      failed: result.failed.map((recipient) => recipient.name),
+    },
+  });
 }
 
 /**
@@ -1237,6 +1345,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
     headcount,
     mail,
     reminder,
+    everyone,
   } = loaderData;
   const waitingGroups = parties.filter(
     (party) => party.status === "waitlisted",
@@ -1313,6 +1422,8 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
       </div>
 
       <PaymentReminder reminder={reminder} mail={mail} />
+
+      <MessageEveryone recipients={everyone} mail={mail} />
 
       {overbookedBy > 0 ? (
         <Notice>
@@ -1684,6 +1795,241 @@ function TwintFeesForm({ fees }: { fees: TwintFees }) {
         each donation by TWINT counts as one payment. Cash costs nothing.
       </p>
     </fetcher.Form>
+  );
+}
+
+const EVERYONE_MAIL_AUDIENCE_LABELS: Record<EveryoneMailStatus, string> = {
+  confirmed: "Confirmed seats",
+  waitlisted: "Waiting list",
+};
+
+function peopleCount(count: number) {
+  return `${count} ${count === 1 ? "person" : "people"}`;
+}
+
+/**
+ * One message to everyone still coming, say the last details before the
+ * dinner: each person with an address in the confirmed groups, the waiting
+ * groups or both gets an email of their own. Cancelled groups and anyone
+ * cancelled on their own get nothing.
+ */
+function MessageEveryone({
+  recipients,
+  mail,
+}: {
+  recipients: EveryoneMailRecipient[];
+  mail: MailSettings;
+}) {
+  const [open, setOpen] = useState(false);
+  const fetcher = useFetcher<typeof action>();
+  const formRef = useRef<HTMLFormElement>(null);
+  const id = useId();
+  const busy = fetcher.state !== "idle";
+  const reply = fetcher.state === "idle" ? fetcher.data : undefined;
+  const result =
+    reply && "everyoneResult" in reply ? reply.everyoneResult : undefined;
+  const error = reply && "everyoneError" in reply ? reply.everyoneError : null;
+  const [audience, setAudience] = useState<ReadonlySet<EveryoneMailStatus>>(
+    new Set(EVERYONE_MAIL_STATUSES),
+  );
+  const picked = recipients.filter((recipient) =>
+    audience.has(recipient.status),
+  );
+  const countFor = (status: EveryoneMailStatus) =>
+    recipients.filter((recipient) => recipient.status === status).length;
+  const confirmed = countFor("confirmed");
+  const waiting = countFor("waitlisted");
+
+  // once every mail is out, the draft is done with: a second click can't
+  // send it again by accident
+  useEffect(() => {
+    if (result && result.failed.length === 0) {
+      formRef.current?.reset();
+      setOpen(false);
+    }
+  }, [result]);
+
+  return (
+    <section aria-labelledby="everyone-heading" className="mb-8">
+      <h2 id="everyone-heading" className="mb-3 text-lg font-semibold">
+        Email everyone
+      </h2>
+      <Card className="flex flex-col gap-4 p-4">
+        <p className="text-sm">
+          {recipients.length === 0 ? (
+            "Nobody to write to yet: no confirmed or waiting group has an email address."
+          ) : (
+            <>
+              One email to everyone still coming, say with the last details
+              before the dinner:{" "}
+              <span className="font-semibold">{peopleCount(confirmed)}</span>{" "}
+              with a confirmed seat
+              {waiting > 0 ? (
+                <>
+                  {" "}
+                  and{" "}
+                  <span className="font-semibold">
+                    {peopleCount(waiting)}
+                  </span>{" "}
+                  on the waiting list
+                </>
+              ) : null}
+              . Cancelled groups and anyone cancelled on their own get nothing.
+            </>
+          )}
+        </p>
+
+        {/* hidden rather than unmounted, so closing it keeps the draft */}
+        <fetcher.Form
+          ref={formRef}
+          method="post"
+          className={cn("flex flex-col gap-3", !open && "hidden")}
+        >
+          <fieldset className="flex flex-col gap-1">
+            <legend className="mb-1 text-sm font-semibold">Send to</legend>
+            {EVERYONE_MAIL_STATUSES.map((status) => (
+              <label
+                key={status}
+                className="inline-flex items-center gap-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  name="audience"
+                  value={status}
+                  checked={audience.has(status)}
+                  onChange={(event) => {
+                    const { checked } = event.currentTarget;
+                    setAudience((current) => {
+                      const next = new Set(current);
+                      if (checked) next.add(status);
+                      else next.delete(status);
+                      return next;
+                    });
+                  }}
+                  className="accent-primary size-4"
+                />
+                {EVERYONE_MAIL_AUDIENCE_LABELS[status]}
+                <span className="text-muted-foreground text-xs">
+                  {peopleCount(countFor(status))}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          {picked.length > 0 ? (
+            <details className="text-sm">
+              <summary className="text-primary cursor-pointer">
+                Who gets it ({peopleCount(picked.length)})
+              </summary>
+              <ul className="mt-2 flex flex-col gap-1">
+                {picked.map((recipient) => (
+                  <li key={recipient.email}>
+                    {recipient.name}{" "}
+                    <span className="text-muted-foreground">
+                      {recipient.email}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`${id}-subject`} className="text-sm font-semibold">
+              Subject
+            </label>
+            <Input
+              id={`${id}-subject`}
+              name="subject"
+              required
+              maxLength={MAX_SIGNUP_MAIL_SUBJECT_LENGTH}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`${id}-message`} className="text-sm font-semibold">
+              Message
+            </label>
+            <Textarea
+              id={`${id}-message`}
+              name="message"
+              required
+              rows={8}
+              maxLength={MAX_SIGNUP_MAIL_MESSAGE_LENGTH}
+            />
+            <p className="text-muted-foreground text-xs">
+              Each person gets an email of their own, with a button to the event
+              page under your message, and it&apos;s kept in their group&apos;s
+              Emails column. Friends who gave no address of their own
+              aren&apos;t emailed: the person who signed them up is. Markdown
+              works: [link text](https://…), **bold**, *italic*. Placeholders:{" "}
+              {signupMailPlaceholderList()}; {"{name}"} is each person&apos;s
+              own name, {"{guests}"}, {"{total}"} and {"{half}"} are for their
+              group. Replies go to {mail.replyTo}.
+              {mail.copyTo
+                ? ` A copy of each email goes to ${mail.copyTo}.`
+                : null}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="submit"
+              name="intent"
+              value="message-everyone"
+              size="sm"
+              disabled={busy || picked.length === 0}
+              onClick={(clickEvent) => {
+                const ok = window.confirm(
+                  `Send this email to ${peopleCount(picked.length)}?`,
+                );
+                if (!ok) clickEvent.preventDefault();
+              }}
+            >
+              {busy ? "Sending…" : `Send to ${peopleCount(picked.length)}`}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
+              Close
+            </Button>
+            {error ? (
+              <span role="alert" className="text-destructive-light text-sm">
+                {error}
+              </span>
+            ) : null}
+          </div>
+        </fetcher.Form>
+
+        {open ? null : (
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant={recipients.length > 0 ? "default" : "outline"}
+              disabled={recipients.length === 0}
+              onClick={() => setOpen(true)}
+            >
+              Write to everyone
+            </Button>
+          </div>
+        )}
+
+        {result ? (
+          <p role="status" className="text-sm">
+            {result.sent.length > 0
+              ? `Sent to ${peopleCount(result.sent.length)}.`
+              : null}
+            {result.failed.length > 0
+              ? ` Couldn't email ${listNames(result.failed)}; the error is in the logs. Sending again would write to everyone again, so reach ${result.failed.length === 1 ? "them" : "those"} from the Emails column.`
+              : null}
+          </p>
+        ) : null}
+      </Card>
+    </section>
   );
 }
 
