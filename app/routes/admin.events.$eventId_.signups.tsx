@@ -1,4 +1,10 @@
-import { CheckIcon, DownloadIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CheckIcon,
+  DownloadIcon,
+  LockIcon,
+  LockOpenIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import type { Logger } from "pino";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { data, Form, useFetcher, useNavigation } from "react-router";
@@ -24,6 +30,7 @@ import {
   userContext,
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
+import { isPastEvent } from "~/features/events/event-status";
 import { guestMailCopyTo } from "~/features/mail/mail.server";
 import {
   bookingPrices,
@@ -120,6 +127,7 @@ import {
 import {
   getEventById,
   setEventPaymentReminderCopy,
+  setEventSignupsClosed,
   setEventTwintFees,
 } from "~/models/event.server";
 import { getSignupMailState } from "~/models/signup-mail.server";
@@ -325,6 +333,10 @@ export async function loader({ params }: Route.LoaderArgs) {
     event: {
       title: event.title,
       slots: event.slots,
+      // null while the event page takes signups
+      signupsClosedAt: event.signupsClosedAt,
+      // a past event takes no signups anyway, so there's nothing to close
+      past: isPastEvent(event.date, new Date()),
     },
     seats: { ...seats, left: seatsLeft(event.slots, seats.confirmed) },
     parties,
@@ -697,6 +709,37 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     );
 
     return redirectWithToast(page, guestCancelToast(cancelled, result.status));
+  }
+
+  // the event page stops taking signups, waiting list included, or takes
+  // them again; nobody already signed up is touched
+  if (intent === "close-signups" || intent === "reopen-signups") {
+    requireFound(await getEventById(eventId));
+    const closed = intent === "close-signups";
+    await setEventSignupsClosed(eventId, closed);
+
+    log.info(
+      { userId: user.id, event: eventId, closed },
+      closed
+        ? "Admin closed the event's signups"
+        : "Admin reopened the event's signups",
+    );
+
+    return redirectWithToast(
+      page,
+      closed
+        ? {
+            type: "success",
+            title: "Signups closed",
+            description:
+              "The event page takes no new signups or waiting-list entries. Everyone already signed up keeps their place.",
+          }
+        : {
+            type: "success",
+            title: "Signups reopened",
+            description: "The event page takes signups again.",
+          },
+    );
   }
 
   if (intent === "twint-fees") {
@@ -1232,15 +1275,24 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         ].join(" · ")}
         title={event.title}
         actions={
-          <a
-            href="signups.csv"
-            className={buttonVariants({ variant: "outline" })}
-          >
-            <DownloadIcon className="size-4" />
-            Export CSV
-          </a>
+          <>
+            {event.past ? null : (
+              <SignupsToggle closed={event.signupsClosedAt !== null} />
+            )}
+            <a
+              href="signups.csv"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <DownloadIcon className="size-4" />
+              Export CSV
+            </a>
+          </>
         }
       />
+
+      {event.signupsClosedAt && !event.past ? (
+        <SignupsClosedNotice closedAt={event.signupsClosedAt} />
+      ) : null}
 
       <RevenueSummary revenue={revenue} money={money} />
 
@@ -1344,6 +1396,53 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         })}
       </div>
     </main>
+  );
+}
+
+const SIGNUPS_TOGGLE_INTENTS = ["close-signups", "reopen-signups"];
+
+/** Closes the event's signups on the event page, or opens them again. */
+function SignupsToggle({ closed }: { closed: boolean }) {
+  const navigation = useNavigation();
+  const intent = navigation.formData?.get("intent");
+  const busy =
+    navigation.state !== "idle" &&
+    typeof intent === "string" &&
+    SIGNUPS_TOGGLE_INTENTS.includes(intent);
+
+  return (
+    <Form method="post">
+      <Button
+        type="submit"
+        name="intent"
+        value={closed ? "reopen-signups" : "close-signups"}
+        variant="outline"
+        disabled={busy}
+      >
+        {closed ? (
+          <LockOpenIcon className="size-4" />
+        ) : (
+          <LockIcon className="size-4" />
+        )}
+        {closed ? "Reopen signups" : "Close signups"}
+      </Button>
+    </Form>
+  );
+}
+
+function SignupsClosedNotice({ closedAt }: { closedAt: Date }) {
+  const date = new Date(closedAt);
+
+  return (
+    <Notice>
+      <span className="font-semibold">Signups are closed</span> since{" "}
+      <time dateTime={date.toISOString()} suppressHydrationWarning>
+        {formatAdminTimestamp(date)}
+      </time>
+      . The event page takes no new signups, not even for the waiting list.
+      Everyone on this sheet keeps their place, and you can still confirm, move
+      and cancel groups here.
+    </Notice>
   );
 }
 

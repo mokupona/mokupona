@@ -16,6 +16,17 @@ describe("EventSeatsFact", () => {
     expect(screen.getByText("3 of 12 seats left")).toBeInTheDocument();
   });
 
+  it("says the signups are closed instead of the seats, full or not", () => {
+    const { rerender } = render(<EventSeatsFact slots={12} signupsClosed />);
+    expect(screen.getByText("signups closed")).toBeInTheDocument();
+
+    rerender(<EventSeatsFact slots={12} seatsLeft={0} signupsClosed />);
+    expect(screen.getByText("signups closed")).toBeInTheDocument();
+    expect(
+      screen.queryByText("fully booked · waiting list open"),
+    ).not.toBeInTheDocument();
+  });
+
   it("says a full event is fully booked, with or without the count", () => {
     const { rerender } = render(<EventSeatsFact slots={12} fullyBooked />);
     expect(

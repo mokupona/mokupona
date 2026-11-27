@@ -104,6 +104,11 @@ export const eventsTexts = defineTexts("events", {
     label: "Fully booked",
     default: "fully booked · waiting list open",
   },
+  "facts.signupsClosed": {
+    label: "Signups closed",
+    default: "signups closed",
+    hint: "Instead of the seats, once an admin closed the event's signups.",
+  },
   "facts.discounts": {
     label: "Discounts link",
     default: "discounts",

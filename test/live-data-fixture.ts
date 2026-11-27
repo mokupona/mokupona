@@ -131,6 +131,7 @@ export function liveDataFixture(
         date: new Date("2025-02-01T18:00:00.000Z"),
         slots: 12,
         showSeatsLeft: true,
+        signupsClosedAt: new Date("2025-01-25T09:00:00.000Z"),
         published: true,
         price: 30,
         studentDiscount: 10,

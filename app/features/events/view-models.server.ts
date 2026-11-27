@@ -30,6 +30,7 @@ function toEventSummaryModel(event: EventWithImage): EventSummaryModel {
     price: event.price,
     slots: event.slots,
     published: event.published,
+    signupsClosed: event.signupsClosedAt !== null,
   };
 }
 

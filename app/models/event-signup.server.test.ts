@@ -10,11 +10,12 @@ import {
   LastGuestError,
   setSignupGuestCancelled,
   SignupNotFoundError,
+  SignupsClosedError,
   updateSignupBookkeeping,
   updateSignupGuest,
   updateSignupStatus,
 } from "./event-signup.server";
-import { createEvent } from "./event.server";
+import { createEvent, setEventSignupsClosed } from "./event.server";
 import { FormVersionChangedError } from "./form-submission.server";
 import { getCurrentFormVersion } from "./form.server";
 
@@ -166,6 +167,28 @@ describe("createEventSignup", () => {
     await expect(signUp(testEvent)).rejects.toBeInstanceOf(
       FormVersionChangedError,
     );
+  });
+});
+
+describe("createEventSignup once the signups are closed", () => {
+  it("stores no signup, for a seat or the waiting list", async () => {
+    const testEvent = await createTestEvent(1);
+    await signUp(testEvent);
+    await setEventSignupsClosed(testEvent.event.id, true);
+
+    await expect(signUp(testEvent)).rejects.toBeInstanceOf(SignupsClosedError);
+    expect(await getSeatCounts(testEvent.event.id)).toEqual({
+      confirmed: 1,
+      waitlisted: 0,
+    });
+  });
+
+  it("takes signups again once reopened", async () => {
+    const testEvent = await createTestEvent(4);
+    await setEventSignupsClosed(testEvent.event.id, true);
+    await setEventSignupsClosed(testEvent.event.id, false);
+
+    expect(await signUp(testEvent)).toMatchObject({ status: "confirmed" });
   });
 });
 

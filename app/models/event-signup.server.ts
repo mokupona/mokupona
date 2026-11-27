@@ -28,6 +28,14 @@ export class DuplicateSignupError extends Error {
   }
 }
 
+/** An admin closed the event's signups: it takes no new ones. */
+export class SignupsClosedError extends Error {
+  constructor() {
+    super("The event's signups are closed");
+    this.name = "SignupsClosedError";
+  }
+}
+
 export class SignupNotFoundError extends Error {
   constructor() {
     super("No such signup for this event");
@@ -76,7 +84,7 @@ async function lockForSeatChanges(tx: Tx, eventId: string) {
 
   return tx.event.findUniqueOrThrow({
     where: { id: eventId },
-    select: { slots: true, formId: true },
+    select: { slots: true, formId: true, signupsClosedAt: true },
   });
 }
 
@@ -120,7 +128,8 @@ async function hasActiveSignup(
 /**
  * Stores a signup as confirmed when the whole party still fits, otherwise on
  * the waiting list. A smaller party that arrives later and fits is confirmed
- * even while a bigger one waits, so no seat stays empty.
+ * even while a bigger one waits, so no seat stays empty. Refused once an
+ * admin closed the signups, read under the lock so none slips in after.
  */
 export async function createEventSignup({
   eventId,
@@ -143,7 +152,11 @@ export async function createEventSignup({
   const normalizedEmail = normalizeSignupEmail(email);
 
   return prisma.$transaction(async (tx) => {
-    const { slots, formId } = await lockForSeatChanges(tx, eventId);
+    const { slots, formId, signupsClosedAt } = await lockForSeatChanges(
+      tx,
+      eventId,
+    );
+    if (signupsClosedAt) throw new SignupsClosedError();
 
     const version = await tx.formVersion.findUniqueOrThrow({
       where: { id: formVersionId },

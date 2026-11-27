@@ -39,6 +39,7 @@ export async function loader() {
       image: event.image,
       slots: event.slots,
       published: event.published,
+      signupsClosed: event.signupsClosedAt !== null,
       location: `${event.address.streetName} ${event.address.houseNumber}`,
       confirmed: seatCounts[event.id]?.confirmed ?? 0,
       waitlisted: seatCounts[event.id]?.waitlisted ?? 0,
@@ -188,6 +189,11 @@ function EventCard({ event }: { event: Event }) {
                 Draft
               </Badge>
             )}
+            {event.signupsClosed && !event.past ? (
+              <Badge variant="secondary" className="shrink-0">
+                Signups closed
+              </Badge>
+            ) : null}
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">{event.location}</p>
         </div>

@@ -195,6 +195,7 @@ export async function readLiveDataTables({
         date: true,
         slots: true,
         showSeatsLeft: true,
+        signupsClosedAt: true,
         published: true,
         price: true,
         studentDiscount: true,

@@ -125,6 +125,10 @@ model Event {
   // seats left"); off, it only shows the number of seats, and once the
   // event is full that it's fully booked
   showSeatsLeft       Boolean  @default(false)
+  // when an admin closed the signups from the signup sheet: the event page
+  // then takes no new signups, waiting list included, while everyone already
+  // signed up keeps their place. null while signups are open.
+  signupsClosedAt     DateTime?
   // a draft (false) is only visible in the admin area: the public pages,
   // the signup form and the gallery all leave it out
   published           Boolean  @default(true)

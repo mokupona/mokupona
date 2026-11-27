@@ -47,6 +47,7 @@ import {
   createEventSignup,
   DuplicateSignupError,
   getSeatCounts,
+  SignupsClosedError,
 } from "~/models/event-signup.server";
 import {
   getEventWithCurrentFormVersion,
@@ -80,13 +81,14 @@ export async function loader({ params }: Route.LoaderArgs) {
   );
 
   // the gallery and the volunteer credits belong to evenings that already
-  // happened; upcoming events pay nothing for them, and only they need the
-  // seat count
+  // happened; upcoming events pay nothing for them, and only those still
+  // taking signups need the seat count
   const isPast = isPastEvent(event.date, new Date());
+  const takesSignups = !isPast && event.signupsClosedAt === null;
   const [gallery, volunteers, seats] = await Promise.all([
     isPast ? loadEventGallerySection(event.id) : null,
     isPast ? listVolunteersForEvent(event.id) : [],
-    isPast ? null : getSeatCounts(event.id),
+    takesSignups ? getSeatCounts(event.id) : null,
   ]);
   // a snapshot for the page; the action decides again under a lock
   const left = seats ? seatsLeft(event.slots, seats.confirmed) : null;
@@ -123,6 +125,16 @@ function waitlistedToast(t: Text) {
   } as const;
 }
 
+// a form sent from a page loaded before an admin closed the signups; the
+// page it lands on says they're closed instead of showing the form
+function signupsClosedRedirect(eventId: string, t: Text) {
+  return redirectWithToast(`/events/${eventId}#sign-up`, {
+    title: t("signup.toast.closedTitle"),
+    description: t("signup.toast.closedBody"),
+    type: "error",
+  });
+}
+
 export async function action({ params, request, context }: Route.ActionArgs) {
   const { eventId } = params;
   const logger = context.get(requestLoggerContext);
@@ -133,6 +145,15 @@ export async function action({ params, request, context }: Route.ActionArgs) {
 
   if (isPastEvent(event.date, new Date())) {
     throw new Response("Forbidden", { status: 403 });
+  }
+
+  if (event.signupsClosedAt) {
+    logger.info(
+      { ip: getClientIPAddress(request), event: event.id },
+      "Rejected an event signup after the signups were closed",
+    );
+
+    return signupsClosedRedirect(event.id, await getText());
   }
 
   const formFields = parseStoredFormSchemaOrLog(version);
@@ -227,6 +248,15 @@ export async function action({ params, request, context }: Route.ActionArgs) {
       );
 
       return submission.reply({ formErrors: [t("signup.error.duplicate")] });
+    }
+
+    if (reason instanceof SignupsClosedError) {
+      logger.info(
+        { ip: getClientIPAddress(request), event: event.id, email },
+        "Event signup arrived just after the signups were closed",
+      );
+
+      return signupsClosedRedirect(event.id, t);
     }
 
     if (reason instanceof FormVersionChangedError) {
@@ -343,7 +373,10 @@ export default function EventPage({
   const t = useText();
 
   const eventIsPast = isPastEvent(new Date(event.date), new Date());
-  const signupFields = eventIsPast ? null : formFields;
+  const signupFields = eventIsPast || event.signupsClosed ? null : formFields;
+  // a closed event keeps its sidebar, with the facts and a word on why
+  // there's no form
+  const showsSidebar = !eventIsPast && (signupFields || event.signupsClosed);
   const gridClasses = cn(
     "grid items-start gap-8",
     !eventIsPast && "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]",
@@ -358,7 +391,7 @@ export default function EventPage({
       <div className={gridClasses}>
         <EventStory event={event} />
 
-        {signupFields ? (
+        {showsSidebar ? (
           // no fill — a single rule separates the sidebar from the story,
           // stacking above it on mobile and beside it from lg up
           <aside
@@ -378,16 +411,29 @@ export default function EventPage({
 
               <div aria-hidden className="bg-border h-px" />
 
-              <h2 className="text-xl font-light">{t("signup.heading")}</h2>
+              {signupFields ? (
+                <>
+                  <h2 className="text-xl font-light">{t("signup.heading")}</h2>
 
-              <SignupForm
-                key={JSON.stringify(signupFields)}
-                formFields={signupFields}
-                formVersionId={formVersionId}
-                seatsLeft={seatsLeft}
-                fullyBooked={fullyBooked}
-                lastResult={actionData}
-              />
+                  <SignupForm
+                    key={JSON.stringify(signupFields)}
+                    formFields={signupFields}
+                    formVersionId={formVersionId}
+                    seatsLeft={seatsLeft}
+                    fullyBooked={fullyBooked}
+                    lastResult={actionData}
+                  />
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-light">
+                    {t("signup.closed.heading")}
+                  </h2>
+                  <p className="text-foreground/80 text-sm leading-normal font-light whitespace-pre-line">
+                    {t("signup.closed.body")}
+                  </p>
+                </>
+              )}
             </div>
           </aside>
         ) : null}

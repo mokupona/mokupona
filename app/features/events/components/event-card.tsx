@@ -70,18 +70,28 @@ export function FeaturedEventCard({
           <div className="text-muted-foreground flex flex-wrap gap-4 border-y py-3 text-sm md:gap-6">
             <EventLocationFact addressLine={event.addressLine} />
             <EventPriceFact price={event.price} />
-            <EventSeatsFact slots={event.slots} />
+            <EventSeatsFact
+              slots={event.slots}
+              signupsClosed={event.signupsClosed}
+            />
           </div>
         ) : null}
 
         <div className="mt-1 flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
-          <Link
-            to={`/events/${event.id}#sign-up`}
-            className={buttonVariants({ variant: "paper" })}
+          {/* nothing to reserve once the signups are closed: the page is
+              still worth a read */}
+          {event.signupsClosed ? null : (
+            <Link
+              to={`/events/${event.id}#sign-up`}
+              className={buttonVariants({ variant: "paper" })}
+            >
+              {t("events.card.reserve")}
+            </Link>
+          )}
+          <SecondaryCTA
+            to={`/events/${event.id}`}
+            className={event.signupsClosed ? undefined : "max-md:hidden"}
           >
-            {t("events.card.reserve")}
-          </Link>
-          <SecondaryCTA to={`/events/${event.id}`} className="max-md:hidden">
             {t("events.card.readMore")}
           </SecondaryCTA>
         </div>

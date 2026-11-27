@@ -16,6 +16,8 @@ export interface EventSummaryModel {
   slots: number;
   /** false for a draft, which only the admin area shows. */
   published: boolean;
+  /** true once an admin closed the signups: the event takes no new ones. */
+  signupsClosed: boolean;
 }
 
 export interface EventCardModel extends EventSummaryModel {

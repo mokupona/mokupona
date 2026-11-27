@@ -141,6 +141,7 @@ export function EventFactList({
         slots={event.slots}
         seatsLeft={seatsLeft}
         fullyBooked={fullyBooked}
+        signupsClosed={event.signupsClosed}
       />
     </div>
   );
