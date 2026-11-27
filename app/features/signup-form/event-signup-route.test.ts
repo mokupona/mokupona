@@ -13,9 +13,10 @@ import {
 import { getHoneypotInputProps } from "~/features/forms/honeypot.server";
 import { sendTemplate } from "~/features/mail/mail.server";
 import { defaultText } from "~/features/site-text/text";
-import { createEvent } from "~/models/event.server";
+import { createEvent, setEventSignupsClosed } from "~/models/event.server";
 import { getCurrentFormVersion } from "~/models/form.server";
 import { action, loader } from "~/routes/events_.$eventId";
+import { getToast } from "~/utils/toast.server";
 
 vi.mock("~/features/mail/mail.server", () => ({ sendTemplate: vi.fn() }));
 const sendTemplateMock = vi.mocked(sendTemplate);
@@ -104,6 +105,41 @@ describe("event signup action", () => {
       submit(eventId, fromBrowser(answers(versionId))),
     ).rejects.toMatchObject({ status: 404 });
     expect(await storedFor(versionId)).toHaveLength(0);
+  });
+
+  it("stores nothing once the signups are closed, and says so on the event page", async () => {
+    const { eventId, versionId } = await createTestEvent();
+    await setEventSignupsClosed(eventId, true);
+
+    const response = (await submit(
+      eventId,
+      fromBrowser(answers(versionId)),
+    )) as Response;
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(`/events/${eventId}#sign-up`);
+    const { toast } = await getToast(
+      new Request("http://localhost:3000", {
+        headers: { cookie: response.headers.get("set-cookie") ?? "" },
+      }),
+    );
+    expect(toast).toMatchObject({
+      type: "error",
+      title: defaultText("signup.toast.closedTitle"),
+    });
+    expect(await storedFor(versionId)).toHaveLength(0);
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it("takes signups again once they're reopened", async () => {
+    const { eventId, versionId } = await createTestEvent();
+    await setEventSignupsClosed(eventId, true);
+    await setEventSignupsClosed(eventId, false);
+
+    expectSuccessRedirect(
+      await submit(eventId, fromBrowser(answers(versionId))),
+    );
+    expect(await storedFor(versionId)).toHaveLength(1);
   });
 
   it("stores a submission carrying a freshly minted stamp", async () => {
@@ -401,6 +437,20 @@ describe("event page loader", () => {
 
     expect(await load(eventId)).toMatchObject({
       seatsLeft: 11,
+      fullyBooked: false,
+    });
+  });
+
+  it("tells the page the signups are closed, without a seat count", async () => {
+    const { eventId } = await createTestEvent({
+      slots: 12,
+      showSeatsLeft: true,
+    });
+    await setEventSignupsClosed(eventId, true);
+
+    expect(await load(eventId)).toMatchObject({
+      event: { signupsClosed: true },
+      seatsLeft: null,
       fullyBooked: false,
     });
   });

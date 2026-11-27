@@ -12,6 +12,7 @@ const event = {
   date: new Date("2026-07-12T17:30:00.000Z"),
   slots: 12,
   showSeatsLeft: false,
+  signupsClosedAt: null,
   published: true,
   price: 30,
   studentDiscount: 10,
@@ -61,6 +62,7 @@ describe("event view-model mapping", () => {
       price: event.price,
       slots: event.slots,
       published: true,
+      signupsClosed: false,
       addressLine: "8003 zürich",
       galleryImageCount: 4,
     });
@@ -78,6 +80,16 @@ describe("event view-model mapping", () => {
       vegetarianDiscount: 5,
     });
     expect(detail).not.toHaveProperty("galleryImageCount");
+  });
+
+  it("tells both views once the signups are closed", () => {
+    const closed = {
+      ...event,
+      signupsClosedAt: new Date("2026-07-01T09:00:00.000Z"),
+    };
+
+    expect(toEventCardModel(closed).signupsClosed).toBe(true);
+    expect(toEventDetailModel(closed).signupsClosed).toBe(true);
   });
 
   it("renders the event texts from Markdown, and strips it for the card", () => {

@@ -353,6 +353,23 @@ describe("liveDataTablesSchema payment bookkeeping", () => {
     expect(parsed.events[0]).toMatchObject({ showSeatsLeft: false });
   });
 
+  it("carries when the event's signups were closed", () => {
+    const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
+
+    expect(parsed.events[0]).toMatchObject({
+      signupsClosedAt: new Date("2025-01-25T09:00:00.000Z"),
+    });
+  });
+
+  it("reads a live site that predates closing signups as events still open", () => {
+    const tables = overTheWire(liveDataFixture());
+    for (const event of tables.events) delete event.signupsClosedAt;
+
+    const parsed = liveDataTablesSchema.parse(tables);
+
+    expect(parsed.events[0]).toMatchObject({ signupsClosedAt: null });
+  });
+
   it("carries the recap across", () => {
     const parsed = liveDataTablesSchema.parse(overTheWire(liveDataFixture()));
 

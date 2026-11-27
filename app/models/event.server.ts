@@ -145,6 +145,20 @@ export async function setEventPublished(
 }
 
 /**
+ * Closes an event's signups, or opens them again. Closing an event that's
+ * already closed keeps the time it was first closed.
+ */
+export async function setEventSignupsClosed(
+  id: string,
+  closed: boolean,
+): Promise<void> {
+  await prisma.event.updateMany({
+    where: closed ? { id, signupsClosedAt: null } : { id },
+    data: { signupsClosedAt: closed ? new Date() : null },
+  });
+}
+
+/**
  * Lets the public pages treat a draft exactly like a missing event, so its
  * existence doesn't leak. The admin area reads drafts without this.
  */

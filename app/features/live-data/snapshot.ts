@@ -169,6 +169,8 @@ const eventRow = z
     // added later: a live site on older code has no such switch, so the
     // copy keeps the count to itself like any new event
     showSeatsLeft: z.boolean().default(false),
+    // added later still: a live site on older code never closes signups
+    signupsClosedAt: dateTime.nullable().default(null),
     // added after format version 1 shipped: a live site on older code has no
     // drafts, so every event it sends is public
     published: z.boolean().default(true),

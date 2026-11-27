@@ -1585,3 +1585,84 @@ describe("cancelling one person in a group", () => {
     );
   });
 });
+
+describe("closing an event's signups from the signup sheet", () => {
+  function loadSheet(eventId: string) {
+    return loader({ params: { eventId } } as unknown as Parameters<
+      typeof loader
+    >[0]);
+  }
+
+  async function closedAt(eventId: string) {
+    const event = await prisma.event.findUniqueOrThrow({
+      where: { id: eventId },
+    });
+    return event.signupsClosedAt;
+  }
+
+  it("closes the signups, leaving everyone signed up in their place", async () => {
+    const { event, signUp } = await createTestEvent(1);
+    await signUp("ada@example.com");
+    await signUp("grace@example.com");
+
+    const { response, toast } = await post(event.id, {
+      intent: "close-signups",
+    });
+
+    expect(response.status).toBe(302);
+    expect(toast).toMatchObject({ type: "success", title: "Signups closed" });
+    expect(await closedAt(event.id)).toBeInstanceOf(Date);
+    expect(await getSeatCounts(event.id)).toEqual({
+      confirmed: 1,
+      waitlisted: 1,
+    });
+    expect((await loadSheet(event.id)).event.signupsClosedAt).toBeInstanceOf(
+      Date,
+    );
+  });
+
+  it("keeps the time it was first closed when closed again", async () => {
+    const { event } = await createTestEvent(4);
+    await post(event.id, { intent: "close-signups" });
+    const first = await closedAt(event.id);
+
+    await post(event.id, { intent: "close-signups" });
+
+    expect(await closedAt(event.id)).toEqual(first);
+  });
+
+  it("reopens the signups", async () => {
+    const { event } = await createTestEvent(4);
+    await post(event.id, { intent: "close-signups" });
+
+    const { toast } = await post(event.id, { intent: "reopen-signups" });
+
+    expect(toast).toMatchObject({ type: "success", title: "Signups reopened" });
+    expect(await closedAt(event.id)).toBeNull();
+    expect((await loadSheet(event.id)).event.signupsClosedAt).toBeNull();
+  });
+
+  it("still lets an admin confirm a waiting group once closed", async () => {
+    const { event, signUp } = await createTestEvent(1);
+    await signUp("ada@example.com");
+    const waiting = await signUp("grace@example.com");
+    await post(event.id, { intent: "close-signups" });
+
+    const { toast } = await post(event.id, {
+      intent: "confirm",
+      submissionId: waiting.id,
+    });
+
+    expect(toast).toMatchObject({ title: "Seat confirmed" });
+    expect(await getSeatCounts(event.id)).toEqual({
+      confirmed: 2,
+      waitlisted: 0,
+    });
+  });
+
+  it("refuses to close the signups of an event that doesn't exist", async () => {
+    await expect(
+      callAction("no-such-event", { intent: "close-signups" }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});

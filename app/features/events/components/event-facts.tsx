@@ -78,6 +78,7 @@ export function EventSeatsFact({
   slots,
   seatsLeft = null,
   fullyBooked = false,
+  signupsClosed = false,
 }: {
   slots: number;
   /**
@@ -87,11 +88,15 @@ export function EventSeatsFact({
   seatsLeft?: number | null;
   /** Known even where the count isn't shown. */
   fullyBooked?: boolean;
+  /** Says so instead of the seats: a closed event has no waiting list either. */
+  signupsClosed?: boolean;
 }) {
   const t = useText();
   let label = t("events.facts.seats", { slots });
-  if (fullyBooked || seatsLeft === 0) label = t("events.facts.fullyBooked");
-  else if (seatsLeft !== null) {
+  if (signupsClosed) label = t("events.facts.signupsClosed");
+  else if (fullyBooked || seatsLeft === 0) {
+    label = t("events.facts.fullyBooked");
+  } else if (seatsLeft !== null) {
     label = t("events.facts.seatsLeft", { left: seatsLeft, slots });
   }
 

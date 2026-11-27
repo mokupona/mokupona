@@ -38,6 +38,18 @@ export const signupTexts = defineTexts("signup", {
       "this event is fully booked. we'll email you as soon as a seat is yours.",
   },
 
+  "closed.heading": {
+    label: "Signups closed: heading",
+    default: "signups are closed",
+    hint: "On the event page instead of the form, once an admin closed the event's signups.",
+  },
+  "closed.body": {
+    label: "Signups closed: text",
+    default:
+      "we're not taking any more signups for this event. if you've already signed up, your place is safe.",
+    kind: "paragraph",
+  },
+
   "list.upTo": {
     label: "Limit next to a list (e.g. friends)",
     default: "up to {count}",
@@ -114,6 +126,17 @@ export const signupTexts = defineTexts("signup", {
     label: "Pop-up after joining the waiting list: text",
     default:
       "There weren't enough seats left. We've emailed you the details and will let you know as soon as a seat is yours.",
+    kind: "paragraph",
+  },
+  "toast.closedTitle": {
+    label: "Pop-up when signups closed meanwhile: title",
+    default: "Signups are closed",
+    hint: "When a signup arrives after an admin closed the event's signups.",
+  },
+  "toast.closedBody": {
+    label: "Pop-up when signups closed meanwhile: text",
+    default:
+      "We stopped taking signups for this event before yours came in, so it wasn't saved.",
     kind: "paragraph",
   },
 });
