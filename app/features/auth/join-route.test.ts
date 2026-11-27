@@ -55,8 +55,8 @@ async function expectFakeSuccess(result: Awaited<ReturnType<typeof action>>) {
   expect(await getUserByEmail(SPAM_EMAIL)).toBeNull();
 }
 
-afterEach(() => {
-  resetAuthSettings();
+afterEach(async () => {
+  await resetAuthSettings();
 });
 
 function submit(body: Record<string, string>) {
@@ -85,7 +85,7 @@ function readReply(result: Awaited<ReturnType<typeof action>>) {
 
 describe("join action", () => {
   it("rejects a direct post with a 403 once email signup is closed", async () => {
-    setAuthToggleEnabled("emailSignup", false);
+    await setAuthToggleEnabled("emailSignup", false);
 
     expect(readReply(await submit(fromBrowser(VALID_SIGNUP)))).toEqual({
       status: 403,
@@ -101,7 +101,7 @@ describe("join action", () => {
   });
 
   it("keeps email signup open when only google is closed", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     expect(readReply(await submit(fromBrowser())).status).toBe(200);
   });
@@ -111,7 +111,7 @@ describe("join action", () => {
   });
 
   it("answers a filled spam trap identically once signup is closed", async () => {
-    setAuthToggleEnabled("emailSignup", false);
+    await setAuthToggleEnabled("emailSignup", false);
 
     // the trap is checked first, so a bot cannot probe the toggle either
     await expectFakeSuccess(await submit(fromBot()));

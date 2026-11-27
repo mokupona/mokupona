@@ -9,8 +9,8 @@ import {
 } from "./auth-settings.server";
 import { googleGate, isGoogleProviderRequest } from "./google-gate.server";
 
-afterEach(() => {
-  resetAuthSettings();
+afterEach(async () => {
+  await resetAuthSettings();
 });
 
 // What better-auth hands a `hooks.before` middleware: the route pattern as
@@ -91,7 +91,7 @@ describe("google gate", () => {
   });
 
   it("refuses a google sign-in with a 403 once google is disabled", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     const error = await refusal(
       hookContext({ path: "/sign-in/social", provider: "google" }),
@@ -102,7 +102,7 @@ describe("google gate", () => {
   });
 
   it("refuses account linking the same way", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     const error = await refusal(
       hookContext({ path: "/link-social", provider: "google" }),
@@ -113,7 +113,7 @@ describe("google gate", () => {
   });
 
   it("sends the oauth callback back to login instead of a json error", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     const error = (await refusal(
       hookContext({ path: "/callback/:id", id: "google" }),
@@ -126,7 +126,7 @@ describe("google gate", () => {
   });
 
   it("leaves a non-google provider alone while google is disabled", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     await expect(
       run(hookContext({ path: "/sign-in/social", provider: "github" })),
@@ -137,7 +137,7 @@ describe("google gate", () => {
   });
 
   it("leaves unrelated endpoints alone while google is disabled", async () => {
-    setAuthToggleEnabled("google", false);
+    await setAuthToggleEnabled("google", false);
 
     for (const path of ["/sign-in/email", "/sign-up/email", "/get-session"]) {
       await expect(run(hookContext({ path }))).resolves.toBeUndefined();

@@ -87,7 +87,7 @@ export const loader = async ({ request, context }: Route.LoaderArgs) => {
       role: { name: user.role.name },
     },
     ...authOverview,
-    googleEnabled: googleAuthEnabled && isAuthToggleEnabled("google"),
+    googleEnabled: googleAuthEnabled && (await isAuthToggleEnabled("google")),
   };
 };
 
