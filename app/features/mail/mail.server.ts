@@ -130,3 +130,28 @@ async function sendTeamCopy({
 
   requestLogger.info({ template, email: to }, "Sent the team a copy");
 }
+
+/**
+ * A mail an admin is still writing, sent to them alone to see how it lands
+ * in an inbox: marked as a test in the subject, with no copy for the team,
+ * and kept on no signup's record.
+ */
+export async function sendTestMail(
+  to: string,
+  body: MailBody,
+  { from, replyTo }: { from?: string; replyTo?: string } = {},
+): Promise<void> {
+  try {
+    await provider.send({
+      to,
+      ...(from && { from }),
+      ...(replyTo && { replyTo }),
+      ...body,
+      subject: `[Test] ${body.subject}`,
+    });
+  } catch (error) {
+    requestLogger.error({ email: to, error }, "Failed to send a test mail");
+    throw error;
+  }
+  requestLogger.info({ email: to }, "Sent a test mail");
+}

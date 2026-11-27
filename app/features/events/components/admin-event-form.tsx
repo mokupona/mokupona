@@ -31,10 +31,12 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { useMailImagePaste } from "~/features/mail/admin-image-paste";
+import { MailDraftTools } from "~/features/mail/admin-mail-draft-tools";
 import {
   defaultSignupMailCopy,
   SIGNUP_MAIL_PLACEHOLDERS,
   type SignupMailCopy,
+  type SignupMailKind,
 } from "~/features/signup-form/confirmation-mail";
 import type { AnswerCountsByFieldKey } from "~/features/signup-form/read.server";
 import { useText } from "~/features/site-text/site-text-context";
@@ -103,12 +105,14 @@ function SignupMailCopyFields({
   subject,
   message,
   defaults,
+  status,
 }: {
   legend: string;
   description: string;
   subject: AdminEventFormProps["fields"]["confirmedMailSubject"];
   message: AdminEventFormProps["fields"]["confirmedMailMessage"];
   defaults: SignupMailCopy;
+  status: SignupMailKind;
 }) {
   const form = useFormMetadata();
   const isBlank = !subject.value && !message.value;
@@ -146,6 +150,14 @@ function SignupMailCopyFields({
         />
         {imagePaste.status}
       </div>
+
+      <MailDraftTools
+        kind="signup"
+        status={status}
+        subjectName={subject.name}
+        messageName={message.name}
+        defaultOpen={false}
+      />
 
       {isBlank ? (
         <div>
@@ -189,6 +201,7 @@ function SignupMailFields({
         subject={fields.confirmedMailSubject}
         message={fields.confirmedMailMessage}
         defaults={defaults.confirmed}
+        status="confirmed"
       />
 
       <SignupMailCopyFields
@@ -197,6 +210,7 @@ function SignupMailFields({
         subject={fields.waitlistMailSubject}
         message={fields.waitlistMailMessage}
         defaults={defaults.waitlisted}
+        status="waitlisted"
       />
 
       <div className="flex flex-col gap-2 border-t pt-5 text-sm">

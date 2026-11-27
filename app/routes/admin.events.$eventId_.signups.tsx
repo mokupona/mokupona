@@ -32,6 +32,7 @@ import {
 import { formatAdminTimestamp } from "~/features/events/date-format";
 import { isPastEvent } from "~/features/events/event-status";
 import { useMailImagePaste } from "~/features/mail/admin-image-paste";
+import { MailDraftTools } from "~/features/mail/admin-mail-draft-tools";
 import { guestMailCopyTo } from "~/features/mail/mail.server";
 import {
   bookingPrices,
@@ -1978,6 +1979,8 @@ function MessageEveryone({
             </p>
           </div>
 
+          <MailDraftTools kind="everyone" />
+
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="submit"
@@ -2229,6 +2232,8 @@ function PaymentReminder({
                   : "This is the site-wide reminder text, from Texts → Emails; saving a change keeps it for this event only."}
               </p>
             </div>
+
+            <MailDraftTools kind="reminder" />
 
             <div className="flex flex-wrap items-center gap-3">
               <Button
@@ -4106,6 +4111,8 @@ function MessageForm({
           {mail.copyTo ? ` A copy of each email goes to ${mail.copyTo}.` : null}
         </p>
       </div>
+
+      <MailDraftTools kind="message" submissionId={party.submissionId} />
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={busy}>
