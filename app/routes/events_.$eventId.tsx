@@ -22,7 +22,7 @@ import {
   EventFactList,
   EventStory,
 } from "~/features/events/components/event-view";
-import { isPastEvent } from "~/features/events/event-status";
+import { isAfterEventDay, isPastEvent } from "~/features/events/event-status";
 import { toEventDetailModel } from "~/features/events/view-models.server";
 import { getViewForField, type FieldDescriptor } from "~/features/forms/fields";
 import { HoneypotField } from "~/features/forms/honeypot-field";
@@ -82,9 +82,11 @@ export async function loader({ params }: Route.LoaderArgs) {
 
   // the gallery and the volunteer credits belong to evenings that already
   // happened; upcoming events pay nothing for them, and only those still
-  // taking signups need the seat count
-  const isPast = isPastEvent(event.date, new Date());
-  const takesSignups = !isPast && event.signupsClosedAt === null;
+  // taking signups (through the end of the event's day) need the seat count
+  const now = new Date();
+  const isPast = isPastEvent(event.date, now);
+  const takesSignups =
+    !isAfterEventDay(event.date, now) && event.signupsClosedAt === null;
   const [gallery, volunteers, seats] = await Promise.all([
     isPast ? loadEventGallerySection(event.id) : null,
     isPast ? listVolunteersForEvent(event.id) : [],
@@ -143,7 +145,7 @@ export async function action({ params, request, context }: Route.ActionArgs) {
     await getEventWithCurrentFormVersion(eventId).then(publishedVersion),
   );
 
-  if (isPastEvent(event.date, new Date())) {
+  if (isAfterEventDay(event.date, new Date())) {
     throw new Response("Forbidden", { status: 403 });
   }
 
@@ -372,14 +374,17 @@ export default function EventPage({
   } = loaderData;
   const t = useText();
 
-  const eventIsPast = isPastEvent(new Date(event.date), new Date());
-  const signupFields = eventIsPast || event.signupsClosed ? null : formFields;
+  const now = new Date();
+  const eventIsPast = isPastEvent(new Date(event.date), now);
+  // the form stays up through the event's day, after the start too
+  const signupsOver = isAfterEventDay(new Date(event.date), now);
+  const signupFields = signupsOver || event.signupsClosed ? null : formFields;
   // a closed event keeps its sidebar, with the facts and a word on why
   // there's no form
-  const showsSidebar = !eventIsPast && (signupFields || event.signupsClosed);
+  const showsSidebar = !signupsOver && (signupFields || event.signupsClosed);
   const gridClasses = cn(
     "grid items-start gap-8",
-    !eventIsPast && "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]",
+    !signupsOver && "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]",
   );
 
   return (

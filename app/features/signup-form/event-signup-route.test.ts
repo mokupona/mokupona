@@ -142,6 +142,43 @@ describe("event signup action", () => {
     expect(await storedFor(versionId)).toHaveLength(1);
   });
 
+  describe("on and after the event's day", () => {
+    // 19:00 in Zürich
+    const start = new Date("2026-11-28T18:00:00.000Z");
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("still takes a signup that evening, after the start", async () => {
+      const { eventId, versionId } = await createTestEvent({ date: start });
+      // 22:30 in Zürich
+      vi.useFakeTimers({
+        toFake: ["Date"],
+        now: new Date(start.getTime() + 3.5 * 60 * 60 * 1000),
+      });
+
+      expectSuccessRedirect(
+        await submit(eventId, fromBrowser(answers(versionId))),
+      );
+      expect(await storedFor(versionId)).toHaveLength(1);
+    });
+
+    it("refuses one the next day and stores nothing", async () => {
+      const { eventId, versionId } = await createTestEvent({ date: start });
+      // 00:30 the next day in Zürich
+      vi.useFakeTimers({
+        toFake: ["Date"],
+        now: new Date("2026-11-28T23:30:00.000Z"),
+      });
+
+      await expect(
+        submit(eventId, fromBrowser(answers(versionId))),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(await storedFor(versionId)).toHaveLength(0);
+    });
+  });
+
   it("stores a submission carrying a freshly minted stamp", async () => {
     const { eventId, versionId } = await createTestEvent();
 
