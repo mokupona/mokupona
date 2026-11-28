@@ -30,7 +30,7 @@ import {
   userContext,
 } from "~/features/auth/middleware.server";
 import { formatAdminTimestamp } from "~/features/events/date-format";
-import { isPastEvent } from "~/features/events/event-status";
+import { isAfterEventDay } from "~/features/events/event-status";
 import { useMailImagePaste } from "~/features/mail/admin-image-paste";
 import { MailDraftTools } from "~/features/mail/admin-mail-draft-tools";
 import { guestMailCopyTo } from "~/features/mail/mail.server";
@@ -346,8 +346,9 @@ export async function loader({ params }: Route.LoaderArgs) {
       slots: event.slots,
       // null while the event page takes signups
       signupsClosedAt: event.signupsClosedAt,
-      // a past event takes no signups anyway, so there's nothing to close
-      past: isPastEvent(event.date, new Date()),
+      // the event page takes signups through the event's day; after that
+      // there's nothing left to close
+      signupsOver: isAfterEventDay(event.date, new Date()),
     },
     seats: { ...seats, left: seatsLeft(event.slots, seats.confirmed) },
     parties,
@@ -1388,7 +1389,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         title={event.title}
         actions={
           <>
-            {event.past ? null : (
+            {event.signupsOver ? null : (
               <SignupsToggle closed={event.signupsClosedAt !== null} />
             )}
             <a
@@ -1402,7 +1403,7 @@ export default function EventSignupsPage({ loaderData }: Route.ComponentProps) {
         }
       />
 
-      {event.signupsClosedAt && !event.past ? (
+      {event.signupsClosedAt && !event.signupsOver ? (
         <SignupsClosedNotice closedAt={event.signupsClosedAt} />
       ) : null}
 

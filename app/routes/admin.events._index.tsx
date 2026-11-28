@@ -18,6 +18,7 @@ import { buttonVariants } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { formatAdminDateLine } from "~/features/events/date-format";
 import {
+  isAfterEventDay,
   isPastEvent,
   orderEventsByStatus,
 } from "~/features/events/event-status";
@@ -72,6 +73,7 @@ export default function AdminEventsPage({ loaderData }: Route.ComponentProps) {
     .map((event) => ({
       ...event,
       past: isPastEvent(new Date(event.date), now),
+      signupsOver: isAfterEventDay(new Date(event.date), now),
     }))
     .filter((event) => {
       if (filter === "all") return true;
@@ -142,6 +144,7 @@ export default function AdminEventsPage({ loaderData }: Route.ComponentProps) {
 
 type Event = Awaited<ReturnType<typeof loader>>["events"][number] & {
   past: boolean;
+  signupsOver: boolean;
 };
 
 function EventCard({ event }: { event: Event }) {
@@ -189,7 +192,7 @@ function EventCard({ event }: { event: Event }) {
                 Draft
               </Badge>
             )}
-            {event.signupsClosed && !event.past ? (
+            {event.signupsClosed && !event.signupsOver ? (
               <Badge variant="secondary" className="shrink-0">
                 Signups closed
               </Badge>

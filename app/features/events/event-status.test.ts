@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { orderEventsByStatus, partitionEvents } from "./event-status";
+import {
+  isAfterEventDay,
+  orderEventsByStatus,
+  partitionEvents,
+} from "./event-status";
 
 const now = new Date("2026-07-12T12:00:00.000Z");
 
@@ -54,5 +58,51 @@ describe("event status ordering", () => {
       "first",
       "second",
     ]);
+  });
+});
+
+describe("the end of an event's day", () => {
+  // 19:00 in Zürich (UTC+1 in winter)
+  const event = new Date("2026-11-28T18:00:00.000Z");
+
+  it("hasn't come before the event starts, nor later that evening", () => {
+    expect(isAfterEventDay(event, new Date("2026-11-28T08:00:00.000Z"))).toBe(
+      false,
+    );
+    // 23:59 in Zürich, long after the start
+    expect(isAfterEventDay(event, new Date("2026-11-28T22:59:00.000Z"))).toBe(
+      false,
+    );
+  });
+
+  it("comes at midnight in Zürich, not in UTC", () => {
+    // 00:01 the next day in Zürich, still the 28th in UTC
+    expect(isAfterEventDay(event, new Date("2026-11-28T23:01:00.000Z"))).toBe(
+      true,
+    );
+  });
+
+  it("reads the event's own day in Zürich too", () => {
+    // 00:30 on the 29th in Zürich, still the 28th in UTC
+    const lateEvent = new Date("2026-11-28T23:30:00.000Z");
+
+    expect(
+      isAfterEventDay(lateEvent, new Date("2026-11-29T22:00:00.000Z")),
+    ).toBe(false);
+    expect(
+      isAfterEventDay(lateEvent, new Date("2026-11-29T23:00:00.000Z")),
+    ).toBe(true);
+  });
+
+  it("follows summer time", () => {
+    // 19:00 in Zürich (UTC+2 in summer)
+    const summerEvent = new Date("2026-07-12T17:00:00.000Z");
+
+    expect(
+      isAfterEventDay(summerEvent, new Date("2026-07-12T21:59:00.000Z")),
+    ).toBe(false);
+    expect(
+      isAfterEventDay(summerEvent, new Date("2026-07-12T22:00:00.000Z")),
+    ).toBe(true);
   });
 });
